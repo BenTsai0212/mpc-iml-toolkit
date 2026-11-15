@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-15
 - Related: ADR 0001 (technology choices and adoption method, to be written)
+- Amended: 2026-11-15, third Phase 1 gate added (#5)
 
 ## Summary
 
@@ -83,6 +84,9 @@ Gates:
 - Following the README, a person with an MPC Sample and a Mac gets the reference
   example running within one hour (verified by the author on a clean environment).
 - A new practice repository implements a new scenario (1 or 3) without modifying
+  toolkit code.
+- A practice repository swaps in a different IML backend (for example a model
+  served by Wekinator over OSC instead of the built-in one) without modifying
   toolkit code.
 
 ### Phase 2: Public release
