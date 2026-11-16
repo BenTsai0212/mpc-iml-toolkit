@@ -20,6 +20,7 @@ dependencies = [
 
 [project.entry-points."mpc_iml.presets"]
 demo = "mpc_iml.demo:PRESET"
+pressure = "mpc_iml.pressure:PRESET"
 
 [dependency-groups]
 dev = ["mypy", "pytest", "ruff"]

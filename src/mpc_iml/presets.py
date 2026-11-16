@@ -24,7 +24,7 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 
 from mpc_iml.examples import ExampleSet, FeatureFn, default_features
-from mpc_iml.loop import IMLLoop
+from mpc_iml.loop import IMLLoop, ValuesSender
 from mpc_iml.model import ModelFactory
 from mpc_iml.osc import DEFAULT_HOST, OUTPUTS_ADDRESS, OUTPUTS_PORT, OscSender
 
@@ -85,9 +85,9 @@ def scale_to_cc(value: float, low: float = 0.0, high: float = 1.0) -> int:
 class MidiCcOutput:
     """Model outputs sent as MIDI control changes, one controller per output value.
 
-    Declaration and scaling only: the sender that opens a virtual MIDI port comes
-    with the first preset that needs it (#65). `ranges` gives the input range of
-    each value (default 0-1 for all).
+    `ranges` gives the input range of each value (default 0-1 for all). The engine
+    sends them through `mpc_iml.midi_out.MidiCcSender`, on a virtual output port
+    called `port_name` (or an existing port chosen with `--midi-port`).
     """
 
     controllers: tuple[int, ...]
@@ -128,7 +128,11 @@ class Preset:
       are reserved for core messages (ADR 0004, `RESERVED_NAMES`).
     - `features`, `classes`: passed to `ExampleSet`.
     - `model_factory`: passed to `IMLLoop`; `None` means Wekinator is the model.
-    - `outputs`: where predictions go; `build_loop` sends to the first `OscOutput`.
+    - `targets`: for regression presets, the number of model outputs; the engine
+      rejects `/mpciml/targets` with another count and `/mpciml/class`. `None`
+      leaves the task to the examples.
+    - `outputs`: where predictions go. `build_loop` sends to the first `OscOutput`;
+      the engine sends to every declared output (`mpc_iml.engine`).
     - `patch`: the front-end patch as `"<package>:<path inside the package>"`.
     - `controls`: **provisional until ADR 0004 is accepted.** Maps a control name to
       a handler. The engine (`mpc_iml.engine`) calls the handler of `<control>` with
@@ -142,6 +146,7 @@ class Preset:
     features: FeatureFn = default_features
     model_factory: ModelFactory | None = None
     classes: Mapping[str, int] | None = None
+    targets: int | None = None
     outputs: tuple[Output, ...] = (OscOutput(),)
     controls: Mapping[str, ControlHandler] = field(default_factory=dict)
     patch: str | None = None
@@ -153,6 +158,19 @@ class Preset:
             )
         if self.name in RESERVED_NAMES:
             raise PresetError(f"preset name {self.name!r} is reserved for core messages (ADR 0004)")
+        if self.targets is not None and self.targets < 1:
+            raise PresetError(f"targets must be at least 1: {self.targets}")
+        if self.targets is not None and self.classes is not None:
+            raise PresetError("a preset has either classes or targets, not both")
+        for output in self.outputs:
+            if (
+                isinstance(output, MidiCcOutput)
+                and self.targets is not None
+                and len(output.controllers) != self.targets
+            ):
+                raise PresetError(
+                    f"{len(output.controllers)} MIDI controllers for {self.targets} targets"
+                )
         if self.patch is not None and ":" not in self.patch:
             raise PresetError(f"patch must be '<package>:<path>': {self.patch!r}")
 
@@ -164,7 +182,7 @@ class Preset:
         self,
         examples: ExampleSet | None = None,
         inputs: OscSender | None = None,
-        outputs: OscSender | None = None,
+        outputs: ValuesSender | None = None,
     ) -> IMLLoop:
         """An `IMLLoop` for this preset (not trained yet).
 

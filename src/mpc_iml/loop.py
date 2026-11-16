@@ -25,7 +25,8 @@ as a recording's events or `ReplaySource(realtime=False)`, run as fast as frames
 be computed, without sleeping.
 """
 
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import Protocol
 
 from mpc_iml.events import Event
 from mpc_iml.examples import ExampleSet
@@ -33,6 +34,32 @@ from mpc_iml.frames import DEFAULT_RATE, Frame, frames, realtime_frames
 from mpc_iml.model import Model, ModelFactory
 from mpc_iml.osc import OscSender
 from mpc_iml.sources import ClockedSource
+
+
+class ValuesSender(Protocol):
+    """Where predictions go: anything with `send(values)` and `close()`.
+
+    `OscSender` fits, as do `mpc_iml.midi_out.MidiCcSender` and `FanOut`.
+    """
+
+    def send(self, values: Sequence[float]) -> None: ...
+
+    def close(self) -> None: ...
+
+
+class FanOut:
+    """Sends each prediction to several senders in order; closes them all."""
+
+    def __init__(self, senders: Iterable[ValuesSender]) -> None:
+        self.senders = list(senders)
+
+    def send(self, values: Sequence[float]) -> None:
+        for sender in self.senders:
+            sender.send(values)
+
+    def close(self) -> None:
+        for sender in self.senders:
+            sender.close()
 
 
 class BackendOffError(RuntimeError):
@@ -52,7 +79,7 @@ class IMLLoop:
         model_factory: ModelFactory | None,
         examples: ExampleSet | None = None,
         inputs: OscSender | None = None,
-        outputs: OscSender | None = None,
+        outputs: ValuesSender | None = None,
         rate: float = DEFAULT_RATE,
     ) -> None:
         if rate <= 0:

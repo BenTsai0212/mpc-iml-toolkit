@@ -12,10 +12,9 @@ from mpc_iml.demo import (
     guided_record,
     main,
     make_server,
-    played_features,
 )
 from mpc_iml.events import ExampleEnd, ExampleStart, MidiEvent
-from mpc_iml.examples import ExampleSet
+from mpc_iml.examples import ExampleSet, played_features
 from mpc_iml.frames import Frame
 from mpc_iml.recording import read_recording
 from mpc_iml.sources import LiveSource
