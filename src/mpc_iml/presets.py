@@ -30,6 +30,7 @@ from mpc_iml.osc import DEFAULT_HOST, OUTPUTS_ADDRESS, OUTPUTS_PORT, OscSender
 
 __all__ = [
     "PRESET_GROUP",
+    "RESERVED_NAMES",
     "ControlHandler",
     "MidiCcOutput",
     "OscOutput",
@@ -45,6 +46,11 @@ PRESET_GROUP = "mpc_iml.presets"
 """The entry point group presets are registered in."""
 
 _NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+
+# ADR 0004: `/mpciml/preset/list` and `/mpciml/preset/load` are core messages, so a
+# preset cannot be named `list` or `load`.
+RESERVED_NAMES = frozenset({"list", "load"})
+"""Preset names reserved for core messages (ADR 0004)."""
 
 ControlHandler = Callable[[Sequence[float | int | str]], None]
 """Provisional (ADR 0004): handles the arguments of one preset control message."""
@@ -118,7 +124,8 @@ Output = OscOutput | MidiCcOutput
 class Preset:
     """A named bundle of features, model and outputs, loaded as a plugin.
 
-    - `name`: unique key, lower case letters, digits and hyphens.
+    - `name`: unique key, lower case letters, digits and hyphens; `list` and `load`
+      are reserved for core messages (ADR 0004, `RESERVED_NAMES`).
     - `features`, `classes`: passed to `ExampleSet`.
     - `model_factory`: passed to `IMLLoop`; `None` means Wekinator is the model.
     - `outputs`: where predictions go; `build_loop` sends to the first `OscOutput`.
@@ -144,6 +151,8 @@ class Preset:
             raise PresetError(
                 f"preset name must be lower case letters, digits and hyphens: {self.name!r}"
             )
+        if self.name in RESERVED_NAMES:
+            raise PresetError(f"preset name {self.name!r} is reserved for core messages (ADR 0004)")
         if self.patch is not None and ":" not in self.patch:
             raise PresetError(f"patch must be '<package>:<path>': {self.patch!r}")
 

@@ -178,7 +178,8 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
    `model_factory` 就是 `IMLLoop` 的參數（`None`：由 Wekinator 當模型）。`OscOutput` 預設為
    `127.0.0.1:12000` 的 `/wek/outputs`。`MidiCcOutput` 為每個輸出值宣告一個 CC 編號，並把
    `ranges`（預設 0-1）縮放到 0-127；目前只有宣告與縮放，MIDI 送出端在 #65 實作。`patch`
-   是套件內的前端 patch，寫成 `<package>:<path>`。
+   是套件內的前端 patch，寫成 `<package>:<path>`。`name` 只能用小寫字母、數字與連字號；
+   `list` 與 `load` 保留給核心訊息（ADR 0004），使用時丟出 `PresetError`。
 
 2. 在自己套件的 `pyproject.toml` 登記；entry point 也可以指向回傳 `Preset` 的函式：
 

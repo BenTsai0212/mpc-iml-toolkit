@@ -160,6 +160,12 @@ def test_invalid_names(name: str) -> None:
         Preset(name, "1")
 
 
+@pytest.mark.parametrize("name", ["list", "load"])
+def test_reserved_names(name: str) -> None:
+    with pytest.raises(PresetError, match=f"preset name '{name}' is reserved"):
+        Preset(name, "1")
+
+
 def test_patch_needs_a_package() -> None:
     with pytest.raises(PresetError, match="<package>:<path>"):
         Preset("x", "1", patch="patch.pd")

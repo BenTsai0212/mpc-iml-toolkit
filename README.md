@@ -201,7 +201,8 @@ adds a preset without changing the toolkit:
    declares one CC number per output value, scaled from `ranges` (default 0-1) to
    0-127; only the declaration and the scaling exist so far, the MIDI sender comes
    with #65. `patch` is the front-end patch inside your package, as
-   `<package>:<path>`.
+   `<package>:<path>`. `name` is lower case letters, digits and hyphens; `list` and
+   `load` are reserved for core messages (ADR 0004) and raise `PresetError`.
 
 2. Register it in your package's `pyproject.toml`; the entry point may also name a
    function that returns a `Preset`:
