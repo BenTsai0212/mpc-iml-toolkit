@@ -37,9 +37,14 @@ Phase 1 (Foundation), early. So far the toolkit has:
   ```
 
   Without `--duration` it records until Ctrl-C.
+- training examples from the `example_start` / `example_end` segments of
+  recordings, with stable class numbers (`mpc_iml.examples`);
+- a model extension point (`mpc_iml.model.Model`: `fit` and `predict`) and
+  built-in scikit-learn models, a 1-nearest-neighbour classifier and an MLP
+  regressor (`mpc_iml.sklearn_backend`).
 
-Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). Models are
-not implemented yet, and the package is not published. Interfaces
+Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The run loop
+is not implemented yet, and the package is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
 
 ## Development
