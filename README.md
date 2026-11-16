@@ -216,6 +216,12 @@ The workflow documents under [`docs/workflow/`](docs/workflow/), and `AGENTS.md`
 itself, are written in Traditional Chinese; Issues, pull requests and commits are in
 English.
 
+## Citing
+
+If you use the toolkit in research, please cite it. The citation metadata is in
+[CITATION.cff](CITATION.cff); GitHub shows it as "Cite this repository" on the
+repository page. A version number and release date are added at the first release.
+
 ## Licence
 
 [MIT](LICENSE). Optional extensions such as RAVE and nn~ have their own licences
