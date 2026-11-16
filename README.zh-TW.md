@@ -148,9 +148,18 @@ uv run python -m mpc_iml.demo run tests/data/demo_examples.jsonl --replay tests/
 `python -m mpc_iml.record` 錄的檔案。找不到 MPC 時，指令會列出看得到的 MIDI 輸入埠；
 `--port` 可用名稱的一部分選擇其他埠。
 
-範例使用自己的特徵（`played_features`，32 個值：每個 pad 按住時的 velocity 與
-pressure），而不是預設的 49 個值，因為預設值在放開 pad 後仍保留最後的 velocity。範例不送
-`/wek/inputs`。
+範例使用特徵集 `mpc_iml.examples.played_features`（32 個值：每個 pad 按住時的
+velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值，因為預設值在放開 pad 後仍保留
+最後的 velocity。範例不送 `/wek/inputs`。
+
+### 演奏用的特徵集
+
+預設特徵（`mpc_iml.examples.default_features`）是 ADR 0002 的 49 個 `/wek/inputs` 值。
+它們在 `Note Off` 後仍保留 pad 最後的 velocity，所以剛演奏完的「休息」frame 看起來像最後
+一次敲擊，以它訓練的模型可能回答最後的聲音而不是休息。要在演奏中即時反應的模型，請使用
+`played_features`：放開的 pad 為 0，所以剛演奏完的休息就是休息。在接受特徵的地方傳入，
+例如 `ExampleSet(features=played_features)` 或 preset 的 `features=`。preset `demo` 與
+`pressure` 都使用它；49 個 `/wek/inputs` 值不變。
 
 ## 執行 engine
 
@@ -180,6 +189,71 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 訊息都會得到回覆、狀態回報或 `/mpciml/error`。按 Ctrl-C 停止 engine：關閉輸入與 socket，
 進行中的訓練會先完成。
 
+## 演奏 preset pressure
+
+內建的 preset `pressure`（`src/mpc_iml/pressure.py`，[RFC 0002](docs/rfcs/0002-platform-positioning.md)
+的情境 1）把 pad 的 pressure 與 velocity 同時對應到 8 個合成參數。示範幾個手勢，每個手勢附上
+應該產生的 8 個值，模型就學會其間的對應（一對多迴歸，內建的 MLP）。它使用
+`played_features`。執行中會送出：
+
+- 8 個 float 的 `/wek/outputs` 到 `127.0.0.1:12000`，給 Pure Data 或任何 OSC 接收端（不縮放：
+  通常是 0-1，偶爾稍微超出）；
+- channel 1 的 MIDI control change 20-27（輸出 1 是 CC 20，輸出 8 是 CC 27），從 0-1 縮放到
+  0-127，送到名為 `mpc-iml` 的虛擬 MIDI port，給 DAW 的合成器。CC 只在值改變時送出，
+  `running` 以外不送。
+
+需要[參考範例](#參考範例)的準備（第 1～3 步），以及前端用的
+[Pure Data](https://puredata.info)（vanilla 0.54 或更新版本）。
+
+1. 以這個 preset 啟動 engine，視窗保持開啟：
+
+   ```bash
+   uv run python -m mpc_iml.engine my-data --preset pressure
+   ```
+
+   在 macOS 上，`mpc-iml` 這個 port 會出現在每個 MIDI app 的輸入中。若要改用 IAC bus，
+   在 Audio MIDI Setup（音訊 MIDI 設定）開啟它（Window > Show MIDI Studio，按兩下 IAC Driver，
+   勾選 Device is online），
+   並加上 `--midi-port IAC`。MIDI port 無法開啟時，engine 會說明原因並繼續送 OSC。
+
+2. 在 Pure Data 開啟前端 `src/mpc_iml/patches/pressure.pd`。它會向 engine 送 `hello` 並載入
+   preset；狀態欄顯示 `idle`，Pd 視窗印出每個回覆（`mpc-iml: …`）。若在 patch 之後才啟動
+   engine，再按一次 `hello`。
+
+3. 錄幾個範例。每個範例：把左邊 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的聲音，在 pad 上
+   保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按 `stop_recording`。
+   先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，各自設定目標值。
+   多個 pad 與其他力道的做法相同。
+
+4. 按 `train`。狀態變成 `training` 再回到 `idle`，`trained` 顯示 1。按 `run` 並演奏：右邊
+   的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。`save` 與 `load`
+   把範例存在 `my-data/pressure-examples.jsonl`。
+
+patch 在 12000 埠接收 `/wek/outputs` 來顯示，而一個埠只能由一個程式接收。若要以 OSC 驅動
+Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該埠（patch 的輸出滑桿此時
+不動），或關閉這個 patch，改從自己的 patch 送控制訊息。
+
+### 在 DAW 對應 MIDI CC
+
+在 DAW 的 MIDI 設定中開啟輸入 `mpc-iml`（或 IAC bus），再把 channel 1 的 CC 20-27 對應到
+合成器參數：
+
+- **Ableton Live**：在 Settings > Link, Tempo & MIDI 為輸入 `mpc-iml` 開啟 **Remote**。進入
+  MIDI Map Mode（Cmd-M），點選參數，送出它的 CC，再離開 MIDI Map Mode。
+- **Logic Pro**：選取參數，選擇 Logic Pro > Control Surfaces > Learn Assignment for
+  "<參數>"（Cmd-L），送出它的 CC，再關閉 Learn。
+- 可以直接輸入 CC 編號的 DAW：直接輸入 20-27。
+
+模型執行時 8 個 CC 會一起變化，MIDI learn 可能抓到錯的 CC。請一次學一個 CC：用兩個只在
+要對應的輸出上不同的範例訓練一個臨時模型（例如全部為 0 的休息，以及只有 `t3` 為 1 的
+pad 1，對應 CC 22），執行後按 pad 1、完成對應，再換下一個。之後載入或重錄真正的範例並重新
+訓練；對應會保留。
+
+已知限制：輕輕按住 pad 時，MPC Sample（firmware 1.3.0）會在 pressure 降到最低時送出
+`Note Off`，70-273 ms 後再送出新的 `Note On`。使用 `played_features` 時，這段期間 pad
+算是放開，所以非常輕的按住會讓輸出短暫下降。請按得稍重一點；若演奏時確實有影響，之後再加入
+平滑處理。
+
 ## 撰寫 preset
 
 preset 把特徵函式、模型、選用的固定類別編號與輸出對應包成一個有名稱的單位，以 plugin
@@ -205,7 +279,8 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
    `features` 與 `classes` 就是 `ExampleSet(features=..., classes=...)` 的參數，
    `model_factory` 就是 `IMLLoop` 的參數（`None`：由 Wekinator 當模型）。`OscOutput` 預設為
    `127.0.0.1:12000` 的 `/wek/outputs`。`MidiCcOutput` 為每個輸出值宣告一個 CC 編號，並把
-   `ranges`（預設 0-1）縮放到 0-127；目前只有宣告與縮放，MIDI 送出端在 #65 實作。`patch`
+   `ranges`（預設 0-1）縮放到 0-127；engine 在 `running` 時送出（`mpc_iml.midi_out`，
+   見[演奏 preset pressure](#演奏-preset-pressure)）。`patch`
    是套件內的前端 patch，寫成 `<package>:<path>`。`name` 只能用小寫字母、數字與連字號；
    `list` 與 `load` 保留給核心訊息（ADR 0004），使用時丟出 `PresetError`。
 

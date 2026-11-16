@@ -168,9 +168,20 @@ your own recording from `python -m mpc_iml.record`. If the MPC is not found, the
 command lists the MIDI input ports it sees; `--port` picks another port by part of
 its name.
 
-The demo uses its own features (`played_features`, 32 values: per pad, velocity
-while held and pressure) rather than the default 49, which keep a pad's last
-velocity after it is released. It does not send `/wek/inputs`.
+The demo uses the feature set `mpc_iml.examples.played_features` (32 values: per
+pad, velocity while held, else 0, then pressure) rather than the default 49, which
+keep a pad's last velocity after it is released. It does not send `/wek/inputs`.
+
+### Feature sets for playing
+
+The default features (`mpc_iml.examples.default_features`) are the 49 `/wek/inputs`
+values of ADR 0002. They keep a pad's last velocity after `Note Off`, so a "rest"
+frame right after playing looks like the last hit, and a model trained on them can
+answer with the last sound instead of rest. For models that react while you play,
+use `played_features`: a released pad gives 0, so rest right after playing is rest.
+Pass it where features are taken, for example `ExampleSet(features=played_features)`
+or a preset's `features=`. The presets `demo` and `pressure` use it; the 49
+`/wek/inputs` values do not change.
 
 ## Run the engine
 
@@ -205,6 +216,82 @@ recording); the engine writes nothing outside that folder. Every message gets a
 reply, a state report or an `/mpciml/error`. Ctrl-C stops the engine: input and
 sockets are closed and a training in progress is finished first.
 
+## Play the pressure preset
+
+The built-in preset `pressure` (`src/mpc_iml/pressure.py`, scenario 1 of
+[RFC 0002](docs/rfcs/0002-platform-positioning.md)) maps pad pressure and velocity to
+8 synthesis parameters at once. You show it a few gestures, each with the 8 values
+it should produce, and it learns the mapping in between (one-to-many regression,
+the built-in MLP). It uses `played_features`. While running it sends:
+
+- `/wek/outputs` with 8 floats to `127.0.0.1:12000`, for Pure Data or any OSC
+  receiver (unscaled: usually 0-1, sometimes slightly outside);
+- MIDI control changes 20-27 on channel 1 (output 1 is CC 20, output 8 is CC 27),
+  scaled from 0-1 to 0-127, to a virtual MIDI port named `mpc-iml`, for a DAW
+  synthesiser. A CC is sent only when its value changes, and nothing is sent
+  outside `running`.
+
+You need the setup of the [reference example](#reference-example) (steps 1-3) and
+[Pure Data](https://puredata.info) (vanilla 0.54 or later) for the front end.
+
+1. Start the engine with the preset and leave the window open:
+
+   ```bash
+   uv run python -m mpc_iml.engine my-data --preset pressure
+   ```
+
+   On macOS the port `mpc-iml` now appears in every MIDI app as an input. To use
+   the IAC bus instead, turn it on in Audio MIDI Setup (Window > Show MIDI Studio,
+   double-click IAC Driver, tick "Device is online") and add `--midi-port IAC`. If
+   the MIDI port cannot be opened, the engine says so and keeps sending OSC.
+
+2. Open the front end `src/mpc_iml/patches/pressure.pd` in Pure Data. It says
+   `hello` to the engine and loads the preset; the state box shows `idle` and the
+   Pd window prints every reply (`mpc-iml: …`). Click `hello` again if you
+   started the engine after the patch.
+
+3. Record a few examples. For each one: set the 8 target sliders `t1`-`t8` on the
+   left (0-1) to the sound you want, hold the gesture on the pads, click `record`
+   (it sends the targets, then starts recording), keep holding for about two
+   seconds, and click `stop_recording`. Start with rest (no pads, targets for
+   silence), then for example pad 1 held lightly and pad 1 held firmly, each with
+   its own targets. Several pads and other pressures work the same way.
+
+4. Click `train`. The state goes to `training`, then back to `idle`, and `trained`
+   shows 1. Click `run` and play: the sliders `o1`-`o8` on the right follow the
+   model, and the MIDI CCs follow them. `stop` ends running. `save` and `load`
+   keep the examples in `my-data/pressure-examples.jsonl`.
+
+The patch shows `/wek/outputs` by listening on port 12000, and only one program can
+listen on a port. To drive a Pd synth with OSC instead, start the engine with
+`--outputs-port <port>` and let the synth listen on that port (the patch's output
+sliders then stay still), or close this patch and send the control messages from
+your own.
+
+### Map the MIDI CCs in a DAW
+
+Turn on the input `mpc-iml` (or the IAC bus) in the DAW's MIDI settings, then map
+CC 20-27 on channel 1 to synthesiser parameters:
+
+- **Ableton Live**: in Settings > Link, Tempo & MIDI, turn on **Remote** for the
+  input `mpc-iml`. Enter MIDI Map Mode (Cmd-M), click a parameter, send its CC,
+  and leave MIDI Map Mode.
+- **Logic Pro**: select the parameter, choose Logic Pro > Control Surfaces > Learn
+  Assignment for "<parameter>" (Cmd-L), send its CC, and turn Learn off.
+- DAWs that let you type a CC number for a mapping: enter 20-27 directly.
+
+While the model runs, all 8 CCs move together, so MIDI learn may catch the wrong
+one. Learn one CC at a time: train a quick model with two examples whose targets
+differ only in the output you want (for example rest with all 0, and pad 1 with
+only `t3` at 1, for CC 22), run it, press pad 1, map, and repeat. Then load or
+record your real examples and train again; the mappings stay.
+
+Known limitation: while a pad is held very lightly, the MPC Sample (firmware 1.3.0)
+sends `Note Off` when the pressure reaches its minimum and a new `Note On` 70-273 ms
+later. With `played_features` the pad counts as released in between, so the outputs
+can dip briefly during a very light hold. Hold a little more firmly; smoothing may
+follow if playing shows it matters.
+
 ## Write a preset
 
 A preset bundles a feature function, a model, optional fixed class numbers and an
@@ -232,8 +319,8 @@ adds a preset without changing the toolkit:
    and `model_factory` is what `IMLLoop` takes (`None`: Wekinator is the model).
    `OscOutput` defaults to `/wek/outputs` on `127.0.0.1:12000`. `MidiCcOutput`
    declares one CC number per output value, scaled from `ranges` (default 0-1) to
-   0-127; only the declaration and the scaling exist so far, the MIDI sender comes
-   with #65. `patch` is the front-end patch inside your package, as
+   0-127; the engine sends them while `running` (`mpc_iml.midi_out`, see the
+   [pressure preset](#play-the-pressure-preset)). `patch` is the front-end patch inside your package, as
    `<package>:<path>`. `name` is lower case letters, digits and hyphens; `list` and
    `load` are reserved for core messages (ADR 0004) and raise `PresetError`.
 
