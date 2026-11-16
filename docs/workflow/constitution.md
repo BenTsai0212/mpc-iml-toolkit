@@ -1,6 +1,6 @@
 # 個人開發 Workflow 憲法
 
-- 版本：v0.36（2026-11-14）；各版內容見文末「版本紀錄」
+- 版本：v0.37（2026-11-16）；各版內容見文末「版本紀錄」
 - 正本：建立本專案的 template repo 中的同名檔案（`docs/workflow/constitution.md`）
 - 從 template 建立的專案保留一份副本。副本只能從 template 升級，不在專案內直接修改；值得改的規則回到 template 修憲（第 10 節）。
 
@@ -125,7 +125,7 @@ flowchart LR
 
 ### 經 MCP 寫入 GitHub（試驗中）
 
-〔來源：#9，`gh`＋`/pm-apply` 讓每個 GitHub 操作都要人切到 Claude Code｜MCP 寫入無法把關時回到備援模組的 `/pm-apply`〕
+〔來源：BenTsai0212/dev-workflow-template#9，`gh`＋`/pm-apply` 讓每個 GitHub 操作都要人切到 Claude Code｜MCP 寫入無法把關時回到備援模組的 `/pm-apply`〕
 
 決策 agent 經 MCP 直接寫入 GitHub：寫入依風險分三級確認，合併只在人於對話中明確授權後執行（低風險 PR 可一次授權多個），刪除逐項經人同意。三級確認已驗證，合併的風險分級仍在試驗中。三級對照表、合併的授權條件、各自的來源與可升級條件，正本見 [github-writes.md](github-writes.md)；啟用目標模式時，範圍內部分寫入降一級，見 [github-writes.md](github-writes.md#目標模式下的例外試驗中)。
 
@@ -160,14 +160,14 @@ flowchart LR
 - 詳細流程放在命令需要時才載入，不放進 `AGENTS.md`。核心 `AGENTS.md` 目標 40～50 行，加上專案內容後 60～80 行。
 - 依據：社群建議規則檔維持精簡（HumanLayer 不到 60 行），自動產生或灌滿的規則檔反而讓表現變差。
 
-核心硬規則的正本是 `AGENTS.md` 第 5 節，每條附來源與可刪條件；模組的規則（例如上線模組的「不碰正式資料庫與部署」）寫在 [modules.md](modules.md) 各模組的「規則」列。需要先問人的情況（新 secret、費用、新增套件、帳號登入、金鑰輸入、安裝系統軟體、驗收條件不清等）不是硬規則，列在 `AGENTS.md` 第 6 節「先問人再做」；帳號登入與金鑰由人輸入，決策 agent 同樣不輸入（#10，試驗中）。
+核心硬規則的正本是 `AGENTS.md` 第 5 節，每條附來源與可刪條件；模組的規則（例如上線模組的「不碰正式資料庫與部署」）寫在 [modules.md](modules.md) 各模組的「規則」列。需要先問人的情況（新 secret、費用、新增套件、帳號登入、金鑰輸入、安裝系統軟體、驗收條件不清等）不是硬規則，列在 `AGENTS.md` 第 6 節「先問人再做」；帳號登入與金鑰由人輸入，決策 agent 同樣不輸入（BenTsai0212/dev-workflow-template#10，試驗中）。
 
 ### 程式化防護
 
 | 防護 | 擋什麼 | 行為 | 模組 |
 | --- | --- | --- | --- |
-| Claude Code PreToolUse hook | `gh pr merge`、`gh api` 合併（REST 的 PUT `…/pulls/<N>/merge`、GraphQL 的 `mergePullRequest`／`enablePullRequestAutoMerge`）、`git push` 到 main、對 main 強制推送；含子 shell、絕對路徑、包裝指令（`sudo`、`env`、`bash -c`、`eval` 等）與切換目錄（`cd`／`pushd`）後的推送。仍無法偵測的寫法見 PR #22 | 合併類指令在所有環境直接拒絕（deny）：合併只由決策中心經人授權執行（GitHub MCP，不經 Bash hook），或由人在 GitHub 網頁進行（#123；可刪條件：GitHub 分支保護（必須經審查才能合併）可用時）。推送 main 與對 main 強制推送：本機跳出確認（ask），由人親自同意後才執行；雲端 session（`CLAUDE_CODE_REMOTE` 為 `true`）直接拒絕（deny），因為雲端的 ask 一律放行（#83） | 核心 |
-| `.claude/settings.json` 的 `permissions.deny` | GitHub MCP 的合併、自動合併、建立與 fork repo、刪除檔案、觸發 Actions | 從 Claude Code 的工具清單移除，本機與雲端都有效（#83） | 核心 |
+| Claude Code PreToolUse hook | `gh pr merge`、`gh api` 合併（REST 的 PUT `…/pulls/<N>/merge`、GraphQL 的 `mergePullRequest`／`enablePullRequestAutoMerge`）、`git push` 到 main、對 main 強制推送；含子 shell、絕對路徑、包裝指令（`sudo`、`env`、`bash -c`、`eval` 等）與切換目錄（`cd`／`pushd`）後的推送。仍無法偵測的寫法見 PR BenTsai0212/dev-workflow-template#22 | 合併類指令在所有環境直接拒絕（deny）：合併只由決策中心經人授權執行（GitHub MCP，不經 Bash hook），或由人在 GitHub 網頁進行（BenTsai0212/dev-workflow-template#123；可刪條件：GitHub 分支保護（必須經審查才能合併）可用時）。推送 main 與對 main 強制推送：本機跳出確認（ask），由人親自同意後才執行；雲端 session（`CLAUDE_CODE_REMOTE` 為 `true`）直接拒絕（deny），因為雲端的 ask 一律放行（BenTsai0212/dev-workflow-template#83） | 核心 |
+| `.claude/settings.json` 的 `permissions.deny` | GitHub MCP 的合併、自動合併、建立與 fork repo、刪除檔案、觸發 Actions | 從 Claude Code 的工具清單移除，本機與雲端都有效（BenTsai0212/dev-workflow-template#83） | 核心 |
 | CI 檢查 PR 描述 | 沒寫 `Closes #N` 或 `Refs #N`（帶 `fast-lane` 的 PR 除外） | CI 失敗 | 核心 |
 | CI 檢查標籤 | 帶 `needs-setup` 的 PR | CI 失敗 | 上線 |
 | CI 比對 migration | 修改已套用的 migration | CI 失敗 | 高風險 |
@@ -248,7 +248,7 @@ main 永遠可部署，所有變更經過 PR 與 CI。
 
 ## 8. 多專案管理
 
-同時最多 10 個專案在積極開發，所有專案加總「審查中」的 PR 最多 10 個（試驗中）。瓶頸是人的審查時間，不是 agent 的速度。各專案 runner 的 `maxOpenPrs` 加總不超過此上限。〔來源：需求量增加，2026-10-26 人決定調高（#37）｜回調條件：審查中的 PR 連續一週維持在上限，或因 PR 之間衝突而重做的修正模式明顯增加時，在每週回顧檢討是否調降〕
+同時最多 10 個專案在積極開發，所有專案加總「審查中」的 PR 最多 10 個（試驗中）。瓶頸是人的審查時間，不是 agent 的速度。各專案 runner 的 `maxOpenPrs` 加總不超過此上限。〔來源：需求量增加，2026-10-26 人決定調高（BenTsai0212/dev-workflow-template#37）｜回調條件：審查中的 PR 連續一週維持在上限，或因 PR 之間衝突而重做的修正模式明顯增加時，在每週回顧檢討是否調降〕
 
 - **總部 Claude Project**：連結 template repo，負責維護憲法與 template、專案總覽、每週跨專案回顧。Project 之間不共享知識，總部只透過 GitHub MCP 讀取了解各專案。
 - **範圍**：每個 Claude Project 只寫自己的 repo（工作區為本次對話的目標 repo，見 [decision-center.md](decision-center.md#12-工作區啟用時) 第 12 節）；總部只在每週回顧或人點名時讀其他 repo。範圍不明時先問。〔來源：總部把「目前專案」誤解成另一個 repo｜不刪〕（試驗中）
@@ -294,7 +294,7 @@ template 不假設技術棧。專案的技術棧在初始化對話中決定（C 
 ### B. 建立專案（每個專案約 15 分鐘）
 
 1. 建立 repo 並 clone：`gh repo create <owner>/<name> --private --template <template repo> --clone`。
-2. 在新 repo 執行 bootstrap：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> --modules <群組> [--board] [--ruleset]`（可先加 `--dry-run`，只列出不執行）。依 `.github/labels.yml` 建立標籤，並設定合併後自動刪分支（等同 `gh repo edit <owner/name> --delete-branch-on-merge`）。`--modules` 只能填 `labels.yml` 裡有的群組（`core`、`online`、`collab`、`automation`、`goal`），預設 `core`。
+2. 在新 repo 執行 bootstrap：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> --modules <群組> [--board] [--ruleset] [--lang en]`（可先加 `--dry-run`，只列出不執行；流程語言為 en 時加 `--lang en`，標籤描述與看板佔位選項改用英文）。依 `.github/labels.yml` 建立標籤，並設定合併後自動刪分支（等同 `gh repo edit <owner/name> --delete-branch-on-merge`）。`--modules` 只能填 `labels.yml` 裡有的群組（`core`、`online`、`collab`、`automation`、`goal`），預設 `core`。
 3. 看板（選用，`--board`）：在 owner 底下新建看板，建立 Phase 與 Area 兩個單選欄位（各含佔位選項「未設定」，GitHub 的單選欄位至少要有一個選項），並 `gh project link` 到 repo。不加時不建看板，核心流程只靠標籤。auto-add 不是必要步驟，需要時在看板的 Workflows 開啟（`https://github.com/users/<owner>/projects/<N>/workflows`）。
 4. 預設分支的 ruleset（選用，`--ruleset`）：禁止刪除、禁止強制推送、必須經 PR 才能合併（required approvals 0）；已有同名 ruleset 時不重複建立。GitHub Free 的私人 repo 不會套用 ruleset。
 5. 決定是否刪除 GitHub 自動產生的預設標籤（`bug`、`enhancement` 等）；不刪也不影響流程。
@@ -302,10 +302,10 @@ template 不假設技術棧。專案的技術棧在初始化對話中決定（C 
 
 ### C. 初始化對話（在新 Claude Project 說「依 decision-center 初始化」）
 
-1. Claude 讀完規則，與你確認啟用模組。
+1. Claude 讀完規則，與你確認啟用模組與流程語言（`zh-TW` 或 `en`；見 [headings.md](headings.md)）。
 2. 一起寫 RFC 0001 專案章程；章程確定後，Claude 提出技術選型的選項與建議，寫成 ADR 0001，經你確認後定案。
 3. 經 MCP 建立（依第 5 節三級確認）：每個階段一個 Epic（以看板的 Phase 欄位標示階段，不使用 Milestone）、第一批 Issue、看板欄位（Phase 與 Area 先把佔位選項「未設定」改名或新增選項）、`phase:*`／`area:*` 標籤；MCP 沒有對應工具的操作，或 MCP 不能用時，見備援模組（[modules.md](modules.md#備援github-mcp-不能用時)）。
-4. 第一個 PR：改寫 `AGENTS.md` 的專案設定、指令與結構（「啟用模組」改為新專案實際啟用的模組，不沿用 template 的設定），填好 `ci.yml`，改寫 README。
+4. 第一個 PR：改寫 `AGENTS.md` 的專案設定、指令與結構（「啟用模組」改為新專案實際啟用的模組，不沿用 template 的設定），填好 `ci.yml`，改寫 README。流程語言為 en 時，同一個 PR 把 `AGENTS.md` 第 0 節改為「流程語言：en」，並以 `templates/i18n/en/github/` 的英文範本覆蓋 `.github/` 的對應檔案（PR 範本、Issue 範本、`labels.yml`）。
 5. 更新交接文件。
 
 第二個專案跑完後，檢討 B＋C 是否值得做成 bootstrap skill。
@@ -314,7 +314,7 @@ template 不假設技術棧。專案的技術棧在初始化對話中決定（C 
 
 | 處理方式 | 檔案 |
 | --- | --- |
-| 幾乎直接複製 | `.github/ISSUE_TEMPLATE/`（feature、bug、rfc）、`docs/adr/README.md`、`docs/rfcs/README.md` |
+| 幾乎直接複製 | `.github/ISSUE_TEMPLATE/`（feature、bug、rfc）、`docs/adr/README.md`、`docs/rfcs/README.md`；流程語言 en 時改用 `templates/i18n/en/github/` 的英文版 |
 | 精簡改寫 | `AGENTS.md`、`docs/workflow/agent-workflow.md`（加入 `plan-first`）、`.claude/commands/`、PR 範本 |
 | 改成佔位 | `.github/workflows/ci.yml`、`templates/modules/fallback/pm-actions.md`（移除看板欄位 ID） |
 | 放進模組、預設不啟用 | `templates/modules/collab/sync.md`（協作）、`needs-setup` 規則（上線）、`templates/modules/fallback/`（備援：`pm-actions.md`、`pm-apply.md`）、`templates/modules/cloud/trigger-prompt.md`（雲端執行）、`templates/modules/workspace/`（工作區） |
@@ -327,7 +327,7 @@ template 不假設技術棧。專案的技術棧在初始化對話中決定（C 
 修憲走和程式一樣的流程：在 template repo 開 Issue（`rfc`）→ PR → 合併 → 版本號加一。
 
 - **依據**：[`/harness-retro`](../../.claude/commands/harness-retro.md) 的指標（CI 首次通過率、要求修正的 PR、agent 停止、人的介入、等待人的工作、規則文件修改次數；算法見 [tools/workflow/README.md](../../tools/workflow/README.md#harness-retromjs)），以及各專案踩到的坑。
-- **從專案回流**：專案補的規則若不屬於該專案特有，經 `template-feedback` Issue 搬回 template（試驗中）。〔來源：#125（各專案把回饋寫在自己的交接文件，總部讀不到其他 Project 的文件，實際上沒有送達）｜不刪〕
+- **從專案回流**：專案補的規則若不屬於該專案特有，經 `template-feedback` Issue 搬回 template（試驗中）。〔來源：BenTsai0212/dev-workflow-template#125（各專案把回饋寫在自己的交接文件，總部讀不到其他 Project 的文件，實際上沒有送達）｜不刪〕
   1. **專案端**：決策中心發現值得回到 template 的做法時，在**自己的 repo** 開 Issue 並加 `template-feedback`，不加 `agent:ready`；內容照常寫，不必用中立寫法。交接文件只放連結（[decision-center.md](decision-center.md#8-對話結束前) 第 8 節）。
   2. **總部**：每週回顧時經 GitHub MCP 讀各專案開啟中的 `template-feedback` Issue（第 8 節「範圍」允許每週回顧讀其他 repo），在 template 開對應的 Issue 處理。template 的 Issue 與搬回的規則用中立寫法：不寫來源 repo 的名稱或連結，不提特定專案或協作者名稱，來源寫成情境描述。
   3. **關閉**：專案升級到包含該改動的 template 版本時，在升級 PR 中列出並關閉對應的 `template-feedback` Issue（[upgrade.md](upgrade.md#5-拆-pr-的順序) 第 5 節）；不採用的由人決定關閉。
@@ -351,38 +351,39 @@ template 不假設技術棧。專案的技術棧在初始化對話中決定（C 
 | 版本 | 日期 | 內容 | Issue |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-12 | 第一批檔案：憲法、決策中心與 agent 手冊、範本 | — |
-| v0.2 | 2026-10-13 | 決策 agent 改用 GitHub MCP 直接讀寫（試驗中） | #9 |
-| v0.3 | 2026-10-13 | 規範改用中立寫法 | #12 |
-| v0.4 | 2026-10-13 | 新增「自動化」模組（試驗中） | #10 |
-| v0.5 | 2026-10-13 | template 本身啟用自動化模組；template 的決定記在 rfc Issue（試驗中） | #20 |
-| v0.6 | 2026-10-13 | 憲法整理：硬規則與 `AGENTS.md` 同步、「不合併 PR、不 push main」的可刪條件改為分支保護可用後、`## 決定` 註明可信身分、runner 規則正本移到 modules.md、程式化防護更新、版本紀錄 | #23 |
-| v0.7 | 2026-10-15 | 寫 Issue 對照 runner 限制、合併前依變更檔案判斷風險、協作模組的高風險 PR 需非作者核准、第 9 節依實際建立流程更新（看板佔位選項、建 repo 與 bootstrap 指令、初始化前置條件） | #31 |
-| v0.8 | 2026-10-24 | 決策 agent 經 MCP 寫入改為依風險分三級確認、新增「人親自決定的範圍」與「決策 agent 自行決定的範圍」、看板整理改為先做後列（試驗中） | #35 |
-| v0.9 | 2026-10-26 | 在制品上限調高到 10 個專案、10 個審查中 PR，附回調條件；每週回顧不寫死推進的專案數（試驗中） | #37 |
-| v0.10 | 2026-11-03 | 「不合併 PR、不 push main」的來源改為原則 3 與 hook、分支保護的限制，可刪條件改為不刪；正本說明不依賴 template repo 的連結 | #47 |
-| v0.11 | 2026-11-04 | 合併依風險分兩種授權：低風險 PR（只改 `README*` 與 `docs/` 中非規則文件、條件全部符合）可列出編號一次授權多個，其他 PR 維持逐項授權（試驗中） | #51 |
-| v0.12 | 2026-11-04 | 規則文件瘦身：三級確認與合併授權移到 `github-writes.md`、核心硬規則只留 `AGENTS.md`、可信身分與 `plan-first` 適用情況各留一份正本（PR A）；MCP 不能用時的備援（`/pm-apply` 操作清單、瀏覽器讀寫）改為選用模組「備援」（PR B）；`AGENTS.md` 精簡到 60 行內、`tools/workflow/README.md`、決策 agent 本機檔案的寫法、階段改以 Epic＋Phase 欄位表示（不用 Milestone）、命令表移除 `/harness-retro`、三級確認改為已驗證（PR C） | #55 |
-| v0.13 | 2026-11-04 | 新增 harness 指標工具 `tools/workflow/harness-retro.mjs` 與 `/harness-retro`；命令表加回 `/harness-retro`，第 10 節的「依據」改為連結 | #5 |
-| v0.14 | 2026-11-04 | 新增選用模組「目標模式」（試驗中）：人核准目標卡後，決策 agent 定時喚醒，在範圍內審查 PR、送修正要求、派子 Issue；範圍內「建立子 Issue＋`agent:ready`」與「修正要求」由 ② 降為 ①；合併、`## 決定`、移除 `plan-first` 不變 | #62 |
-| v0.15 | 2026-11-07 | agent 只讀可信身分的內容：新增 `tools/workflow/read-trusted.mjs`，agent 讀 Issue 與 PR 不再用 gh 的 `view` 子命令；作者不可信的「外部 Issue」不直接派工，由決策中心另開自己撰寫的 Issue；runner 不挑作者不可信的 Issue，允許清單移除 `gh … view`、禁止以 `gh api` 讀留言與審查 | #65 |
-| v0.16 | 2026-11-07 | 自動化 runner 改為全機名額制：整台電腦同時執行的件數以全機名額限制（預設 2），依號碼牌公平輪流、做完一件就交還；同一專案以專案鎖一次只做一件；沒有名額時等候（有上限），附來源與可刪條件 | #66 |
-| v0.17 | 2026-11-07 | 自動化 runner：訂閱額度用完時全機暫停到恢復時間（嚴格條件判斷 `rate_limit_event`，不成立時維持一般的異常結束處理）；這種情況不留 `## agent 停止`、不加 `blocked`，標籤還原、保存進度 | #66 |
-| v0.18 | 2026-11-07 | 新增 `docs/workflow/upgrade.md`：已建立的專案升級 template 的程序（以 blob SHA 找出建立時的版本、三份比對分成 A／B／C 三類、只以 `gh api` 讀 template、編號改寫、拆 PR 的順序與不疊分支、人工步驟、增量升級、升級 Issue 的範本）；第 8 節「規範升級」連到該文件 | #71 |
-| v0.19 | 2026-11-07 | runner 的 `## runner 提醒` 貼出前遮蔽本機路徑並以貼文檢查，仍命中就不貼出；主資料夾的 runner 落後 `origin/main` 時警告；決策中心：`.claude/` 的變更列為人工步驟、多個 PR 的 Issue 合併時加回 `agent:ready` 與合併授權同一批確認 | #72 |
-| v0.20 | 2026-11-07 | runner 自己留的 `## agent 停止` 貼出前遮蔽本機路徑並以貼文檢查；仍命中時仍貼出並加 `blocked`，原因改為不含原文的固定文字 | #75 |
-| v0.21 | 2026-11-07 | runner 的本機路徑遮蔽與貼文檢查共用同一套個人路徑規則（`/Users/` 底下名稱為 runner 也遮蔽）、路徑結尾辨認全形標點、`## runner 提醒` 的階段也遮蔽；runner 呼叫 `gh` 的輸出上限改為 64 MB；主資料夾落後時提示 `git pull --ff-only` | #78 |
-| v0.22 | 2026-11-07 | `upgrade.md` 依第一次增量升級的回饋修正：先還原編號再分類、指令不用 `$(...)`、shell 變數與標準輸入（先寫檔再比對）、專案現況改用 `origin/main`、補上讀取 `<base>`／`<head>` 內容的指令、C 類以 template 的命名為準、`git pull --ff-only`、記錄 `<head>` 的格式範例、拆 PR 時版本號跟著每個 PR 實際帶入的內容 | #77 |
-| v0.23 | 2026-11-07 | 合併確認 hook 在雲端 session（`CLAUDE_CODE_REMOTE` 為 `true`）改為拒絕（雲端的 ask 一律放行）；`.claude/settings.json` 加 `permissions.deny`，移除 GitHub MCP 的合併等工具 | #83 |
-| v0.24 | 2026-11-07 | 新增選用模組「雲端執行」（試驗中）：雲端排程任務以 `agent:ready`（Issue）與 `changes-requested`（PR）的標籤事件觸發，與本機 runner 擇一；prompt 範本、agent-workflow 的雲端步驟（GitHub MCP 對照表）、決策中心送出 `## 決定` 時加回 `agent:ready` 與卡住工作的檢查；備援模組的 `pr.merge` 以 `gh pr merge` 執行 | #85 |
-| v0.25 | 2026-11-07 | 雲端執行模組改為兩個排程任務（一個排程任務只能設一個 GitHub 事件觸發條件），共用同一份 prompt；prompt 要求在 PR 描述的「驗證」與修正回報寫出 `check-post-body.mjs` 的檢查結果，雲端自動附加的結尾不算違反原樣貼出 | #87 |
-| v0.26 | 2026-11-07 | 自動化模組（本機 runner）轉為「已驗證」：轉換條件（`claude -p` 下 hook 的 `ask` 行為、第二個專案實際跑過）皆已完成，人決定轉換；模組內個別規則的「試驗中」不變 | #89 |
-| v0.27 | 2026-11-07 | template 本身試用目標模式（`AGENTS.md` 的啟用模組）；目標卡範本不複製到本 repo 的 `.github/ISSUE_TEMPLATE/`（會帶入新專案） | #91 |
-| v0.28 | 2026-11-10 | 目標模式改為事件觸發＋決策時段模式（#93 回顧）：決策 agent 由 1 個排程任務以「所有 pull request 事件」＋排程喚醒、依觸發分流；可搭配雲端執行；每天的決策包與限於目標停擺的即時通知；目標卡分波次（同時開啟的 PR 上限 3）；停滯偵測與核准時的前置檢查；決策包中列出的 PR 可在同一則訊息逐一寫出編號批次授權；刪除 24 小時「仍在執行」留言 | #102 |
-| v0.29 | 2026-11-10 | template 本身的 code agent 改用雲端執行模組（`AGENTS.md` 的啟用模組），自動化模組（本機 runner）改為不啟用（兩者擇一）；`tools/workflow/runner/` 仍隨 template 提供給其他專案 | #104 |
-| v0.30 | 2026-11-10 | 為注意力放寬四條確認規則（`github-writes.md`，試驗中）：只有一個 PR 待合併且剛問過「合併 #N」時，回覆「合併」視為授權；人在對話中選定選項後直接送出 `## 決定`；修正要求改為 ①；已在對話中逐項定案的 Issue 直接建立並派工。合併仍須人授權，其他 ③ 不變 | #106 |
-| v0.31 | 2026-11-10 | bootstrap 不再複製作者帳號下的範本看板：看板改為選用（`--board` 新建看板與 Phase、Area 欄位並連結），移除 `tools/workflow/config.json`；合併後刪分支併入 bootstrap；選用的 `--ruleset` 為預設分支建立 ruleset（第 9 節 A 段第 2 步、B 段第 2～4 步） | #109 |
-| v0.32 | 2026-11-11 | 目標模式的決策包只由決策時段開始前最近的一次排程整理，同一天不發第二份（`decision-center.md` 第 10 節）；決策 agent 剛列出全部可合併的 PR 並請人授權時，回覆「合併」視為授權所列全部 PR（`github-writes.md` 第 2 節，試驗中）；第 2 節角色表與第 7 節「規劃結構」改為看板選用、由 bootstrap `--board` 新建 | #114 |
-| v0.33 | 2026-11-11 | 防止雲端 code agent 重複接手同一張 Issue：派工時建立 Issue 後才單獨加上 `agent:ready`，且為最後一個改動（`github-writes.md` 第 1 節）；雲端 code agent 開工前檢查 `agent:working` 與開啟中的 PR，換標籤後留開工留言、較晚的 session 結束（`agent-workflow.md`「在雲端執行時」、`templates/modules/cloud/trigger-prompt.md`）；目標模式的保底把同一張 Issue 的重複 PR 列入決策包（`decision-center.md` 第 10 節） | #120 |
-| v0.34 | 2026-11-11 | 合併確認 hook 對合併類指令（`gh pr merge`、`gh api` 的 REST／GraphQL 合併）在本機也一律拒絕，不再 `ask`（本機的確認提示被誤按核准，#122 未經審查即合併）；合併只由決策中心經人授權執行，或由人在 GitHub 網頁進行。推送 main 的行為不變。備援模組的 `/pm-apply` 不再執行合併（`pr.merge` 移出操作清單） | #123 |
-| v0.35 | 2026-11-12 | 決策中心開工時檢查交接文件是否過時（檔頭的最後更新與 main 最近一次合併、憲法版本與 `AGENTS.md`），不符時先報告差異（`decision-center.md` 第 1 節）；交接文件建議上限約 30 KB、已完成事項只留一行摘要、「下一步」整段改寫、檔頭每次更新（第 8 節、`handoff.md`）；回饋改用專案 repo 的 `template-feedback` Issue 傳遞，總部每週回顧時讀取、升級 PR 中關閉（第 8、10 節、`upgrade.md`、`labels.yml`）；初始化時請人建立禁用名稱清單（`decision-center.md` 第 7 節） | #125 |
-| v0.36 | 2026-11-14 | 新增選用模組「工作區」（試驗中）：一個 Claude Project 管理同一客戶與保密範圍內的多個 repo，邊界＝客戶與保密範圍；repo 登記表是唯一的 repo 清單；每段對話先確認目標 repo、只寫入目標 repo；交接文件分工作區與各 repo 兩層；開工彙整列全部 repo 的摘要表並計算審查中 PR 合計；自動化以 repo 為單位（`modules.md`、`decision-center.md` 第 12 節、第 4、5、8、9 節、`templates/modules/workspace/`） | #127 |
+| v0.2 | 2026-10-13 | 決策 agent 改用 GitHub MCP 直接讀寫（試驗中） | BenTsai0212/dev-workflow-template#9 |
+| v0.3 | 2026-10-13 | 規範改用中立寫法 | BenTsai0212/dev-workflow-template#12 |
+| v0.4 | 2026-10-13 | 新增「自動化」模組（試驗中） | BenTsai0212/dev-workflow-template#10 |
+| v0.5 | 2026-10-13 | template 本身啟用自動化模組；template 的決定記在 rfc Issue（試驗中） | BenTsai0212/dev-workflow-template#20 |
+| v0.6 | 2026-10-13 | 憲法整理：硬規則與 `AGENTS.md` 同步、「不合併 PR、不 push main」的可刪條件改為分支保護可用後、`## 決定` 註明可信身分、runner 規則正本移到 modules.md、程式化防護更新、版本紀錄 | BenTsai0212/dev-workflow-template#23 |
+| v0.7 | 2026-10-15 | 寫 Issue 對照 runner 限制、合併前依變更檔案判斷風險、協作模組的高風險 PR 需非作者核准、第 9 節依實際建立流程更新（看板佔位選項、建 repo 與 bootstrap 指令、初始化前置條件） | BenTsai0212/dev-workflow-template#31 |
+| v0.8 | 2026-10-24 | 決策 agent 經 MCP 寫入改為依風險分三級確認、新增「人親自決定的範圍」與「決策 agent 自行決定的範圍」、看板整理改為先做後列（試驗中） | BenTsai0212/dev-workflow-template#35 |
+| v0.9 | 2026-10-26 | 在制品上限調高到 10 個專案、10 個審查中 PR，附回調條件；每週回顧不寫死推進的專案數（試驗中） | BenTsai0212/dev-workflow-template#37 |
+| v0.10 | 2026-11-03 | 「不合併 PR、不 push main」的來源改為原則 3 與 hook、分支保護的限制，可刪條件改為不刪；正本說明不依賴 template repo 的連結 | BenTsai0212/dev-workflow-template#47 |
+| v0.11 | 2026-11-04 | 合併依風險分兩種授權：低風險 PR（只改 `README*` 與 `docs/` 中非規則文件、條件全部符合）可列出編號一次授權多個，其他 PR 維持逐項授權（試驗中） | BenTsai0212/dev-workflow-template#51 |
+| v0.12 | 2026-11-04 | 規則文件瘦身：三級確認與合併授權移到 `github-writes.md`、核心硬規則只留 `AGENTS.md`、可信身分與 `plan-first` 適用情況各留一份正本（PR A）；MCP 不能用時的備援（`/pm-apply` 操作清單、瀏覽器讀寫）改為選用模組「備援」（PR B）；`AGENTS.md` 精簡到 60 行內、`tools/workflow/README.md`、決策 agent 本機檔案的寫法、階段改以 Epic＋Phase 欄位表示（不用 Milestone）、命令表移除 `/harness-retro`、三級確認改為已驗證（PR C） | BenTsai0212/dev-workflow-template#55 |
+| v0.13 | 2026-11-04 | 新增 harness 指標工具 `tools/workflow/harness-retro.mjs` 與 `/harness-retro`；命令表加回 `/harness-retro`，第 10 節的「依據」改為連結 | BenTsai0212/dev-workflow-template#5 |
+| v0.14 | 2026-11-04 | 新增選用模組「目標模式」（試驗中）：人核准目標卡後，決策 agent 定時喚醒，在範圍內審查 PR、送修正要求、派子 Issue；範圍內「建立子 Issue＋`agent:ready`」與「修正要求」由 ② 降為 ①；合併、`## 決定`、移除 `plan-first` 不變 | BenTsai0212/dev-workflow-template#62 |
+| v0.15 | 2026-11-07 | agent 只讀可信身分的內容：新增 `tools/workflow/read-trusted.mjs`，agent 讀 Issue 與 PR 不再用 gh 的 `view` 子命令；作者不可信的「外部 Issue」不直接派工，由決策中心另開自己撰寫的 Issue；runner 不挑作者不可信的 Issue，允許清單移除 `gh … view`、禁止以 `gh api` 讀留言與審查 | BenTsai0212/dev-workflow-template#65 |
+| v0.16 | 2026-11-07 | 自動化 runner 改為全機名額制：整台電腦同時執行的件數以全機名額限制（預設 2），依號碼牌公平輪流、做完一件就交還；同一專案以專案鎖一次只做一件；沒有名額時等候（有上限），附來源與可刪條件 | BenTsai0212/dev-workflow-template#66 |
+| v0.17 | 2026-11-07 | 自動化 runner：訂閱額度用完時全機暫停到恢復時間（嚴格條件判斷 `rate_limit_event`，不成立時維持一般的異常結束處理）；這種情況不留 `## agent 停止`、不加 `blocked`，標籤還原、保存進度 | BenTsai0212/dev-workflow-template#66 |
+| v0.18 | 2026-11-07 | 新增 `docs/workflow/upgrade.md`：已建立的專案升級 template 的程序（以 blob SHA 找出建立時的版本、三份比對分成 A／B／C 三類、只以 `gh api` 讀 template、編號改寫、拆 PR 的順序與不疊分支、人工步驟、增量升級、升級 Issue 的範本）；第 8 節「規範升級」連到該文件 | BenTsai0212/dev-workflow-template#71 |
+| v0.19 | 2026-11-07 | runner 的 `## runner 提醒` 貼出前遮蔽本機路徑並以貼文檢查，仍命中就不貼出；主資料夾的 runner 落後 `origin/main` 時警告；決策中心：`.claude/` 的變更列為人工步驟、多個 PR 的 Issue 合併時加回 `agent:ready` 與合併授權同一批確認 | BenTsai0212/dev-workflow-template#72 |
+| v0.20 | 2026-11-07 | runner 自己留的 `## agent 停止` 貼出前遮蔽本機路徑並以貼文檢查；仍命中時仍貼出並加 `blocked`，原因改為不含原文的固定文字 | BenTsai0212/dev-workflow-template#75 |
+| v0.21 | 2026-11-07 | runner 的本機路徑遮蔽與貼文檢查共用同一套個人路徑規則（`/Users/` 底下名稱為 runner 也遮蔽）、路徑結尾辨認全形標點、`## runner 提醒` 的階段也遮蔽；runner 呼叫 `gh` 的輸出上限改為 64 MB；主資料夾落後時提示 `git pull --ff-only` | BenTsai0212/dev-workflow-template#78 |
+| v0.22 | 2026-11-07 | `upgrade.md` 依第一次增量升級的回饋修正：先還原編號再分類、指令不用 `$(...)`、shell 變數與標準輸入（先寫檔再比對）、專案現況改用 `origin/main`、補上讀取 `<base>`／`<head>` 內容的指令、C 類以 template 的命名為準、`git pull --ff-only`、記錄 `<head>` 的格式範例、拆 PR 時版本號跟著每個 PR 實際帶入的內容 | BenTsai0212/dev-workflow-template#77 |
+| v0.23 | 2026-11-07 | 合併確認 hook 在雲端 session（`CLAUDE_CODE_REMOTE` 為 `true`）改為拒絕（雲端的 ask 一律放行）；`.claude/settings.json` 加 `permissions.deny`，移除 GitHub MCP 的合併等工具 | BenTsai0212/dev-workflow-template#83 |
+| v0.24 | 2026-11-07 | 新增選用模組「雲端執行」（試驗中）：雲端排程任務以 `agent:ready`（Issue）與 `changes-requested`（PR）的標籤事件觸發，與本機 runner 擇一；prompt 範本、agent-workflow 的雲端步驟（GitHub MCP 對照表）、決策中心送出 `## 決定` 時加回 `agent:ready` 與卡住工作的檢查；備援模組的 `pr.merge` 以 `gh pr merge` 執行 | BenTsai0212/dev-workflow-template#85 |
+| v0.25 | 2026-11-07 | 雲端執行模組改為兩個排程任務（一個排程任務只能設一個 GitHub 事件觸發條件），共用同一份 prompt；prompt 要求在 PR 描述的「驗證」與修正回報寫出 `check-post-body.mjs` 的檢查結果，雲端自動附加的結尾不算違反原樣貼出 | BenTsai0212/dev-workflow-template#87 |
+| v0.26 | 2026-11-07 | 自動化模組（本機 runner）轉為「已驗證」：轉換條件（`claude -p` 下 hook 的 `ask` 行為、第二個專案實際跑過）皆已完成，人決定轉換；模組內個別規則的「試驗中」不變 | BenTsai0212/dev-workflow-template#89 |
+| v0.27 | 2026-11-07 | template 本身試用目標模式（`AGENTS.md` 的啟用模組）；目標卡範本不複製到本 repo 的 `.github/ISSUE_TEMPLATE/`（會帶入新專案） | BenTsai0212/dev-workflow-template#91 |
+| v0.28 | 2026-11-10 | 目標模式改為事件觸發＋決策時段模式（BenTsai0212/dev-workflow-template#93 回顧）：決策 agent 由 1 個排程任務以「所有 pull request 事件」＋排程喚醒、依觸發分流；可搭配雲端執行；每天的決策包與限於目標停擺的即時通知；目標卡分波次（同時開啟的 PR 上限 3）；停滯偵測與核准時的前置檢查；決策包中列出的 PR 可在同一則訊息逐一寫出編號批次授權；刪除 24 小時「仍在執行」留言 | BenTsai0212/dev-workflow-template#102 |
+| v0.29 | 2026-11-10 | template 本身的 code agent 改用雲端執行模組（`AGENTS.md` 的啟用模組），自動化模組（本機 runner）改為不啟用（兩者擇一）；`tools/workflow/runner/` 仍隨 template 提供給其他專案 | BenTsai0212/dev-workflow-template#104 |
+| v0.30 | 2026-11-10 | 為注意力放寬四條確認規則（`github-writes.md`，試驗中）：只有一個 PR 待合併且剛問過「合併 #N」時，回覆「合併」視為授權；人在對話中選定選項後直接送出 `## 決定`；修正要求改為 ①；已在對話中逐項定案的 Issue 直接建立並派工。合併仍須人授權，其他 ③ 不變 | BenTsai0212/dev-workflow-template#106 |
+| v0.31 | 2026-11-10 | bootstrap 不再複製作者帳號下的範本看板：看板改為選用（`--board` 新建看板與 Phase、Area 欄位並連結），移除 `tools/workflow/config.json`；合併後刪分支併入 bootstrap；選用的 `--ruleset` 為預設分支建立 ruleset（第 9 節 A 段第 2 步、B 段第 2～4 步） | BenTsai0212/dev-workflow-template#109 |
+| v0.32 | 2026-11-11 | 目標模式的決策包只由決策時段開始前最近的一次排程整理，同一天不發第二份（`decision-center.md` 第 10 節）；決策 agent 剛列出全部可合併的 PR 並請人授權時，回覆「合併」視為授權所列全部 PR（`github-writes.md` 第 2 節，試驗中）；第 2 節角色表與第 7 節「規劃結構」改為看板選用、由 bootstrap `--board` 新建 | BenTsai0212/dev-workflow-template#114 |
+| v0.33 | 2026-11-11 | 防止雲端 code agent 重複接手同一張 Issue：派工時建立 Issue 後才單獨加上 `agent:ready`，且為最後一個改動（`github-writes.md` 第 1 節）；雲端 code agent 開工前檢查 `agent:working` 與開啟中的 PR，換標籤後留開工留言、較晚的 session 結束（`agent-workflow.md`「在雲端執行時」、`templates/modules/cloud/trigger-prompt.md`）；目標模式的保底把同一張 Issue 的重複 PR 列入決策包（`decision-center.md` 第 10 節） | BenTsai0212/dev-workflow-template#120 |
+| v0.34 | 2026-11-11 | 合併確認 hook 對合併類指令（`gh pr merge`、`gh api` 的 REST／GraphQL 合併）在本機也一律拒絕，不再 `ask`（本機的確認提示被誤按核准，BenTsai0212/dev-workflow-template#122 未經審查即合併）；合併只由決策中心經人授權執行，或由人在 GitHub 網頁進行。推送 main 的行為不變。備援模組的 `/pm-apply` 不再執行合併（`pr.merge` 移出操作清單） | BenTsai0212/dev-workflow-template#123 |
+| v0.35 | 2026-11-12 | 決策中心開工時檢查交接文件是否過時（檔頭的最後更新與 main 最近一次合併、憲法版本與 `AGENTS.md`），不符時先報告差異（`decision-center.md` 第 1 節）；交接文件建議上限約 30 KB、已完成事項只留一行摘要、「下一步」整段改寫、檔頭每次更新（第 8 節、`handoff.md`）；回饋改用專案 repo 的 `template-feedback` Issue 傳遞，總部每週回顧時讀取、升級 PR 中關閉（第 8、10 節、`upgrade.md`、`labels.yml`）；初始化時請人建立禁用名稱清單（`decision-center.md` 第 7 節） | BenTsai0212/dev-workflow-template#125 |
+| v0.36 | 2026-11-14 | 新增選用模組「工作區」（試驗中）：一個 Claude Project 管理同一客戶與保密範圍內的多個 repo，邊界＝客戶與保密範圍；repo 登記表是唯一的 repo 清單；每段對話先確認目標 repo、只寫入目標 repo；交接文件分工作區與各 repo 兩層；開工彙整列全部 repo 的摘要表並計算審查中 PR 合計；自動化以 repo 為單位（`modules.md`、`decision-center.md` 第 12 節、第 4、5、8、9 節、`templates/modules/workspace/`） | BenTsai0212/dev-workflow-template#127 |
+| v0.37 | 2026-11-16 | 每個 repo 設定一種流程語言（`AGENTS.md` 第 0 節「流程語言：zh-TW \| en」，預設 zh-TW）：控制標題有中英文對照表（`docs/workflow/headings.md`，正本 `tools/workflow/headings.mjs`），工具兩種都認得、`check-post-body.mjs` 依流程語言檢查；agent 與決策中心依流程語言寫控制標題與 Issue、PR、commit；流程語言 en 時 bootstrap 加 `--lang en`、第一個 PR 換上 `templates/i18n/en/github/` 的英文範本（第 9 節 B 段第 2 步、C 段第 1、4 步）；runner 的停止回報與提醒內文也跟隨流程語言。規則文件仍為中文 | BenTsai0212/dev-workflow-template#129 |
