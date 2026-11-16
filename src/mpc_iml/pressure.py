@@ -12,7 +12,8 @@ Scenario 1 of RFC 0002. Pad pressure and velocity are mapped by demonstration to
 
 Record with `/mpciml/targets` and eight values, then `record/start` and
 `record/stop`; train and run with the core messages. The preset has no preset
-controls. It registers like any external preset, in `pyproject.toml`:
+controls; its Pure Data front end is `patches/pressure.pd` in this package. It
+registers like any external preset, in `pyproject.toml`:
 
     [project.entry-points."mpc_iml.presets"]
     pressure = "mpc_iml.pressure:PRESET"
@@ -38,5 +39,6 @@ PRESET = Preset(
     model_factory=Regressor,
     targets=TARGETS,
     outputs=(OscOutput(), MidiCcOutput(controllers=CONTROLLERS, channel=1, port_name="mpc-iml")),
+    patch="mpc_iml:patches/pressure.pd",
 )
-"""Scenario 1 as the built-in preset `pressure`; its patch comes with #65's second PR."""
+"""Scenario 1 as the built-in preset `pressure`."""

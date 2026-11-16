@@ -123,6 +123,40 @@ def test_preset_targets_are_checked(kwargs: dict[str, Any], message: str) -> Non
         Preset(name="x", version="1", **kwargs)
 
 
+# The front-end patch
+
+
+def test_the_patch_is_inside_the_package() -> None:
+    patch = preset().patch_path()
+    assert patch is not None and patch.is_file()
+    lines = [line.rstrip(";") for line in patch.read_text().splitlines()]
+    assert lines[0].startswith("#N canvas")
+    boxes = [line for line in lines[1:] if not line.startswith("#X connect")]
+    for line in lines:
+        if line.startswith("#X connect"):
+            source, _, sink, _ = (int(n) for n in line.split()[2:])
+            assert source < len(boxes) and sink < len(boxes)
+    # It drives the engine with core messages only (ADR 0004) and shows the outputs.
+    for box in [
+        "netsend -u -b",
+        "netreceive -u -b 6451",
+        "netreceive -u -b 12000",
+        "connect 127.0.0.1 6450",
+        "oscformat mpciml hello",
+        "oscformat mpciml preset load",
+        "oscformat mpciml targets",
+        "pack 0 0 0 0 0 0 0 0",
+        "oscformat mpciml record start",
+        "oscformat mpciml record stop",
+        "oscformat mpciml train",
+        "oscformat mpciml run",
+        "oscformat mpciml stop",
+        "unpack f f f f f f f f",
+    ]:
+        assert any(line.endswith(box) for line in boxes), box
+    assert "mpciml preset pressure" not in patch.read_text()
+
+
 # Training and playing on replays
 
 
