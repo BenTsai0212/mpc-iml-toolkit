@@ -131,9 +131,9 @@ class Preset:
     - `outputs`: where predictions go; `build_loop` sends to the first `OscOutput`.
     - `patch`: the front-end patch as `"<package>:<path inside the package>"`.
     - `controls`: **provisional until ADR 0004 is accepted.** Maps a control name to
-      a handler. Under the ADR 0004 plan (#62) a control `<control>` will be
-      addressed as `/mpciml/preset/<name>/<control>` and forwarded only to the
-      active preset; nothing dispatches it yet (#64), and its type may change.
+      a handler. The engine (`mpc_iml.engine`) calls the handler of `<control>` with
+      the arguments of `/mpciml/preset/<name>/<control>`, only while this preset is
+      active; its type may change.
     """
 
     name: str

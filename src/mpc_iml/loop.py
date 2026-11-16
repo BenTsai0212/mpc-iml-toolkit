@@ -76,15 +76,17 @@ class IMLLoop:
         """The trained model in use, or None before the first `train()`."""
         return self._model
 
-    def train(self) -> Model:
+    def train(self, data: tuple[list[list[float]], list[list[float]]] | None = None) -> Model:
         """Fit a fresh model on the current examples and swap it in.
 
+        `data` is `(inputs, outputs)` taken earlier with `examples.training_data()`,
+        so a background retrain can fit on a snapshot while the examples change.
         Raises `BackendOffError` when the backend is off, and `ExampleError` when
         there are no examples; the previous model stays in use when it raises.
         """
         if self.model_factory is None:
             raise BackendOffError("the model backend is off; Wekinator is the model")
-        inputs, outputs = self.examples.training_data()
+        inputs, outputs = data if data is not None else self.examples.training_data()
         model = self.model_factory()
         model.fit(inputs, outputs)
         self._model = model

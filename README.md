@@ -172,6 +172,39 @@ The demo uses its own features (`played_features`, 32 values: per pad, velocity
 while held and pressure) rather than the default 49, which keep a pad's last
 velocity after it is released. It does not send `/wek/inputs`.
 
+## Run the engine
+
+The engine is a long-running IML loop that a front end (Pure Data, Max, later an
+app) drives with OSC control messages; the protocol is
+[ADR 0004](docs/adr/0004-engine-control-protocol.md). Start it with a folder for
+its saved example sets, with the MPC connected as in the
+[reference example](#reference-example):
+
+```bash
+uv run python -m mpc_iml.engine my-data
+```
+
+It listens for control messages on `127.0.0.1:6450`, sends replies and state reports
+to `127.0.0.1:6451`, and starts with the preset `demo` (`--preset` picks another).
+While running it sends the preset's features to `/wek/inputs` (port 6448) and its
+model outputs to the preset's output (`/wek/outputs` on port 12000 for `demo`).
+`--control-port`, `--reply-port`, `--inputs-port` and `--outputs-port` change the
+ports. Without an MPC, `--replay <recording>` plays a recording once in real time
+instead:
+
+```bash
+uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-pressure.jsonl
+```
+
+A session from a front end: `/mpciml/hello 1` (the engine answers with its version
+and full state; integer arguments such as the version and reply port also accept a
+whole-number float like `1.0`, so plain Pure Data messages work without a type tag), `/mpciml/class soft`, `/mpciml/record/start`, play,
+`/mpciml/record/stop`, then `/mpciml/train`, `/mpciml/run` and `/mpciml/stop`.
+`/mpciml/examples/save <name>` writes `my-data/<name>.jsonl` (an ADR 0002
+recording); the engine writes nothing outside that folder. Every message gets a
+reply, a state report or an `/mpciml/error`. Ctrl-C stops the engine: input and
+sockets are closed and a training in progress is finished first.
+
 ## Write a preset
 
 A preset bundles a feature function, a model, optional fixed class numbers and an
@@ -218,9 +251,9 @@ adds a preset without changing the toolkit:
    `Preset` or reuses a name raises `PresetError`.
 
 `controls` (a control name mapped to a handler) is **provisional until ADR 0004 is
-accepted**: under the ADR 0004 plan (#62) a control `<control>` will be addressed as
-`/mpciml/preset/<name>/<control>` and forwarded only to the active preset. Nothing
-dispatches it yet (#64), and its type may change.
+accepted**: the engine forwards `/mpciml/preset/<name>/<control>` to the handler of
+`<control>`, with the message's arguments, only while `<name>` is the active preset.
+Its type may change.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.

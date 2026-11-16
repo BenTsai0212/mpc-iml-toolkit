@@ -1,0 +1,794 @@
+"""The engine: a long-running IML loop driven by OSC control messages (ADR 0004).
+
+Front ends (Pure Data, Max, later an app) send control messages under `/mpciml/` to
+the control port (default `127.0.0.1:6450`) and receive replies and state reports on
+the reply port (default `127.0.0.1:6451`; `hello` can change it). While running, the
+engine sends `/wek/inputs` and the active preset's outputs as in ADR 0002.
+
+Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
+that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
+
+Gesture input is read continuously from one event source (the MPC, or a recording
+with `--replay`), so the pad state is known before `record/start`. Recording keeps
+the frames between `record/start` and `record/stop` as examples with the current
+class or targets. The example set is also kept as one recording (ADR 0002 format)
+for `examples/save`: each example is appended with the pad state at its start
+written as MIDI events, so loading the file gives the same examples.
+
+Threads: control messages are handled one at a time on the server thread; frames
+are handled on the input thread; training runs on its own thread. A lock keeps them
+consistent.
+"""
+
+import argparse
+import math
+import os
+import re
+import sys
+import threading
+import time
+from collections import deque
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.osc_message_builder import OscMessageBuilder
+from pythonosc.osc_server import BlockingOSCUDPServer
+from pythonosc.udp_client import UDPClient
+
+from mpc_iml import __version__
+from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, RawMidiEvent
+from mpc_iml.examples import ExampleError, ExampleSet
+from mpc_iml.frames import DEFAULT_RATE, PADS, Frame, bank_pad_to_note, frames, realtime_frames
+from mpc_iml.loop import IMLLoop
+from mpc_iml.osc import DEFAULT_HOST, INPUTS_ADDRESS, INPUTS_PORT, OscSender
+from mpc_iml.presets import (
+    RESERVED_NAMES,
+    OscOutput,
+    Preset,
+    PresetError,
+    available_presets,
+)
+from mpc_iml.recording import Header, read_recording, write_recording
+from mpc_iml.sources import DEFAULT_PORT_MATCH, ClockedSource, LiveSource, ReplaySource
+
+__all__ = [
+    "CONTROL_PORT",
+    "PROTOCOL_VERSION",
+    "REPLY_PORT",
+    "ControlError",
+    "Engine",
+    "main",
+]
+
+PROTOCOL_VERSION = (1, 0)
+"""Control protocol version `(major, minor)` (ADR 0004)."""
+
+CONTROL_PORT = 6450
+"""Default port the engine listens on for control messages."""
+
+REPLY_PORT = 6451
+"""Default port the engine sends replies and state reports to."""
+
+PREFIX = "/mpciml/"
+
+IDLE, RECORDING, TRAINING, RUNNING = "idle", "recording", "training", "running"
+_ALL = frozenset({IDLE, RECORDING, TRAINING, RUNNING})
+_EDIT = frozenset({IDLE, TRAINING, RUNNING})
+
+ALLOWED: Mapping[str, frozenset[str]] = {
+    "hello": _ALL,
+    "ping": _ALL,
+    "state/get": _ALL,
+    "examples/list": _ALL,
+    "preset/list": _ALL,
+    "record/start": frozenset({IDLE}),
+    "record/stop": frozenset({RECORDING}),
+    "class": _EDIT,
+    "targets": _EDIT,
+    "examples/delete": frozenset({IDLE, RUNNING}),
+    "examples/clear": frozenset({IDLE, RUNNING}),
+    "examples/load": frozenset({IDLE, RUNNING}),
+    "examples/save": _EDIT,
+    "train": frozenset({IDLE, RUNNING}),
+    "run": frozenset({IDLE}),
+    "stop": frozenset({IDLE, RECORDING, RUNNING}),
+    "preset/load": frozenset({IDLE}),
+}
+"""The states in which each control message is accepted (ADR 0004, States)."""
+
+_NAME = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
+
+EventInput = ClockedSource | Iterable[Event]
+"""Gesture input: a real-time source (live MPC, paced replay) or an event iterable."""
+
+
+class ControlError(Exception):
+    """A control message cannot be carried out; sent as `/mpciml/error`."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _check_count(args: Sequence[Any], low: int, high: int) -> None:
+    if not low <= len(args) <= high:
+        expected = str(low) if low == high else f"{low}-{high}"
+        raise ControlError("bad_arguments", f"expected {expected} arguments, got {len(args)}")
+
+
+def _int(value: Any) -> int:
+    """An int argument: an OSC int32, or a float with a whole-number value.
+
+    Pure Data sends numbers as floats unless the patch sets a type tag, so `1.0` is
+    accepted as `1`; `1.5`, infinities and NaN are not.
+    """
+    if isinstance(value, bool):
+        raise ControlError("bad_arguments", f"expected an int, got {value!r}")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    raise ControlError("bad_arguments", f"expected an int, got {value!r}")
+
+
+def _name(args: Sequence[Any]) -> str:
+    """The single name argument: letters, digits, `-` and `_` only (ADR 0004)."""
+    _check_count(args, 1, 1)
+    value = args[0]
+    if not isinstance(value, str) or not _NAME.fullmatch(value):
+        raise ControlError(
+            "bad_arguments", f"expected a name of letters, digits, '-' and '_', got {value!r}"
+        )
+    return value
+
+
+def _prelude(frame: Frame, t: float) -> list[Event]:
+    """MIDI events at `t` that give the pad state of `frame` when replayed.
+
+    A pad's velocity cannot return to 0 once set, so a pad never hit at `frame`
+    keeps any velocity set earlier in the recording.
+    """
+    events: list[Event] = []
+    for pad in range(PADS):
+        note = bank_pad_to_note(frame.bank, pad)
+        velocity, held, pressure = frame.velocity[pad], frame.held[pad], frame.pressure[pad]
+        if velocity == 0 or held:
+            events.append(MidiEvent(t, "note_off", 1, 0, note=note))
+        if velocity > 0:
+            events.append(MidiEvent(t, "note_on", 1, velocity, note=note))
+            if not held:
+                events.append(MidiEvent(t, "note_off", 1, 0, note=note))
+        if pressure > 0:
+            events.append(MidiEvent(t, "poly_pressure", 1, pressure, note=note))
+    return events
+
+
+class _Capture:
+    """A real-time source that also passes every polled event to `sink`."""
+
+    def __init__(self, source: ClockedSource, sink: Callable[[Event], None]) -> None:
+        self._source = source
+        self._sink = sink
+
+    @property
+    def realtime(self) -> bool:
+        return self._source.realtime
+
+    def start(self) -> None:
+        self._source.start()
+
+    def now(self) -> float:
+        return self._source.now()
+
+    def poll(self) -> Event | None:
+        event = self._source.poll()
+        if event is not None:
+            self._sink(event)
+        return event
+
+    def sleep(self, seconds: float) -> None:
+        self._source.sleep(seconds)
+
+    def done(self) -> bool:
+        return self._source.done()
+
+
+class Engine:
+    """The IML loop behind the ADR 0004 control protocol.
+
+    `source` is the gesture input (`None`: no input). `presets` lists the installed
+    presets; the default reads the `mpc_iml.presets` entry points. `outputs_port`
+    overrides the port of the preset's first `OscOutput`. Port 0 picks a free port
+    for the control server (see `control_port`).
+    """
+
+    def __init__(
+        self,
+        data_dir: Path | str,
+        source: EventInput | None = None,
+        preset: str = "demo",
+        presets: Callable[[], Mapping[str, Preset]] = available_presets,
+        host: str = DEFAULT_HOST,
+        control_port: int = CONTROL_PORT,
+        reply_host: str = DEFAULT_HOST,
+        reply_port: int = REPLY_PORT,
+        inputs_port: int = INPUTS_PORT,
+        outputs_port: int | None = None,
+        rate: float = DEFAULT_RATE,
+        log: Callable[[str], None] = lambda line: print(line, file=sys.stderr),
+    ) -> None:
+        self.data_dir = Path(data_dir)
+        self._source = source
+        self._presets = presets
+        self._host = host
+        self._control_port = control_port
+        self._reply_host = reply_host
+        self._reply = UDPClient(reply_host, reply_port)
+        self._reply_port = reply_port
+        self._inputs_port = inputs_port
+        self._outputs_port = outputs_port
+        self._rate = rate
+        self._log = log
+        self._lock = threading.RLock()
+        self._closing = threading.Event()
+        self._state = IDLE
+        self._label: str | None = None
+        self._targets: tuple[float, ...] | None = None
+        self._take: list[Frame] = []
+        self._take_events: list[Event] = []
+        self._heard: deque[Event] = deque()
+        self._timeline: list[Event] = []
+        self._trained = False
+        self._train_thread: threading.Thread | None = None
+        self._input_thread: threading.Thread | None = None
+        self._server: BlockingOSCUDPServer | None = None
+        self._serving = False
+        try:
+            found = self._find(preset)
+        except ControlError as error:
+            raise PresetError(error.message) from error
+        self._preset = found
+        self._examples = found.example_set()
+        self._loop = self._build_loop(found, self._examples)
+        self._handlers: dict[str, Callable[[list[Any]], None]] = {
+            "hello": self._hello,
+            "ping": self._ping,
+            "state/get": lambda args: self._full_state(),
+            "record/start": self._record_start,
+            "record/stop": self._record_stop,
+            "class": self._class,
+            "targets": self._set_targets,
+            "examples/delete": self._delete,
+            "examples/clear": self._clear,
+            "examples/save": self._save,
+            "examples/load": self._load,
+            "examples/list": self._list,
+            "train": self._train,
+            "run": self._run,
+            "stop": self._stop,
+            "preset/list": self._preset_list,
+            "preset/load": self._preset_load,
+        }
+
+    # Life cycle
+
+    @property
+    def state(self) -> str:
+        """`idle`, `recording`, `training` or `running`."""
+        return self._state
+
+    @property
+    def examples(self) -> ExampleSet:
+        """The current example set (read it; change it with control messages)."""
+        return self._examples
+
+    @property
+    def control_port(self) -> int:
+        """The port the control server listens on (after `start()`)."""
+        if self._server is None:
+            return self._control_port
+        return int(self._server.server_address[1])
+
+    def start(self) -> None:
+        """Create the data folder, bind the control port and start reading input."""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        dispatcher = Dispatcher()
+        dispatcher.set_default_handler(self.handle)
+        self._server = BlockingOSCUDPServer((self._host, self._control_port), dispatcher)
+        if self._source is not None:
+            self._input_thread = threading.Thread(target=self._read_input, daemon=True)
+            self._input_thread.start()
+
+    def serve_forever(self) -> None:
+        """Handle control messages until `close()` (or Ctrl-C in this thread)."""
+        if self._server is None:
+            raise RuntimeError("call start() first")
+        self._serving = True
+        try:
+            self._server.serve_forever(poll_interval=0.05)
+        finally:
+            self._serving = False
+
+    def close(self) -> None:
+        """Stop serving, stop input, wait for training, and close every socket."""
+        self._closing.set()
+        if self._server is not None:
+            if self._serving:
+                self._server.shutdown()
+            self._server.server_close()
+        for thread in (self._input_thread, self._train_thread):
+            if thread is not None:
+                thread.join()
+        close = getattr(self._source, "close", None)
+        if callable(close):
+            close()
+        with self._lock:
+            self._close_senders(self._loop)
+            self._reply.close()
+
+    # Control messages
+
+    def handle(self, address: str, *args: Any) -> None:
+        """Handle one control message; every problem becomes one `/mpciml/error`."""
+        try:
+            if address == PREFIX + "stop" and self._state == RUNNING:
+                self._wait_for_training()
+            with self._lock:
+                self._dispatch(address, list(args))
+        except ControlError as error:
+            self._error(error.code, address, error.message)
+        except Exception as error:  # the engine never crashes on a control message
+            self._log(f"error handling {address}: {error!r}")
+            self._error("bad_arguments", address, f"internal error: {error}")
+
+    def _dispatch(self, address: str, args: list[Any]) -> None:
+        command = address.removeprefix(PREFIX)
+        if command == address:
+            raise ControlError("unknown_message", f"unknown address {address}")
+        if command.startswith("preset/") and command not in ALLOWED:
+            self._preset_message(command.removeprefix("preset/"), args)
+            return
+        handler = self._handlers.get(command)
+        if handler is None:
+            raise ControlError("unknown_message", f"unknown address {address}")
+        if self._state not in ALLOWED[command]:
+            raise ControlError("wrong_state", f"not allowed while {self._state}")
+        handler(args)
+
+    def _hello(self, args: list[Any]) -> None:
+        _check_count(args, 1, 2)
+        major = _int(args[0])
+        if len(args) == 2:
+            port = _int(args[1])
+            if not 0 < port < 65536:
+                raise ControlError("bad_arguments", f"reply port must be 1-65535, got {port}")
+            if port != self._reply_port:
+                self._reply.close()
+                self._reply = UDPClient(self._reply_host, port)
+                self._reply_port = port
+        if major != PROTOCOL_VERSION[0]:
+            self._error(
+                "version_mismatch",
+                PREFIX + "hello",
+                f"engine speaks protocol {PROTOCOL_VERSION[0]}.{PROTOCOL_VERSION[1]}, "
+                f"client sent major {major}",
+            )
+        self._send("version", *PROTOCOL_VERSION, __version__)
+        self._full_state()
+
+    def _ping(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._send("pong")
+
+    def _record_start(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        if self._label is None and self._targets is None:
+            raise ControlError("bad_arguments", "send /mpciml/class or /mpciml/targets first")
+        self._check_task(self._label, self._targets)
+        self._take, self._take_events = [], []
+        self._set_state(RECORDING)
+
+    def _record_stop(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        take, events = self._take, self._take_events
+        self._take, self._take_events = [], []
+        for frame in take:
+            self._examples.add(frame, self._label, self._targets)
+        if take:
+            self._append_take(take, events)
+        self._set_state(IDLE)
+        self._counts()
+
+    def _class(self, args: list[Any]) -> None:
+        _check_count(args, 1, 1)
+        if not isinstance(args[0], str):
+            raise ControlError("bad_arguments", f"expected a string label, got {args[0]!r}")
+        self._check_task(args[0], None)
+        self._label, self._targets = args[0], None
+
+    def _set_targets(self, args: list[Any]) -> None:
+        if not args:
+            raise ControlError("bad_arguments", "expected one or more target values")
+        if any(isinstance(a, bool) or not isinstance(a, int | float) for a in args):
+            raise ControlError("bad_arguments", f"target values must be numbers: {args!r}")
+        targets = tuple(float(a) for a in args)
+        if not all(math.isfinite(v) for v in targets):
+            raise ControlError("bad_arguments", f"target values must be finite: {args!r}")
+        self._check_task(None, targets)
+        self._label, self._targets = None, targets
+
+    def _delete(self, args: list[Any]) -> None:
+        _check_count(args, 1, 1)
+        label = args[0]
+        if not isinstance(label, str):
+            raise ControlError("bad_arguments", f"expected a string label, got {label!r}")
+        self._examples.remove(label)
+        self._timeline = [
+            e for e in self._timeline if not (isinstance(e, ExampleStart) and e.label == label)
+        ]
+        self._timeline = _drop_unmatched_ends(self._timeline)
+        self._counts()
+
+    def _clear(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._examples.clear()
+        self._timeline = []
+        self._counts()
+
+    def _save(self, args: list[Any]) -> None:
+        name = _name(args)
+        path = self.data_dir / f"{name}.jsonl"
+        partial = self.data_dir / f".{name}.jsonl.partial"
+        header = Header(settings={"preset": self._preset.name})
+        write_recording(partial, header, self._timeline)
+        os.replace(partial, path)
+
+    def _load(self, args: list[Any]) -> None:
+        name = _name(args)
+        path = self.data_dir / f"{name}.jsonl"
+        if not path.is_file():
+            raise ControlError("not_found", f"no saved example set named {name!r}")
+        examples = self._preset.example_set()
+        try:
+            events = read_recording(path).events
+            examples.add_events(events, self._rate)
+        except ValueError as error:
+            raise ControlError("bad_arguments", f"cannot load {name!r}: {error}") from error
+        self._examples = examples
+        self._loop.examples = examples
+        self._timeline = list(events)
+        self._counts()
+
+    def _list(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        names = sorted(p.stem for p in self.data_dir.glob("*.jsonl") if _NAME.fullmatch(p.stem))
+        self._send("examples/names", *names)
+
+    def _train(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        if self._train_thread is not None and self._train_thread.is_alive():
+            raise ControlError("wrong_state", f"a retrain is already in progress ({self._state})")
+        if not self._loop.backend_on:
+            self._send("train/failed", "the model backend is off; Wekinator is the model")
+            return
+        try:
+            data = self._examples.training_data()
+        except ExampleError as error:
+            self._send("train/failed", str(error))
+            return
+        if self._state == IDLE:
+            self._set_state(TRAINING)
+        self._train_thread = threading.Thread(
+            target=self._fit, args=(self._loop, data), daemon=True
+        )
+        self._train_thread.start()
+
+    def _run(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        if self._loop.model is None:
+            raise ControlError("wrong_state", "no trained model; send /mpciml/train first")
+        self._set_state(RUNNING)
+
+    def _stop(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        if self._state == IDLE:
+            return
+        self._take, self._take_events = [], []
+        self._set_state(IDLE)
+
+    def _preset_list(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        try:
+            names = sorted(self._presets())
+        except PresetError as error:
+            raise ControlError("not_found", str(error)) from error
+        self._send("presets", *names)
+
+    def _preset_load(self, args: list[Any]) -> None:
+        name = _name(args)
+        if name != self._preset.name:
+            preset = self._find(name)
+            self._close_senders(self._loop)
+            self._preset = preset
+            self._examples = preset.example_set()
+            self._loop = self._build_loop(preset, self._examples)
+            self._timeline = []
+            self._label, self._targets = None, None
+        self._send("preset", self._preset.name, self._preset.version)
+        self._counts()
+        self._report_trained()
+
+    def _preset_message(self, rest: str, args: list[Any]) -> None:
+        name, _, control = rest.partition("/")
+        address = PREFIX + "preset/" + rest
+        if name in RESERVED_NAMES or not name:
+            raise ControlError("unknown_message", f"unknown address {address}")
+        if name != self._preset.name:
+            raise ControlError("inactive_preset", f"preset {name!r} is not active")
+        handler = self._preset.controls.get(control)
+        if handler is None:
+            raise ControlError("unknown_message", f"preset {name!r} has no control {control!r}")
+        try:
+            handler(args)
+        except Exception as error:
+            raise ControlError("bad_arguments", f"{control}: {error}") from error
+
+    # Replies
+
+    def _send(self, name: str, *args: int | float | str) -> None:
+        builder = OscMessageBuilder(address=PREFIX + name)
+        for arg in args:
+            if isinstance(arg, str):
+                builder.add_arg(arg, OscMessageBuilder.ARG_TYPE_STRING)
+            elif isinstance(arg, int):
+                builder.add_arg(arg, OscMessageBuilder.ARG_TYPE_INT)
+            else:
+                builder.add_arg(arg, OscMessageBuilder.ARG_TYPE_FLOAT)
+        with self._lock:
+            try:
+                self._reply.send(builder.build())
+            except OSError as error:
+                self._log(f"cannot send {PREFIX + name}: {error}")
+
+    def _error(self, code: str, address: str, message: str) -> None:
+        self._send("error", code, address, message)
+
+    def _set_state(self, state: str) -> None:
+        if state != self._state:
+            self._state = state
+            self._send("state", state)
+
+    def _counts(self) -> None:
+        examples = self._examples.examples
+        if examples and examples[0].targets is not None:
+            self._send("counts", "", len(examples))
+            return
+        tally: dict[str, int] = {}
+        for example in examples:
+            if example.label is not None:
+                tally[example.label] = tally.get(example.label, 0) + 1
+        classes = sorted(self._examples.classes.items(), key=lambda item: item[1])
+        pairs: list[int | float | str] = []
+        for label, _ in classes:
+            pairs += [label, tally.get(label, 0)]
+        self._send("counts", *pairs)
+
+    def _report_trained(self, always: bool = False) -> None:
+        trained = self._loop.model is not None
+        if always or trained != self._trained:
+            self._trained = trained
+            self._send("trained", int(trained))
+
+    def _full_state(self) -> None:
+        self._send("state", self._state)
+        self._send("preset", self._preset.name, self._preset.version)
+        self._counts()
+        self._report_trained(always=True)
+
+    # Examples, presets and training
+
+    def _find(self, name: str) -> Preset:
+        try:
+            presets = self._presets()
+        except PresetError as error:
+            raise ControlError("not_found", str(error)) from error
+        if name not in presets:
+            known = ", ".join(sorted(presets)) or "none"
+            raise ControlError("not_found", f"unknown preset {name!r}; available: {known}")
+        return presets[name]
+
+    def _check_task(self, label: str | None, targets: tuple[float, ...] | None) -> None:
+        """Reject a class or targets that cannot join the current examples."""
+        examples = self._examples.examples
+        if not examples:
+            return
+        first = examples[0]
+        if label is not None and first.targets is not None:
+            raise ControlError("bad_arguments", "the examples are regression; send targets")
+        if targets is not None:
+            if first.targets is None:
+                raise ControlError("bad_arguments", "the examples are classification; send class")
+            if len(targets) != len(first.targets):
+                raise ControlError("bad_arguments", f"expected {len(first.targets)} target values")
+
+    def _append_take(self, take: list[Frame], events: list[Event]) -> None:
+        """Append a recorded example to the timeline that `examples/save` writes."""
+        rate = self._rate
+        last = self._timeline[-1].t if self._timeline else None
+        k = 0 if last is None else math.floor(last * rate) + 2
+        start = k / rate
+        shift = start - take[0].t
+        self._timeline += _prelude(take[0], start)
+        self._timeline.append(ExampleStart(start, self._label, self._targets))
+        for event in events:
+            match event:
+                case MidiEvent():
+                    self._timeline.append(MidiEvent(
+                        event.t + shift, event.kind, event.channel, event.value,
+                        event.note, event.control,
+                    ))  # fmt: skip
+                case RawMidiEvent():
+                    self._timeline.append(RawMidiEvent(event.t + shift, event.data))
+        self._timeline.append(ExampleEnd(start + (len(take) - 0.5) / rate))
+
+    def _build_loop(self, preset: Preset, examples: ExampleSet) -> IMLLoop:
+        output = next((o for o in preset.outputs if isinstance(o, OscOutput)), None)
+        outputs = None
+        if output is not None:
+            port = output.port if self._outputs_port is None else self._outputs_port
+            outputs = OscSender(output.address, output.host, port)
+        inputs = OscSender(INPUTS_ADDRESS, DEFAULT_HOST, self._inputs_port)
+        loop = preset.build_loop(examples, inputs=inputs, outputs=outputs)
+        loop.rate = self._rate
+        return loop
+
+    @staticmethod
+    def _close_senders(loop: IMLLoop) -> None:
+        for sender in (loop.inputs, loop.outputs):
+            if sender is not None:
+                sender.close()
+
+    def _fit(self, loop: IMLLoop, data: tuple[list[list[float]], list[list[float]]]) -> None:
+        started = time.perf_counter()
+        failure: str | None
+        try:
+            loop.train(data)
+            failure = None
+        except Exception as error:
+            failure = str(error) or type(error).__name__
+        with self._lock:
+            if failure is not None:
+                self._send("train/failed", failure)
+            else:
+                self._send("train/done", time.perf_counter() - started)
+                self._report_trained()
+            if self._state == TRAINING:
+                self._set_state(IDLE)
+
+    def _wait_for_training(self) -> None:
+        thread = self._train_thread
+        if thread is not None:
+            thread.join()
+
+    # Input
+
+    def _read_input(self) -> None:
+        try:
+            for frame in self._frames():
+                self._on_frame(frame)
+        except Exception as error:
+            self._log(f"input stopped: {error!r}")
+
+    def _frames(self) -> Iterator[Frame]:
+        source = self._source
+        if isinstance(source, ClockedSource) and source.realtime:
+            capture = _Capture(source, self._heard.append)
+            yield from realtime_frames(capture, self._rate, stop=self._closing.is_set)
+        elif isinstance(source, Iterable):
+            for frame in frames(self._tee(source), self._rate):
+                if self._closing.is_set():
+                    return
+                yield frame
+
+    def _tee(self, events: Iterable[Event]) -> Iterator[Event]:
+        for event in events:
+            self._heard.append(event)
+            yield event
+
+    def _on_frame(self, frame: Frame) -> None:
+        applied: list[Event] = []
+        while self._heard and self._heard[0].t <= frame.t:
+            applied.append(self._heard.popleft())
+        with self._lock:
+            if self._state == RECORDING:
+                if self._take:
+                    self._take_events += applied
+                self._take.append(frame)
+            elif self._state == RUNNING:
+                try:
+                    self._loop.step(frame)
+                except Exception as error:
+                    self._log(f"run step failed: {error!r}")
+
+
+def _drop_unmatched_ends(events: list[Event]) -> list[Event]:
+    """Remove `example_end` markers whose `example_start` was removed."""
+    kept: list[Event] = []
+    open_segment = False
+    for event in events:
+        if isinstance(event, ExampleStart):
+            open_segment = True
+        elif isinstance(event, ExampleEnd):
+            if not open_segment:
+                continue
+            open_segment = False
+        kept.append(event)
+    return kept
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m mpc_iml.engine",
+        description="The IML engine, controlled over OSC (ADR 0004; see the README).",
+    )
+    parser.add_argument("data", help="folder for saved example sets (created if missing)")
+    parser.add_argument("--preset", default="demo", help="preset to start with (default demo)")
+    parser.add_argument("--replay", help="read gestures from this recording instead of the MPC")
+    parser.add_argument("--port", default=DEFAULT_PORT_MATCH, help="MIDI input port name contains")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="address to listen on")
+    parser.add_argument("--control-port", type=int, default=CONTROL_PORT)
+    parser.add_argument("--reply-port", type=int, default=REPLY_PORT)
+    parser.add_argument("--inputs-port", type=int, default=INPUTS_PORT, help="/wek/inputs port")
+    parser.add_argument("--outputs-port", type=int, help="override the preset's output port")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the engine until Ctrl-C."""
+    args = build_parser().parse_args(argv)
+    source: LiveSource | ReplaySource
+    if args.replay:
+        source = ReplaySource(args.replay, realtime=True)
+    else:
+        source = LiveSource(port_match=args.port)
+        try:
+            source.open()
+        except Exception as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    try:
+        engine = Engine(
+            args.data,
+            source,
+            preset=args.preset,
+            host=args.host,
+            control_port=args.control_port,
+            reply_port=args.reply_port,
+            inputs_port=args.inputs_port,
+            outputs_port=args.outputs_port,
+        )
+    except PresetError as error:
+        print(f"error: {error}", file=sys.stderr)
+        if isinstance(source, LiveSource):
+            source.close()
+        return 2
+    engine.start()
+    print(
+        f"Engine (protocol {PROTOCOL_VERSION[0]}.{PROTOCOL_VERSION[1]}) listening on "
+        f"{args.host}:{engine.control_port}, replying to port {args.reply_port}, "
+        f"preset {args.preset!r}, data in {args.data}. Ctrl-C stops."
+    )
+    try:
+        engine.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        engine.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

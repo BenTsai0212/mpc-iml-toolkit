@@ -152,6 +152,34 @@ uv run python -m mpc_iml.demo run tests/data/demo_examples.jsonl --replay tests/
 pressure），而不是預設的 49 個值，因為預設值在放開 pad 後仍保留最後的 velocity。範例不送
 `/wek/inputs`。
 
+## 執行 engine
+
+engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
+協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)。依[參考範例](#參考範例)接好
+MPC 後，指定一個存放範例集的資料夾來啟動：
+
+```bash
+uv run python -m mpc_iml.engine my-data
+```
+
+engine 在 `127.0.0.1:6450` 接收控制訊息，把回覆與狀態回報送到 `127.0.0.1:6451`，以
+preset `demo` 啟動（`--preset` 指定其他 preset）。執行中會把 preset 的特徵送到
+`/wek/inputs`（6448 埠），模型輸出送到 preset 的輸出（`demo` 是 12000 埠的
+`/wek/outputs`）。`--control-port`、`--reply-port`、`--inputs-port`、`--outputs-port`
+可改埠號。沒有 MPC 時，`--replay <錄音>` 改為以實際速度播放一次錄音：
+
+```bash
+uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-pressure.jsonl
+```
+
+前端的操作流程例如：`/mpciml/hello 1`（engine 回覆版本與完整狀態；版本與回覆埠等整數參數
+也接受值為整數的 float，例如 `1.0`，所以 Pure Data 不設型別標記的一般訊息也能用）、
+`/mpciml/class soft`、`/mpciml/record/start`、演奏、`/mpciml/record/stop`，接著
+`/mpciml/train`、`/mpciml/run`、`/mpciml/stop`。`/mpciml/examples/save <名稱>` 寫入
+`my-data/<名稱>.jsonl`（ADR 0002 格式的錄音）；engine 不會寫入這個資料夾以外的地方。每個
+訊息都會得到回覆、狀態回報或 `/mpciml/error`。按 Ctrl-C 停止 engine：關閉輸入與 socket，
+進行中的訓練會先完成。
+
 ## 撰寫 preset
 
 preset 把特徵函式、模型、選用的固定類別編號與輸出對應包成一個有名稱的單位，以 plugin
@@ -192,9 +220,9 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
    `get_preset("my-preset").build_loop()` 回傳使用其特徵、模型與第一個 `OscOutput` 的
    `IMLLoop`。preset 無法載入、不是 `Preset` 或名稱重複時丟出 `PresetError`。
 
-`controls`（控制名稱對應到處理函式）**在 ADR 0004 接受前是暫定的**：依 ADR 0004 的計畫
-（#62），控制 `<control>` 的位址將是 `/mpciml/preset/<name>/<control>`，且只轉送給目前
-啟用的 preset。目前沒有任何程式分派它（#64），型別也可能改變。
+`controls`（控制名稱對應到處理函式）**在 ADR 0004 接受前是暫定的**：engine 只在 `<name>`
+是目前啟用的 preset 時，把 `/mpciml/preset/<name>/<control>` 連同訊息的參數轉給
+`<control>` 的處理函式。型別仍可能改變。
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。
