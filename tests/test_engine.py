@@ -240,6 +240,17 @@ def test_hello_changes_the_reply_port(start: Any, receivers: list[Receiver]) -> 
     assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
 
 
+def test_hello_accepts_whole_number_floats(start: Any, receivers: list[Receiver]) -> None:
+    front = start()
+    other = Receiver()
+    receivers.append(other)
+    front.send("/mpciml/hello", 1.0, float(other.port))
+    replies = other.until("/mpciml/trained")
+    assert replies[0] == ("/mpciml/version", [1, 0, __version__])
+    front.replies = other
+    assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
+
+
 def test_hello_with_another_major_reports_mismatch_and_keeps_working(start: Any) -> None:
     front = start()
     front.send("/mpciml/hello", 2)
@@ -276,7 +287,8 @@ def test_unknown_message(start: Any, address: str) -> None:
         ("/mpciml/ping", [1]),
         ("/mpciml/hello", []),
         ("/mpciml/hello", ["1"]),
-        ("/mpciml/hello", [1.0]),
+        ("/mpciml/hello", [1.5]),
+        ("/mpciml/hello", [1, 6451.5]),
         ("/mpciml/hello", [1, 70000]),
         ("/mpciml/class", []),
         ("/mpciml/class", [3]),

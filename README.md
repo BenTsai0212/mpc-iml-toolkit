@@ -197,7 +197,8 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 ```
 
 A session from a front end: `/mpciml/hello 1` (the engine answers with its version
-and full state), `/mpciml/class soft`, `/mpciml/record/start`, play,
+and full state; integer arguments such as the version and reply port also accept a
+whole-number float like `1.0`, so plain Pure Data messages work without a type tag), `/mpciml/class soft`, `/mpciml/record/start`, play,
 `/mpciml/record/stop`, then `/mpciml/train`, `/mpciml/run` and `/mpciml/stop`.
 `/mpciml/examples/save <name>` writes `my-data/<name>.jsonl` (an ADR 0002
 recording); the engine writes nothing outside that folder. Every message gets a

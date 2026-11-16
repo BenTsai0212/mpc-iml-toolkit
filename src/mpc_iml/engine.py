@@ -120,9 +120,18 @@ def _check_count(args: Sequence[Any], low: int, high: int) -> None:
 
 
 def _int(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
+    """An int argument: an OSC int32, or a float with a whole-number value.
+
+    Pure Data sends numbers as floats unless the patch sets a type tag, so `1.0` is
+    accepted as `1`; `1.5`, infinities and NaN are not.
+    """
+    if isinstance(value, bool):
         raise ControlError("bad_arguments", f"expected an int, got {value!r}")
-    return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    raise ControlError("bad_arguments", f"expected an int, got {value!r}")
 
 
 def _name(args: Sequence[Any]) -> str:

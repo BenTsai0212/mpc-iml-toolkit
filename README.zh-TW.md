@@ -172,7 +172,8 @@ preset `demo` 啟動（`--preset` 指定其他 preset）。執行中會把 prese
 uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-pressure.jsonl
 ```
 
-前端的操作流程例如：`/mpciml/hello 1`（engine 回覆版本與完整狀態）、
+前端的操作流程例如：`/mpciml/hello 1`（engine 回覆版本與完整狀態；版本與回覆埠等整數參數
+也接受值為整數的 float，例如 `1.0`，所以 Pure Data 不設型別標記的一般訊息也能用）、
 `/mpciml/class soft`、`/mpciml/record/start`、演奏、`/mpciml/record/stop`，接著
 `/mpciml/train`、`/mpciml/run`、`/mpciml/stop`。`/mpciml/examples/save <名稱>` 寫入
 `my-data/<名稱>.jsonl`（ADR 0002 格式的錄音）；engine 不會寫入這個資料夾以外的地方。每個
