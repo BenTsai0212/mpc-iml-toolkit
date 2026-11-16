@@ -105,7 +105,19 @@ def test_guided_record_puts_markers_around_each_class() -> None:
     assert [round(m.t, 6) for m in markers] == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
     assert [e.t for e in events] == sorted(e.t for e in events)
     assert sum(isinstance(e, MidiEvent) for e in events) == 5
-    assert any("soft" in line for line in lines)
+    assert lines == [
+        "Next: rest. Do not touch any pad. Recording starts in 1 s...",
+        "Recording rest for 1 s...",
+        "Next: soft. Press and hold pad 1 lightly, for example a light fingertip touch."
+        " Recording starts in 1 s...",
+        "Recording soft for 1 s...",
+        "Release pad 1 now.",
+        "Next: hard. Press and hold pad 1 firmly, for example a firm press with the whole"
+        " finger; make it clearly different from soft. Recording starts in 1 s...",
+        "Recording hard for 1 s...",
+        "Release pad 1 now.",
+        "Done.",
+    ]
 
     examples = ExampleSet(features=played_features, classes=CLASSES)
     examples.add_events(events)

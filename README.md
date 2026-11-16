@@ -135,12 +135,17 @@ You need an MPC Sample, a USB cable, and a Mac with a terminal (Terminal.app).
    to do and counts down 3 seconds, then records 3 seconds: for **rest** do not
    touch the pads; for **soft** press and hold pad 1 lightly before the countdown
    ends and keep holding until the next prompt; for **hard** do the same, firmly.
+   Make soft and hard clearly different, for example a light fingertip touch and a
+   firm press with the whole finger. When the terminal says "Release pad 1 now.",
+   let go of the pad before the next countdown.
 
    ```bash
    uv run python -m mpc_iml.demo record examples.jsonl --no-full-level
    ```
 
-   `--seconds` and `--countdown` change the timing. Run it again to start over.
+   The receiver stays silent while you record: it only reacts in step 6
+   (`demo run`). `--seconds` and `--countdown` change the timing. Run it again to
+   start over.
 
 6. Train and run live. The command trains on `examples.jsonl`, then reads the pads
    until Ctrl-C. Hold pad 1 lightly, then firmly, then let go: the receiver shows
@@ -202,6 +207,9 @@ default. Run them with the MPC connected:
 ```bash
 uv run pytest -m hardware
 ```
+
+The pad test waits 10 seconds for a quick press and release of pad A01: tap the pad,
+do not hold it.
 
 CI (`.github/workflows/ci.yml`, job `checks`) runs on Ubuntu and macOS
 (`ubuntu-latest` and `macos-latest`). On each, it runs the workflow tool tests

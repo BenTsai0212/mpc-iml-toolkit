@@ -119,13 +119,15 @@ pad）、**soft**（輕按並按住 pad 1）與 **hard**（重按並按住 pad 1
 
 5. 在第一個視窗錄製範例。每一類終端機會先說明要做什麼並倒數 3 秒，再錄 3 秒：**rest**
    時不碰 pad；**soft** 時在倒數結束前輕按並按住 pad 1，按到下一個提示出現為止；**hard**
-   同樣做法，改成重按。
+   同樣做法，改成重按。soft 與 hard 要明顯不同，例如用指尖輕觸與用整根手指用力按。終端機顯示
+   「Release pad 1 now.」時，在下一次倒數前放開 pad。
 
    ```bash
    uv run python -m mpc_iml.demo record examples.jsonl --no-full-level
    ```
 
-   `--seconds` 與 `--countdown` 可調整時間。要重錄時再執行一次。
+   錄製時接收端不會有反應：要到第 6 步（`demo run`）才會反應。`--seconds` 與
+   `--countdown` 可調整時間。要重錄時再執行一次。
 
 6. 訓練並即時執行。指令先以 `examples.jsonl` 訓練，再讀取 pad 直到按 Ctrl-C。輕按並按住
    pad 1，再改成重按，然後放開：接收端依序顯示 2 soft、3 hard、1 rest。
@@ -182,6 +184,8 @@ uv run pytest
 ```bash
 uv run pytest -m hardware
 ```
+
+pad 測試會等 10 秒，等待 pad A01 快速按下再放開：請輕點 pad，不要按住。
 
 CI（`.github/workflows/ci.yml` 的 `checks` job）在 Ubuntu 與 macOS
 （`ubuntu-latest`、`macos-latest`）上執行：各自先執行 workflow 工具測試
