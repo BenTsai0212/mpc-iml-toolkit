@@ -1,13 +1,15 @@
 """The built-in preset `pressure` and its MIDI CC output (#65).
 
 Training and the outputs are checked on replayed recordings: the hand-written
-`tests/data/pressure_*.jsonl` and the recorded `hold-pressure.jsonl` fixture.
+`tests/data/pressure_*.jsonl` and the recorded `hold-pressure.jsonl` and
+`two-pads.jsonl` fixtures, whose light holds retrigger on the hardware (#76).
 MIDI goes to a fake backend, never to a real port.
 """
 
 import threading
 import time
 from collections.abc import Iterator, Sequence
+from dataclasses import replace
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any
@@ -23,10 +25,17 @@ from test_engine import (
     SteppedReplay,
     record_steps,
 )
+from test_fixtures import frame_at, load, midi, retriggers
 
 from mpc_iml.engine import Engine
-from mpc_iml.examples import ExampleSet, default_features, played_features
-from mpc_iml.frames import Frame
+from mpc_iml.examples import (
+    ExampleSet,
+    FeatureFn,
+    default_features,
+    played_features,
+    pressure_features,
+)
+from mpc_iml.frames import Frame, frames, note_to_bank_pad
 from mpc_iml.loop import FanOut, IMLLoop
 from mpc_iml.midi_out import MidiCcSender
 from mpc_iml.presets import (
@@ -102,7 +111,7 @@ def test_registered_through_the_entry_point_group_only() -> None:
     found = preset()
     assert found.name == "pressure"
     assert found.targets == 8
-    assert found.features is played_features
+    assert found.features is pressure_features
     assert found.model_factory is Regressor
     assert found.controls == {}
     osc, midi = found.outputs
@@ -180,8 +189,8 @@ def test_training_and_playing_a_pressure_sweep() -> None:
     outputs = Collect()
     loop = trained_loop(outputs)
     assert loop.model is not None
-    assert loop.model.predict(played_features(frame(110, 120))) == pytest.approx(HARD, abs=0.1)
-    assert loop.model.predict(played_features(frame(40, 30))) == pytest.approx(LIGHT, abs=0.1)
+    assert loop.model.predict(pressure_features(frame(110, 120))) == pytest.approx(HARD, abs=0.1)
+    assert loop.model.predict(pressure_features(frame(40, 30))) == pytest.approx(LIGHT, abs=0.1)
 
     count = loop.run(ReplaySource(PERFORMANCE, realtime=False))
     assert count == len(outputs.values) == 161
@@ -199,9 +208,17 @@ def test_training_and_playing_a_pressure_sweep() -> None:
     assert released == rest
 
 
+def test_pressure_features_are_pressure_only() -> None:
+    assert len(pressure_features(frame(100, 0))) == 16
+    assert pressure_features(frame(127, 127)) == [1.0] + [0.0] * 15
+    # Velocity and the held flag do not reach the model.
+    assert pressure_features(frame(100, 0)) == pressure_features(frame(0, 0, held=False))
+
+
 def test_rest_after_playing_differs_with_the_default_features() -> None:
-    """Why the preset uses `played_features` (#43)."""
+    """Why the preset does not use the default features (#43)."""
     hit_then_released = Frame(0.0, (0,) * 16, (110,) + (0,) * 15, (False,) * 16, 0)
+    assert pressure_features(hit_then_released) == pressure_features(frame(0, 0, held=False))
     assert played_features(hit_then_released) == played_features(frame(0, 0, held=False))
     assert default_features(hit_then_released) != default_features(frame(0, 0, held=False))
 
@@ -212,6 +229,134 @@ def test_the_recorded_hold_fixture_plays_without_errors() -> None:
     count = loop.run(ReplaySource(HOLD, realtime=False))
     assert count > 100 and len(outputs.values) == count
     assert all(len(v) == 8 for v in outputs.values)
+
+
+# The light end on the recorded fixtures (#76)
+
+LIGHT_HOLDS = ["hold-pressure", "two-pads"]
+STEP = 3 / 127
+"""The largest last pressure before a retrigger in the fixtures (1 or 3 of 127)."""
+TOLERANCE = 0.08
+"""How far an output may move while a light hold retriggers or a press starts.
+
+A pressure step of `STEP` moves the outputs of the model trained on
+`pressure_examples.jsonl` by about 0.06, as easing off by that much would.
+"""
+
+
+def put[T](values: tuple[T, ...], pad: int, value: T) -> tuple[T, ...]:
+    return (*values[:pad], value, *values[pad + 1 :])
+
+
+def with_pad(f: Frame, pad: int, like: Frame) -> Frame:
+    """`f` with one pad's pressure, velocity and held flag taken from `like`."""
+    return replace(
+        f,
+        pressure=put(f.pressure, pad, like.pressure[pad]),
+        velocity=put(f.velocity, pad, like.velocity[pad]),
+        held=put(f.held, pad, like.held[pad]),
+    )
+
+
+def windows(
+    name: str,
+) -> tuple[list[tuple[int, Frame, list[Frame]]], list[tuple[int, list[Frame]]]]:
+    """The gaps and presses of a fixture, per pad.
+
+    A gap runs from a retrigger's `note_off` until the first pressure after its new
+    `note_on`, with the pad as it was just before the `note_off` as reference. A press runs
+    from any `note_on` until its first pressure.
+    """
+    rec = load(name)
+    fs = list(frames(rec.events))
+
+    def first_pressure(start: int, pad: int) -> int:
+        return next(i for i in range(start, len(fs)) if fs[i].pressure[pad] > 0)
+
+    gaps = []
+    for r in retriggers(rec.events):
+        _, pad = note_to_bank_pad(r.note)
+        off, on = frame_at(fs, r.off.t), frame_at(fs, r.on.t)
+        # The last pressure before the `note_off` (1 or 3) can fall in the same frame
+        # as the `note_off`, so the reference takes it from the MIDI.
+        last = fs[off - 1]
+        before = replace(last, pressure=put(last.pressure, pad, r.pressure_before))
+        gaps.append((pad, before, fs[off : first_pressure(on, pad)]))
+    presses = []
+    for e in midi(rec.events):
+        if e.kind == "note_on" and e.note is not None:
+            _, pad = note_to_bank_pad(e.note)
+            on = frame_at(fs, e.t)
+            presses.append((pad, fs[on : first_pressure(on, pad)]))
+    return gaps, presses
+
+
+def released(f: Frame, pad: int) -> Frame:
+    return with_pad(f, pad, Frame(f.t, (0,) * 16, (0,) * 16, (False,) * 16, f.bank))
+
+
+def light_end_is_continuous(features: FeatureFn, name: str) -> bool:
+    """Feature level: no drop in a light hold and no jump on a press.
+
+    Each frame is compared with the same frame where only that pad is replaced:
+    in a gap by the pad just before the `note_off` (at most `STEP` apart), on a
+    press by the released pad (equal).
+    """
+    gaps, presses = windows(name)
+    for pad, before, gap in gaps:
+        for f in gap:
+            steady = features(with_pad(f, pad, before))
+            if max(abs(a - b) for a, b in zip(features(f), steady, strict=True)) > STEP + 1e-9:
+                return False
+    return all(features(f) == features(released(f, pad)) for pad, press in presses for f in press)
+
+
+def outputs_are_continuous(loop: IMLLoop, features: FeatureFn, name: str) -> bool:
+    """Model level: the same comparison on the model outputs, within `TOLERANCE`."""
+    assert loop.model is not None
+    model = loop.model
+
+    def apart(f: Frame, other: Frame) -> float:
+        a, b = model.predict(features(f)), model.predict(features(other))
+        return max(abs(x - y) for x, y in zip(a, b, strict=True))
+
+    gaps, presses = windows(name)
+    return all(
+        apart(f, with_pad(f, pad, before)) <= TOLERANCE for pad, before, gap in gaps for f in gap
+    ) and all(apart(f, released(f, pad)) <= TOLERANCE for pad, press in presses for f in press)
+
+
+@pytest.mark.parametrize("name", LIGHT_HOLDS)
+def test_fixtures_have_light_holds_that_retrigger(name: str) -> None:
+    gaps, presses = windows(name)
+    assert len(gaps) == {"hold-pressure": 3, "two-pads": 21}[name]
+    assert all(len(gap) >= 5 for _, _, gap in gaps)
+    assert len(presses) > len(gaps)
+    assert all(len(press) >= 5 for _, press in presses)
+
+
+@pytest.mark.parametrize("name", LIGHT_HOLDS)
+def test_pressure_features_stay_continuous_at_the_light_end(name: str) -> None:
+    assert light_end_is_continuous(pressure_features, name)
+    # The same check catches the old behaviour (#76): velocity and held jump.
+    assert not light_end_is_continuous(played_features, name)
+
+
+def test_preset_outputs_stay_continuous_at_the_light_end() -> None:
+    loop = trained_loop(Collect())
+    for name in LIGHT_HOLDS:
+        assert outputs_are_continuous(loop, pressure_features, name), name
+
+
+def test_played_features_outputs_jump_at_the_light_end() -> None:
+    """The model-level check detects the old behaviour (#76)."""
+    examples = ExampleSet(features=played_features)
+    assert examples.add_recording(EXAMPLES) == 90
+    loop = IMLLoop(Regressor, examples)
+    loop.train()
+    # In `hold-pressure` the retrigger velocities (1-21) are low, so the jumps are
+    # small there; in `two-pads` they move the outputs by more than 0.4.
+    assert not outputs_are_continuous(loop, played_features, "two-pads")
 
 
 # The MIDI CC sender
@@ -378,6 +523,6 @@ def test_engine_save_and_load_give_the_same_examples(engines: Any) -> None:
     assert front.expect("/mpciml/counts") == ["", len(before)]
     assert front.engine.examples.examples == before
 
-    saved = ExampleSet(features=played_features)
+    saved = ExampleSet(features=pressure_features)
     saved.add_events(read_recording(front.engine.data_dir / "take.jsonl").events)
     assert saved.examples == before
