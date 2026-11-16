@@ -18,6 +18,9 @@ The demo uses its own features (`played_features`): per pad, the velocity while
 the pad is held (0 once released) and the pressure. The default 49 values keep a
 pad's last velocity after release, so "rest" after playing would look like the
 last hit.
+
+The demo is also the built-in preset `demo` (`PRESET`), registered in the
+`mpc_iml.presets` entry point group like any external preset.
 """
 
 import argparse
@@ -29,11 +32,12 @@ from typing import Any
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
+from mpc_iml import __version__
 from mpc_iml.events import Event, ExampleEnd, ExampleStart
-from mpc_iml.examples import ExampleSet
 from mpc_iml.frames import Frame
 from mpc_iml.loop import IMLLoop
 from mpc_iml.osc import DEFAULT_HOST, OUTPUTS_ADDRESS, OUTPUTS_PORT, outputs_sender
+from mpc_iml.presets import OscOutput, Preset
 from mpc_iml.recording import Header, write_recording
 from mpc_iml.sklearn_backend import Classifier
 from mpc_iml.sources import (
@@ -77,6 +81,18 @@ def played_features(frame: Frame) -> list[float]:
     ]
 
 
+PRESET = Preset(
+    name="demo",
+    version=__version__,
+    description="Reference example: rest / soft / hard on pad 1",
+    features=played_features,
+    model_factory=Classifier,
+    classes=CLASSES,
+    outputs=(OscOutput(),),
+)
+"""The reference example as the built-in preset `demo`; it has no patch yet."""
+
+
 def _collect(source: ClockedSource, events: list[Event], until: float) -> None:
     """Poll `source` into `events` until its clock reaches `until`."""
     while (now := source.now()) < until:
@@ -113,9 +129,9 @@ def guided_record(
 
 def build_loop(examples_path: str, host: str, port: int) -> IMLLoop:
     """A loop with the demo features and classes, trained on `examples_path`."""
-    examples = ExampleSet(features=played_features, classes=CLASSES)
+    examples = PRESET.example_set()
     examples.add_recording(examples_path)
-    loop = IMLLoop(Classifier, examples=examples, outputs=outputs_sender(host=host, port=port))
+    loop = PRESET.build_loop(examples, outputs=outputs_sender(host=host, port=port))
     loop.train()
     return loop
 

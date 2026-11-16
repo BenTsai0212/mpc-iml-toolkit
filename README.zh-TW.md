@@ -152,6 +152,52 @@ uv run python -m mpc_iml.demo run tests/data/demo_examples.jsonl --replay tests/
 pressure），而不是預設的 49 個值，因為預設值在放開 pad 後仍保留最後的 velocity。範例不送
 `/wek/inputs`。
 
+## 撰寫 preset
+
+preset 把特徵函式、模型、選用的固定類別編號與輸出對應包成一個有名稱的單位，以 plugin
+方式載入（RFC 0002）。參考範例就是內建的 preset `demo`（`mpc_iml.demo.PRESET`）。外部
+套件不必修改工具包即可新增 preset：
+
+1. 在自己的套件中定義 `Preset`（`src/mpc_iml/presets.py`）：
+
+   ```python
+   from mpc_iml.presets import MidiCcOutput, OscOutput, Preset
+
+   PRESET = Preset(
+       name="my-preset",
+       version="0.1.0",
+       description="One line for listings",
+       features=my_features,
+       model_factory=MyModel,
+       outputs=(OscOutput(), MidiCcOutput(controllers=(20, 21))),
+       patch="my_package:patches/main.pd",
+   )
+   ```
+
+   `features` 與 `classes` 就是 `ExampleSet(features=..., classes=...)` 的參數，
+   `model_factory` 就是 `IMLLoop` 的參數（`None`：由 Wekinator 當模型）。`OscOutput` 預設為
+   `127.0.0.1:12000` 的 `/wek/outputs`。`MidiCcOutput` 為每個輸出值宣告一個 CC 編號，並把
+   `ranges`（預設 0-1）縮放到 0-127；目前只有宣告與縮放，MIDI 送出端在 #65 實作。`patch`
+   是套件內的前端 patch，寫成 `<package>:<path>`。
+
+2. 在自己套件的 `pyproject.toml` 登記；entry point 也可以指向回傳 `Preset` 的函式：
+
+   ```toml
+   [project.entry-points."mpc_iml.presets"]
+   my-preset = "my_package:PRESET"
+   ```
+
+3. 套件與工具包安裝在同一個環境後，`available_presets()` 會列出它，
+   `get_preset("my-preset").build_loop()` 回傳使用其特徵、模型與第一個 `OscOutput` 的
+   `IMLLoop`。preset 無法載入、不是 `Preset` 或名稱重複時丟出 `PresetError`。
+
+`controls`（控制名稱對應到處理函式）**在 ADR 0004 接受前是暫定的**：依 ADR 0004 的計畫
+（#62），控制 `<control>` 的位址將是 `/mpciml/preset/<name>/<control>`，且只轉送給目前
+啟用的 preset。目前沒有任何程式分派它（#64），型別也可能改變。
+
+`tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
+上執行。
+
 ## 建立練習 repo
 
 `python -m mpc_iml.new` 建立一個以相依套件使用本工具包、而不複製其程式碼的專案：

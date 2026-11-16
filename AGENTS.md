@@ -31,9 +31,9 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 ## 3. 結構
 | 路徑 | 內容 |
 | --- | --- |
-| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）：`osc`（OSC sender，Wekinator 預設）、`events`（事件型別）、`recording`（JSON Lines 錄音讀寫）、`frames`（pad 對應與 frame）、`midi`（MIDI 位元組解碼）、`sources`（即時 MIDI 與重播的事件來源、錄音）、`record`（錄音 CLI：`python -m mpc_iml.record`）、`examples`（從錄音建立訓練範例）、`model`（模型擴充點）、`sklearn_backend`（內建 scikit-learn 模型）、`loop`（IML 迴圈：訓練、執行、重新訓練）、`demo`（參考範例：`python -m mpc_iml.demo`）、`new`（練習 repo 範本：`python -m mpc_iml.new <資料夾>`，範本檔在 `project_template/`）；格式見 ADR 0002 |
+| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）：`osc`（OSC sender，Wekinator 預設）、`events`（事件型別）、`recording`（JSON Lines 錄音讀寫）、`frames`（pad 對應與 frame）、`midi`（MIDI 位元組解碼）、`sources`（即時 MIDI 與重播的事件來源、錄音）、`record`（錄音 CLI：`python -m mpc_iml.record`）、`examples`（從錄音建立訓練範例）、`model`（模型擴充點）、`sklearn_backend`（內建 scikit-learn 模型）、`loop`（IML 迴圈：訓練、執行、重新訓練）、`demo`（參考範例：`python -m mpc_iml.demo`）、`new`（練習 repo 範本：`python -m mpc_iml.new <資料夾>`，範本檔在 `project_template/`）、`presets`（preset plugin 介面：entry point 群組 `mpc_iml.presets`，內建 `demo`）；格式見 ADR 0002 |
 | `examples/reference/` | 參考範例的選用 Pure Data 接收端（`receiver.pd`，CI 不測試） |
-| `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware`；手寫的合成錄音放在 `tests/data/` |
+| `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware`；手寫的合成錄音放在 `tests/data/`；`tests/plugins/` 是測試用的外部 preset 套件（含 `*.dist-info`） |
 | `pyproject.toml`、`uv.lock`、`.python-version` | 套件設定（套件名 `mpc-iml-toolkit`、MIT）、ruff／mypy／pytest 設定、鎖定的相依套件 |
 | `docs/workflow/` | 憲法與 workflow 手冊（繁體中文） |
 | `docs/rfcs/`、`docs/adr/` | 專案章程與決策紀錄 |

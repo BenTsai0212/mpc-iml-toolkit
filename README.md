@@ -172,6 +172,58 @@ The demo uses its own features (`played_features`, 32 values: per pad, velocity
 while held and pressure) rather than the default 49, which keep a pad's last
 velocity after it is released. It does not send `/wek/inputs`.
 
+## Write a preset
+
+A preset bundles a feature function, a model, optional fixed class numbers and an
+output mapping under a name, and is loaded as a plugin (RFC 0002). The reference
+example is the built-in preset `demo` (`mpc_iml.demo.PRESET`). An external package
+adds a preset without changing the toolkit:
+
+1. Define a `Preset` (`src/mpc_iml/presets.py`) in your package:
+
+   ```python
+   from mpc_iml.presets import MidiCcOutput, OscOutput, Preset
+
+   PRESET = Preset(
+       name="my-preset",
+       version="0.1.0",
+       description="One line for listings",
+       features=my_features,
+       model_factory=MyModel,
+       outputs=(OscOutput(), MidiCcOutput(controllers=(20, 21))),
+       patch="my_package:patches/main.pd",
+   )
+   ```
+
+   `features` and `classes` are what `ExampleSet(features=..., classes=...)` takes,
+   and `model_factory` is what `IMLLoop` takes (`None`: Wekinator is the model).
+   `OscOutput` defaults to `/wek/outputs` on `127.0.0.1:12000`. `MidiCcOutput`
+   declares one CC number per output value, scaled from `ranges` (default 0-1) to
+   0-127; only the declaration and the scaling exist so far, the MIDI sender comes
+   with #65. `patch` is the front-end patch inside your package, as
+   `<package>:<path>`.
+
+2. Register it in your package's `pyproject.toml`; the entry point may also name a
+   function that returns a `Preset`:
+
+   ```toml
+   [project.entry-points."mpc_iml.presets"]
+   my-preset = "my_package:PRESET"
+   ```
+
+3. Once the package is installed next to the toolkit, `available_presets()` lists
+   it and `get_preset("my-preset").build_loop()` returns an `IMLLoop` with its
+   features, model and first `OscOutput`. A preset that fails to load, is not a
+   `Preset` or reuses a name raises `PresetError`.
+
+`controls` (a control name mapped to a handler) is **provisional until ADR 0004 is
+accepted**: under the ADR 0004 plan (#62) a control `<control>` will be addressed as
+`/mpciml/preset/<name>/<control>` and forwarded only to the active preset. Nothing
+dispatches it yet (#64), and its type may change.
+
+`tests/plugins/` holds a complete example package, and `tests/test_presets.py`
+installs it and runs it on a recorded fixture.
+
 ## Start a practice repository
 
 `python -m mpc_iml.new` creates a project that depends on this toolkit instead of
