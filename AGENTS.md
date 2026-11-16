@@ -31,8 +31,8 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 依序執�
 ## 3. 結構
 | 路徑 | 內容 |
 | --- | --- |
-| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）：`osc.py` 是依 Wekinator 預設的 OSC sender（ADR 0002） |
-| `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware` |
+| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）：`osc`（OSC sender，Wekinator 預設）、`events`（事件型別）、`recording`（JSON Lines 錄音讀寫）、`frames`（pad 對應與 frame）；格式見 ADR 0002 |
+| `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware`；手寫的合成錄音放在 `tests/data/` |
 | `pyproject.toml`、`uv.lock`、`.python-version` | 套件設定（套件名 `mpc-iml-toolkit`、MIT）、ruff／mypy／pytest 設定、鎖定的相依套件 |
 | `docs/workflow/` | 憲法與 workflow 手冊（繁體中文） |
 | `docs/rfcs/`、`docs/adr/` | 專案章程與決策紀錄 |

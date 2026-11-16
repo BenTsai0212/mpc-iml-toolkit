@@ -19,12 +19,18 @@ output over OSC to any synthesiser, Max, Pure Data or nn~. See
 
 ## Status
 
-Phase 1 (Foundation), early. So far the toolkit has only an OSC sender
-(`mpc_iml.osc`) that follows Wekinator's defaults (`/wek/inputs` on port 6448,
-`/wek/outputs` on port 12000; see [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)).
-MIDI input, recording and models are not implemented yet, and the package is not
-published. Interfaces will change without notice until the first
-release (`v0.1.0`).
+Phase 1 (Foundation), early. So far the toolkit has:
+
+- an OSC sender (`mpc_iml.osc`) that follows Wekinator's defaults (`/wek/inputs`
+  on port 6448, `/wek/outputs` on port 12000);
+- a typed event model for MIDI messages and example markers (`mpc_iml.events`);
+- reading and writing recordings as JSON Lines (`mpc_iml.recording`);
+- frames computed from events, with 49 OSC input values per frame
+  (`mpc_iml.frames`).
+
+Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). MIDI input
+and models are not implemented yet, and the package is not published. Interfaces
+will change without notice until the first release (`v0.1.0`).
 
 ## Development
 
