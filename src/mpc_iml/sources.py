@@ -1,7 +1,9 @@
 """Event sources: live MIDI input from the MPC and replay of recordings (ADR 0002).
 
 `LiveSource` and `ReplaySource` both iterate over `Event`s, so code downstream (frames,
-OSC, models) takes either: test with a replay, run unchanged live.
+OSC, models) takes either: test with a replay, run unchanged live. Both are also a
+`ClockedSource` (non-blocking `poll` on a clock), which `frames.realtime_frames` uses
+to produce frames on time even when no MIDI arrives.
 
 `LiveSource` reads through a `MidiInputBackend`; `RtMidiBackend` wraps
 `python-rtmidi`, and tests pass a fake backend. It is single-threaded: iterating polls
@@ -14,7 +16,7 @@ import time
 from collections.abc import Callable, Generator, Iterable, Iterator
 from pathlib import Path
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Protocol, Self, runtime_checkable
 
 from mpc_iml.events import Event
 from mpc_iml.midi import decode
@@ -22,6 +24,8 @@ from mpc_iml.recording import Header, Recording, event_to_dict, header_to_dict, 
 
 __all__ = [
     "DEFAULT_PORT_MATCH",
+    "POLL_INTERVAL",
+    "ClockedSource",
     "LiveSource",
     "MidiInputBackend",
     "PortNotFoundError",
@@ -40,6 +44,36 @@ POLL_INTERVAL = 0.001
 
 class PortNotFoundError(LookupError):
     """No MIDI input port name contains the requested text."""
+
+
+@runtime_checkable
+class ClockedSource(Protocol):
+    """A non-blocking event source with its own clock, for `realtime_frames`."""
+
+    @property
+    def realtime(self) -> bool:
+        """True when events arrive in real time, so frames should follow the clock."""
+        ...
+
+    def start(self) -> None:
+        """Get ready to poll; `now()` starts at 0 (live: open the port)."""
+        ...
+
+    def now(self) -> float:
+        """Seconds on the source's clock, in the same time base as event `t`."""
+        ...
+
+    def poll(self) -> Event | None:
+        """Return one event received at or before `now()`, or `None` if none is pending."""
+        ...
+
+    def sleep(self, seconds: float) -> None:
+        """Wait on the source's clock (tests pass a fake clock and sleep)."""
+        ...
+
+    def done(self) -> bool:
+        """True when no more events will come (live: closed; replay: all given)."""
+        ...
 
 
 class MidiInputBackend(Protocol):
@@ -103,6 +137,10 @@ class LiveSource:
         self._port_name: str | None = None
 
     @property
+    def realtime(self) -> bool:
+        return True
+
+    @property
     def port_name(self) -> str | None:
         """The opened port's name, or `None` before `open()`."""
         return self._port_name
@@ -132,21 +170,41 @@ class LiveSource:
             raise RuntimeError("the source is not open")
         return self._clock() - self._start
 
+    def start(self) -> None:
+        """Same as `open()`."""
+        self.open()
+
+    def poll(self) -> Event | None:
+        """One non-blocking read: the pending message stamped with `now()`, or `None`."""
+        if self._start is None or self._backend is None:
+            return None
+        data = self._backend.poll()
+        if data is None:
+            return None
+        return decode(data, self.now())
+
+    def sleep(self, seconds: float) -> None:
+        self._sleep(seconds)
+
+    def done(self) -> bool:
+        """True when the port is not open (after `close()`)."""
+        return self._start is None
+
     def events(
         self, duration: float | None = None, stop: Callable[[], bool] | None = None
     ) -> Iterator[Event]:
         """Yield events as received until `close()`, `duration` seconds or `stop()`."""
         self.open()
-        while self._start is not None and self._backend is not None:
+        while not self.done():
             if duration is not None and self.now() >= duration:
                 return
             if stop is not None and stop():
                 return
-            data = self._backend.poll()
-            if data is None:
+            event = self.poll()
+            if event is None:
                 self._sleep(POLL_INTERVAL)
                 continue
-            yield decode(data, self.now())
+            yield event
 
     def __iter__(self) -> Iterator[Event]:
         return self.events()
@@ -185,10 +243,43 @@ class ReplaySource:
         self._realtime = realtime
         self._clock = clock
         self._sleep = sleep
+        self._start: float | None = None
+        self._next = 0
 
     @property
     def header(self) -> Header:
         return self._recording.header
+
+    @property
+    def realtime(self) -> bool:
+        """True when replay is paced in real time (`realtime=True`)."""
+        return self._realtime
+
+    def start(self) -> None:
+        """Restart from the first event; `now()` starts at 0."""
+        self._start = self._clock()
+        self._next = 0
+
+    def now(self) -> float:
+        """Seconds since `start()`, in the recording's time base."""
+        if self._start is None:
+            raise RuntimeError("the replay is not started")
+        return self._clock() - self._start
+
+    def poll(self) -> Event | None:
+        """The next event once its `t` is at or before `now()`, otherwise `None`."""
+        events = self._recording.events
+        if self._next >= len(events) or events[self._next].t > self.now():
+            return None
+        self._next += 1
+        return events[self._next - 1]
+
+    def sleep(self, seconds: float) -> None:
+        self._sleep(seconds)
+
+    def done(self) -> bool:
+        """True when every event has been given by `poll()`."""
+        return self._start is not None and self._next >= len(self._recording.events)
 
     def __iter__(self) -> Iterator[Event]:
         start = self._clock()
