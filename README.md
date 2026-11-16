@@ -258,7 +258,9 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
 2. Open the front end `src/mpc_iml/patches/pressure.pd` in Pure Data. It says
    `hello` to the engine and loads the preset; the state box shows `idle` and the
    Pd window prints every reply (`mpc-iml: …`). Click `hello` again if you
-   started the engine after the patch.
+   started the engine after the patch. The patch has three columns: connection and
+   recording on the left; saved sets, `train`/`run`/`stop` and MIDI learn in the
+   middle; engine state and model outputs on the right.
 
 3. Record a few examples. For each one: set the 8 target sliders `t1`-`t8` on the
    left (0-1) to the sound you want, hold the gesture on the pads, click `record`
@@ -268,7 +270,10 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
    its own targets. Several pads and other pressures work the same way. For a
    continuous light end, also record the lightest touch you can hold (pad 1 resting
    on the pad, barely pressed) with targets close to rest, so the model maps the
-   lightest pressure near rest rather than far from it.
+   lightest pressure near rest rather than far from it. To start again (for
+   example after recording in the wrong order), click `clear`: it deletes all
+   examples in the engine, and saved files are not touched. It works in `idle` and
+   `running`, and the Pd window prints the new counts.
 
 4. Click `train`. The state goes to `training`, then back to `idle`, and `trained`
    shows 1. Click `run` and play: the sliders `o1`-`o8` on the right follow the

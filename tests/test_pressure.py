@@ -6,6 +6,7 @@ Training and the outputs are checked on replayed recordings: the hand-written
 MIDI goes to a fake backend, never to a real port.
 """
 
+import textwrap
 import threading
 import time
 from collections.abc import Iterator, Sequence
@@ -162,6 +163,7 @@ def test_the_patch_is_inside_the_package() -> None:
         "oscformat mpciml stop",
         "unpack f f f f f f f f",
         "oscformat mpciml midi learn",
+        "oscformat mpciml examples clear",
     ]:
         assert any(line.endswith(box) for line in boxes), box
     # Learn buttons l1-l8 send /mpciml/midi/learn 1-8 (ADR 0005).
@@ -176,6 +178,62 @@ def test_the_patch_is_inside_the_package() -> None:
         message = next(d for s, _, d, _ in edges if s == button)
         assert boxes[message].startswith("#X msg") and boxes[message].endswith(f" {n}")
     assert "mpciml preset pressure" not in patch.read_text()
+    # The clear button sends /mpciml/examples/clear (ADR 0004), with a comment.
+    clear = next(i for i, b in enumerate(boxes) if " bng " in b and " clear " in b)
+    sink = next(d for s, _, d, _ in edges if s == clear)
+    assert boxes[sink].endswith("oscformat mpciml examples clear")
+    assert any(b.startswith("#X text") and "clear deletes all examples" in b for b in boxes)
+    # No two boxes, comments or GUI objects overlap (#82).
+    rects = [(box, box_rect(box)) for box in boxes]
+    for i, (a, ra) in enumerate(rects):
+        for b, rb in rects[i + 1 :]:
+            assert not overlap(ra, rb), (a, b)
+
+
+FONT_WIDTH, FONT_HEIGHT, BOX_HEIGHT = 7, 16, 21
+"""Pd's font metrics at the patch's font size 12, estimated."""
+
+Rect = tuple[int, int, int, int]
+
+
+def text_width(text: str) -> int:
+    return len(text) * FONT_WIDTH
+
+
+def box_rect(line: str) -> Rect:
+    """An estimate of where a box is drawn: left, top, right, bottom."""
+    words = line.replace("\\,", ",").split()
+    kind, x, y, args = words[1], int(words[2]), int(words[3]), words[4:]
+    if kind == "text":
+        rows = textwrap.wrap(" ".join(args), 60)
+        return x, y, x + max(map(text_width, rows)), y + FONT_HEIGHT * len(rows)
+    if kind in ("symbolatom", "floatatom"):
+        width, side, label = int(args[0]), args[3], args[4]
+        right = x + text_width("0" * width) + 4
+        if label == "-":
+            return x, y, right, y + BOX_HEIGHT
+        assert side == "0", "labels are drawn on the left"
+        return x - text_width(label) - 4, y, right, y + BOX_HEIGHT
+    if kind == "obj" and args[0] in ("bng", "hsl"):
+        if args[0] == "bng":
+            width = height = int(args[1])
+            label, dx, dy = args[7], int(args[8]), int(args[9])
+        else:
+            width, height = int(args[1]), int(args[2])
+            label, dx, dy = args[9], int(args[10]), int(args[11])
+        label_left, label_right = x + dx, x + dx + text_width(label)
+        label_top, label_bottom = y + dy - FONT_HEIGHT // 2, y + dy + FONT_HEIGHT // 2
+        return (
+            min(x, label_left),
+            min(y, label_top),
+            max(x + width, label_right),
+            max(y + height, label_bottom),
+        )
+    return x, y, x + text_width(" ".join(args)) + 6, y + BOX_HEIGHT
+
+
+def overlap(a: Rect, b: Rect) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 # Training and playing on replays
