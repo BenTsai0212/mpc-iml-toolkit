@@ -40,3 +40,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | 編號 | 決策 | 狀態 |
 | --- | --- | --- |
 | [0001](0001-technology-choices.md) | Technology choices, adoption method and licence | Accepted |
+| [0002](0002-recording-and-osc-formats.md) | Recording format and OSC message format | Accepted |
