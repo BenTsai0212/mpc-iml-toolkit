@@ -1,0 +1,21 @@
+# Citation metadata for GitHub's "Cite this repository" (Citation File Format 1.2.0).
+# `version` and `date-released` are left out until the first release (v0.1.0),
+# which is a separate Issue; fill them in then.
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: mpc-iml-toolkit
+abstract: >-
+  A base toolkit for interactive machine learning (IML) with an Akai MPC Sample
+  and a Mac. It covers the shared plumbing of the IML loop: recording examples
+  from the MPC pads over MIDI, training models with scikit-learn, running them in
+  real time with output over OSC, and editing the examples to train again.
+authors:
+  - name: BenTsai0212
+repository-code: "https://github.com/BenTsai0212/mpc-iml-toolkit"
+license: MIT
+keywords:
+  - interactive machine learning
+  - MIDI
+  - OSC
+  - Akai MPC

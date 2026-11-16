@@ -193,6 +193,11 @@ CI（`.github/workflows/ci.yml` 的 `checks` job）在 Ubuntu 與 macOS
 agent 的規則見 [AGENTS.md](AGENTS.md)。[`docs/workflow/`](docs/workflow/) 底下的
 workflow 文件與 `AGENTS.md` 以繁體中文撰寫；Issue、pull request 與 commit 使用英文。
 
+## 引用
+
+在研究中使用本工具包時，請引用它。引用資訊在 [CITATION.cff](CITATION.cff)；
+GitHub 的 repo 頁面會顯示為「Cite this repository」。版本號與發布日期在第一次發布時補上。
+
 ## 授權
 
 [MIT](LICENSE)。RAVE、nn~ 等選用擴充有各自的授權（CC BY-NC 4.0，僅限非商業用途），
