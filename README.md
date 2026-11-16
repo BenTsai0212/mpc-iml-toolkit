@@ -41,10 +41,27 @@ Phase 1 (Foundation), early. So far the toolkit has:
   recordings, with stable class numbers (`mpc_iml.examples`);
 - a model extension point (`mpc_iml.model.Model`: `fit` and `predict`) and
   built-in scikit-learn models, a 1-nearest-neighbour classifier and an MLP
-  regressor (`mpc_iml.sklearn_backend`).
+  regressor (`mpc_iml.sklearn_backend`);
+- the IML loop (`mpc_iml.loop.IMLLoop`): train on examples, then run an event
+  source through frames and the model, sending features to `/wek/inputs` and
+  predictions to `/wek/outputs`. Examples can be edited and the model retrained
+  without restarting. With `model_factory=None` the built-in backend is off and
+  only `/wek/inputs` is sent, so Wekinator can act as the model:
 
-Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The run loop
-is not implemented yet, and the package is not published. Interfaces
+  ```python
+  from mpc_iml.loop import IMLLoop
+  from mpc_iml.osc import inputs_sender, outputs_sender
+  from mpc_iml.recording import read_recording
+  from mpc_iml.sklearn_backend import Classifier
+
+  loop = IMLLoop(Classifier, inputs=inputs_sender(), outputs=outputs_sender())
+  loop.examples.add_recording("examples.jsonl")
+  loop.train()
+  loop.run(read_recording("performance.jsonl").events)
+  ```
+
+Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The package
+is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
 
 ## Development
