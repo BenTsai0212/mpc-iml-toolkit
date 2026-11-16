@@ -1,0 +1,10 @@
+{"type": "header", "format": "mpc-iml-recording", "format_version": 1, "toolkit_version": "0.0.0", "device": "MPC Sample", "firmware": "1.3.0", "settings": {"full_level": false}}
+{"t": 0.5, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 35}
+{"t": 0.5, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 28}
+{"t": 0.8, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 22}
+{"t": 1.0, "type": "midi", "kind": "note_off", "channel": 1, "note": 36, "value": 0}
+{"t": 1.5, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 105}
+{"t": 1.5, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 95}
+{"t": 1.8, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 115}
+{"t": 2.0, "type": "midi", "kind": "note_off", "channel": 1, "note": 36, "value": 0}
+{"t": 2.5, "type": "midi", "kind": "control_change", "channel": 1, "control": 7, "value": 100}
