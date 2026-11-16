@@ -7,7 +7,7 @@
 - Repo：`BenTsai0212/dev-workflow-template`（本 repo 即 template 本身）
 - 看板：GitHub Project #3「dev-workflow 範本看板」（https://github.com/users/BenTsai0212/projects/3）
 - 啟用模組：核心、雲端執行（試驗中，#104；見 `docs/workflow/modules.md`）、目標模式（試用中，#64 第 7 項；目標卡範本不複製到 `.github/ISSUE_TEMPLATE/`，因為本 repo 的 `.github/` 會帶入新專案，目標卡直接以範本內容建立 Epic；決策時段：每天 09:00 倫敦時間，含週末）；自動化（本機 runner，原啟用決定見 #20）不啟用：與雲端執行擇一（modules.md「雲端執行」）。改回時依 modules.md「雲端執行」的回退停用兩個排程任務，再把本行的雲端執行換回自動化
-- 憲法版本：v0.36（`docs/workflow/constitution.md`）
+- 憲法版本：v0.37（`docs/workflow/constitution.md`）
 - 決定者：@BenTsai0212（停止回報與 `plan-first` 時 @ 此帳號）
 
 ## 1. 必讀
