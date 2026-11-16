@@ -36,10 +36,26 @@
 - 由錄音中 `example_start`／`example_end` 區段建立訓練範例，類別編號固定不變
   （`mpc_iml.examples`）；
 - 模型擴充點（`mpc_iml.model.Model`：`fit` 與 `predict`）與內建的 scikit-learn
-  模型：1 近鄰分類器與 MLP 迴歸器（`mpc_iml.sklearn_backend`）。
+  模型：1 近鄰分類器與 MLP 迴歸器（`mpc_iml.sklearn_backend`）；
+- IML 迴圈（`mpc_iml.loop.IMLLoop`）：以範例訓練，再讓事件來源經過 frame 與模型執行，
+  把特徵送到 `/wek/inputs`、預測送到 `/wek/outputs`。可以修改範例並重新訓練，不必
+  重新啟動。`model_factory=None` 時關閉內建後端，只送 `/wek/inputs`，由 Wekinator
+  擔任模型：
 
-格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。執行迴圈尚未實作，
-套件也尚未發布。第一個版本（`v0.1.0`）之前，介面可能隨時變動。
+  ```python
+  from mpc_iml.loop import IMLLoop
+  from mpc_iml.osc import inputs_sender, outputs_sender
+  from mpc_iml.recording import read_recording
+  from mpc_iml.sklearn_backend import Classifier
+
+  loop = IMLLoop(Classifier, inputs=inputs_sender(), outputs=outputs_sender())
+  loop.examples.add_recording("examples.jsonl")
+  loop.train()
+  loop.run(read_recording("performance.jsonl").events)
+  ```
+
+格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。套件尚未發布。
+第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 
 ## 開發
 
