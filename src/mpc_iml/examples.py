@@ -43,6 +43,18 @@ def played_features(frame: Frame) -> list[float]:
     ]
 
 
+def pressure_features(frame: Frame) -> list[float]:
+    """16 values: per pad, pressure; 0-1. Velocity and the held flag are left out.
+
+    The feature set for continuous pressure (#76): a press adds nothing until the
+    MPC reports pressure, so the input rises from 0, and when a very light hold
+    retriggers (`Note Off`, then a new `Note On` 70-273 ms later) the input only
+    steps from the last pressure (1-3 of 127) to 0 and back, the same path as easing
+    off. Strike velocity has no effect.
+    """
+    return [p / 127 for p in frame.pressure]
+
+
 def labelled_frames(
     events: Iterable[Event], rate: float = DEFAULT_RATE
 ) -> Iterator[tuple[Frame, ExampleStart | None]]:

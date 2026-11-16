@@ -180,8 +180,13 @@ frame right after playing looks like the last hit, and a model trained on them c
 answer with the last sound instead of rest. For models that react while you play,
 use `played_features`: a released pad gives 0, so rest right after playing is rest.
 Pass it where features are taken, for example `ExampleSet(features=played_features)`
-or a preset's `features=`. The presets `demo` and `pressure` use it; the 49
-`/wek/inputs` values do not change.
+or a preset's `features=`. The preset `demo` uses it; the 49 `/wek/inputs` values
+do not change.
+
+For an instrument played by pressure alone, `pressure_features` (16 values: per
+pad, pressure, 0-1) leaves out velocity and the held flag, so a press adds nothing
+until the MPC reports pressure and the input rises from 0. The preset `pressure`
+uses it.
 
 ## Run the engine
 
@@ -219,10 +224,11 @@ sockets are closed and a training in progress is finished first.
 ## Play the pressure preset
 
 The built-in preset `pressure` (`src/mpc_iml/pressure.py`, scenario 1 of
-[RFC 0002](docs/rfcs/0002-platform-positioning.md)) maps pad pressure and velocity to
+[RFC 0002](docs/rfcs/0002-platform-positioning.md)) maps pad pressure to
 8 synthesis parameters at once. You show it a few gestures, each with the 8 values
 it should produce, and it learns the mapping in between (one-to-many regression,
-the built-in MLP). It uses `played_features`. While running it sends:
+the built-in MLP). It uses `pressure_features`, so strike velocity has no effect.
+While running it sends:
 
 - `/wek/outputs` with 8 floats to `127.0.0.1:12000`, for Pure Data or any OSC
   receiver (unscaled: usually 0-1, sometimes slightly outside);
@@ -255,7 +261,10 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
    (it sends the targets, then starts recording), keep holding for about two
    seconds, and click `stop_recording`. Start with rest (no pads, targets for
    silence), then for example pad 1 held lightly and pad 1 held firmly, each with
-   its own targets. Several pads and other pressures work the same way.
+   its own targets. Several pads and other pressures work the same way. For a
+   continuous light end, also record the lightest touch you can hold (pad 1 resting
+   on the pad, barely pressed) with targets close to rest, so the model maps the
+   lightest pressure near rest rather than far from it.
 
 4. Click `train`. The state goes to `training`, then back to `idle`, and `trained`
    shows 1. Click `run` and play: the sliders `o1`-`o8` on the right follow the
@@ -291,11 +300,19 @@ differ only in the output you want (for example rest with all 0, and pad 1 with
 only `t3` at 1, for CC 22), run it, press pad 1, map, and repeat. Then load or
 record your real examples and train again; the mappings stay.
 
-Known limitation: while a pad is held very lightly, the MPC Sample (firmware 1.3.0)
-sends `Note Off` when the pressure reaches its minimum and a new `Note On` 70-273 ms
-later. With `played_features` the pad counts as released in between, so the outputs
-can dip briefly during a very light hold. Hold a little more firmly; smoothing may
-follow if playing shows it matters.
+What you get at the light end (#76):
+
+- A slow, light press starts from rest and rises with pressure. The MPC Sample
+  reports pressure about 70 ms after the pad is touched, so the outputs start
+  moving then; before that they stay at rest.
+- While a pad is held very lightly, the MPC Sample (firmware 1.3.0) sends `Note Off`
+  when the pressure reaches its minimum and a new `Note On` 70-273 ms later. Since
+  the preset ignores velocity and the held flag, the input only goes from the last
+  pressure (1-3 of 127) to 0 and back, the same as easing off, so the outputs stay
+  close to where they were instead of dropping to rest.
+- A quick tap without sustained pressure barely registers.
+
+The outputs are not smoothed; smoothing may follow if playing shows it matters.
 
 ## Write a preset
 

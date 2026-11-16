@@ -158,8 +158,12 @@ velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值
 它們在 `Note Off` 後仍保留 pad 最後的 velocity，所以剛演奏完的「休息」frame 看起來像最後
 一次敲擊，以它訓練的模型可能回答最後的聲音而不是休息。要在演奏中即時反應的模型，請使用
 `played_features`：放開的 pad 為 0，所以剛演奏完的休息就是休息。在接受特徵的地方傳入，
-例如 `ExampleSet(features=played_features)` 或 preset 的 `features=`。preset `demo` 與
-`pressure` 都使用它；49 個 `/wek/inputs` 值不變。
+例如 `ExampleSet(features=played_features)` 或 preset 的 `features=`。preset `demo`
+使用它；49 個 `/wek/inputs` 值不變。
+
+只靠 pressure 演奏的樂器可以用 `pressure_features`（16 個值：每個 pad 的 pressure，0-1）。
+它不含 velocity 與按住旗標，所以按下 pad 後，在 MPC 回報 pressure 之前輸入不變，輸入從 0
+開始上升。preset `pressure` 使用它。
 
 ## 執行 engine
 
@@ -192,9 +196,9 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 ## 演奏 preset pressure
 
 內建的 preset `pressure`（`src/mpc_iml/pressure.py`，[RFC 0002](docs/rfcs/0002-platform-positioning.md)
-的情境 1）把 pad 的 pressure 與 velocity 同時對應到 8 個合成參數。示範幾個手勢，每個手勢附上
+的情境 1）把 pad 的 pressure 同時對應到 8 個合成參數。示範幾個手勢，每個手勢附上
 應該產生的 8 個值，模型就學會其間的對應（一對多迴歸，內建的 MLP）。它使用
-`played_features`。執行中會送出：
+`pressure_features`，所以敲擊的 velocity 沒有作用。執行中會送出：
 
 - 8 個 float 的 `/wek/outputs` 到 `127.0.0.1:12000`，給 Pure Data 或任何 OSC 接收端（不縮放：
   通常是 0-1，偶爾稍微超出）；
@@ -223,7 +227,8 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 3. 錄幾個範例。每個範例：把左邊 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的聲音，在 pad 上
    保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按 `stop_recording`。
    先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，各自設定目標值。
-   多個 pad 與其他力道的做法相同。
+   多個 pad 與其他力道的做法相同。若要讓輕觸的一端連續，另外錄一個能保持的最輕觸碰（手指
+   放在 pad 1 上幾乎不施力），目標值接近休息，讓模型把最輕的 pressure 對應到休息附近。
 
 4. 按 `train`。狀態變成 `training` 再回到 `idle`，`trained` 顯示 1。按 `run` 並演奏：右邊
    的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。`save` 與 `load`
@@ -252,10 +257,17 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 pad 1，對應 CC 22），執行後按 pad 1、完成對應，再換下一個。之後載入或重錄真正的範例並重新
 訓練；對應會保留。
 
-已知限制：輕輕按住 pad 時，MPC Sample（firmware 1.3.0）會在 pressure 降到最低時送出
-`Note Off`，70-273 ms 後再送出新的 `Note On`。使用 `played_features` 時，這段期間 pad
-算是放開，所以非常輕的按住會讓輸出短暫下降。請按得稍重一點；若演奏時確實有影響，之後再加入
-平滑處理。
+輕觸一端的表現（#76）：
+
+- 慢慢輕按時，輸出從休息開始隨 pressure 上升。MPC Sample 在碰到 pad 約 70 ms 後才回報
+  pressure，所以輸出從那時開始變化；在那之前維持休息。
+- 非常輕地按住 pad 時，MPC Sample（firmware 1.3.0）會在 pressure 降到最低時送出
+  `Note Off`，70-273 ms 後再送出新的 `Note On`。這個 preset 不看 velocity 與按住旗標，
+  所以輸入只從最後的 pressure（127 中的 1-3）降到 0 再回來，和放輕力道一樣，輸出維持在
+  原本附近，不會掉回休息。
+- 沒有持續施力的快速輕敲幾乎沒有作用。
+
+輸出沒有平滑處理；若演奏時確實有影響，之後再加入。
 
 ## 撰寫 preset
 
