@@ -26,10 +26,20 @@ Phase 1 (Foundation), early. So far the toolkit has:
 - a typed event model for MIDI messages and example markers (`mpc_iml.events`);
 - reading and writing recordings as JSON Lines (`mpc_iml.recording`);
 - frames computed from events, with 49 OSC input values per frame
-  (`mpc_iml.frames`).
+  (`mpc_iml.frames`);
+- event sources (`mpc_iml.sources`): live MIDI input from the MPC over
+  `python-rtmidi` and replay of recordings, interchangeable downstream, with MIDI
+  decoding in `mpc_iml.midi`;
+- a recorder for live input:
 
-Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). MIDI input
-and models are not implemented yet, and the package is not published. Interfaces
+  ```bash
+  uv run python -m mpc_iml.record out.jsonl --duration 5 --firmware 1.3.0 --no-full-level
+  ```
+
+  Without `--duration` it records until Ctrl-C.
+
+Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). Models are
+not implemented yet, and the package is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
 
 ## Development
