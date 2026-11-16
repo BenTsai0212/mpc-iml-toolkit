@@ -13,7 +13,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_engine import HOLD, TIMEOUT, Front, LoopingReplay, Receiver
+from test_engine import (
+    DROPS,
+    HOLD,
+    TIMEOUT,
+    Front,
+    LoopingReplay,
+    Receiver,
+    SteppedReplay,
+    record_steps,
+)
 
 from mpc_iml.engine import Engine
 from mpc_iml.examples import ExampleSet, default_features, played_features
@@ -317,16 +326,16 @@ def test_engine_checks_targets_against_the_preset(engines: Any) -> None:
 
 
 def test_engine_save_and_load_give_the_same_examples(engines: Any) -> None:
-    front, _ = engines(LoopingReplay(HOLD))
+    """Also when the frame loop drops frames during a take (#73)."""
+    source = SteppedReplay(HOLD)
+    front, _ = engines(source)
+    source.advance(180)
     for targets in (LIGHT, HARD):
         front.send("/mpciml/targets", *targets)
-        front.send("/mpciml/record/start")
-        assert front.expect("/mpciml/state") == ["recording"]
-        time.sleep(0.4)
-        front.send("/mpciml/record/stop")
-        front.expect("/mpciml/counts")
+        record_steps(front, source)
     before = list(front.engine.examples.examples)
-    assert len(before) > 20
+    assert len(before) == 2 * len(DROPS)
+    assert len({e.features for e in before}) > 10
 
     assert front.ask("/mpciml/examples/save", "take") == []
     front.send("/mpciml/examples/clear")
