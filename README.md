@@ -203,8 +203,10 @@ default. Run them with the MPC connected:
 uv run pytest -m hardware
 ```
 
-CI (`.github/workflows/ci.yml`, job `checks`) runs the workflow tool tests
-(`npm test --prefix tools/workflow`) followed by the commands above.
+CI (`.github/workflows/ci.yml`, job `checks`) runs on Ubuntu and macOS
+(`ubuntu-latest` and `macos-latest`). On each, it runs the workflow tool tests
+(`npm test --prefix tools/workflow`) followed by the commands above; hardware tests
+stay skipped.
 
 ## Project workflow
 

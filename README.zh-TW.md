@@ -183,8 +183,9 @@ uv run pytest
 uv run pytest -m hardware
 ```
 
-CI（`.github/workflows/ci.yml` 的 `checks` job）先執行 workflow 工具測試
-（`npm test --prefix tools/workflow`），再依序執行上列指令。
+CI（`.github/workflows/ci.yml` 的 `checks` job）在 Ubuntu 與 macOS
+（`ubuntu-latest`、`macos-latest`）上執行：各自先執行 workflow 工具測試
+（`npm test --prefix tools/workflow`），再依序執行上列指令；硬體測試一律略過。
 
 ## 專案流程
 
