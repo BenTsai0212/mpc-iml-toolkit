@@ -1,0 +1,31 @@
+"""Train on a recording and run on a replay: `python -m $package examples.jsonl [run.jsonl]`."""
+
+import argparse
+from collections.abc import Sequence
+
+from mpc_iml.loop import IMLLoop
+from mpc_iml.osc import inputs_sender, outputs_sender
+from mpc_iml.sources import ReplaySource
+
+from $package.model import EmptyModel
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m $package")
+    parser.add_argument("examples", help="recording with example segments to train on")
+    parser.add_argument("run", nargs="?", help="recording to run on (default: examples)")
+    parser.add_argument("--osc", action="store_true", help="send /wek/inputs and /wek/outputs")
+    args = parser.parse_args(argv)
+
+    loop = IMLLoop(EmptyModel)
+    if args.osc:
+        loop.inputs, loop.outputs = inputs_sender(), outputs_sender()
+    count = loop.examples.add_recording(args.examples)
+    loop.train()
+    frames = loop.run(ReplaySource(args.run or args.examples))
+    print(f"Trained on {count} examples; ran {frames} frames")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

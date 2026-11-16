@@ -1,0 +1,51 @@
+# $project
+
+An interactive machine learning practice built on
+[mpc-iml-toolkit](https://github.com/BenTsai0212/mpc-iml-toolkit) v$version. The
+toolkit is a dependency pinned to a git tag in `pyproject.toml`; this repository
+contains none of its code.
+
+If the tag `v$version` does not exist yet, point the dependency at a local checkout
+of the toolkit instead: `uv add --editable <path to mpc-iml-toolkit>`.
+
+## Install
+
+```bash
+uv sync
+```
+
+## Record
+
+With the MPC Sample connected over USB:
+
+```bash
+uv run python -m mpc_iml.record examples.jsonl --duration 10
+```
+
+Mark examples with `example_start` / `example_end` lines (ADR 0002 of the toolkit);
+`tests/data/example.jsonl` is a small hand-written example.
+
+## Run
+
+Train on a recording and run on a replay (the second file defaults to the first):
+
+```bash
+uv run python -m $package tests/data/example.jsonl
+```
+
+Add `--osc` to send `/wek/inputs` and `/wek/outputs` with Wekinator's default ports.
+
+## Where to edit
+
+- `src/$package/model.py`: your model (`fit` and `predict`, the toolkit's
+  `mpc_iml.model.Model`). It starts empty and always predicts `[0.0]`.
+- `src/$package/__main__.py`: how examples are loaded and the loop is run.
+
+## Checks
+
+```bash
+uv run ruff check
+uv run ruff format --check
+uv run mypy
+uv run pytest
+```

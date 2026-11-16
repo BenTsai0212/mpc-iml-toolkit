@@ -81,6 +81,23 @@ Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The packa
 is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
 
+## Start a practice repository
+
+`python -m mpc_iml.new` creates a project that depends on this toolkit instead of
+copying it: a `pyproject.toml` pinning `mpc-iml-toolkit` to the git tag of the
+running version, an empty model (`src/<package>/model.py`) to replace, a script that
+trains on a recording and runs on a replay, a test, a sample recording and a short
+README. The package name comes from the directory name (`--name` overrides it).
+
+```bash
+uv run python -m mpc_iml.new ../my-practice
+```
+
+No tag exists yet: the current version is `0.0.0` and the pin `v0.0.0` is not
+installable until the first release is tagged. Until then, in the new project, point
+the dependency at a local checkout with `uv add --editable <path to mpc-iml-toolkit>`,
+then `uv sync`.
+
 ## Development
 
 Requirements: [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if needed)
