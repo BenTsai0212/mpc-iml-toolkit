@@ -235,11 +235,14 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 
 ### 在 DAW 對應 MIDI CC
 
-在 DAW 的 MIDI 設定中開啟輸入 `mpc-iml`（或 IAC bus），再把 channel 1 的 CC 20-27 對應到
-合成器參數：
+`mpc-iml` 只送 channel 1 的 CC 20-27，不送音符；讓合成器發聲的音符來自 MPC Sample 本身。
+這個 port 只在 engine 執行時存在，所以先啟動 engine，再開啟 DAW 的 MIDI 設定。為輸入
+`mpc-iml`（或 IAC bus）開啟遠端控制，再把 channel 1 的 CC 20-27 對應到合成器參數：
 
-- **Ableton Live**：在 Settings > Link, Tempo & MIDI 為輸入 `mpc-iml` 開啟 **Remote**。進入
-  MIDI Map Mode（Cmd-M），點選參數，送出它的 CC，再離開 MIDI Map Mode。
+- **Ableton Live**：在 Settings > Tempo & MIDI 的 Input Ports 表格中，為 MPC Sample 開啟
+  **Track**，為 `mpc-iml` 開啟 **Remote**（Track 關閉）。音軌的 MIDI 輸入維持 MPC Sample
+  （或 All Ins）；設成 `mpc-iml` 不會有聲音，因為這個 port 不送音符。進入 MIDI Map Mode
+  （Cmd-M），點選參數，送出它的 CC，再離開 MIDI Map Mode。
 - **Logic Pro**：選取參數，選擇 Logic Pro > Control Surfaces > Learn Assignment for
   "<參數>"（Cmd-L），送出它的 CC，再關閉 Learn。
 - 可以直接輸入 CC 編號的 DAW：直接輸入 20-27。
