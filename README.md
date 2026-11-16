@@ -270,12 +270,17 @@ your own.
 
 ### Map the MIDI CCs in a DAW
 
-Turn on the input `mpc-iml` (or the IAC bus) in the DAW's MIDI settings, then map
-CC 20-27 on channel 1 to synthesiser parameters:
+`mpc-iml` sends only CC 20-27 on channel 1, no notes; the notes that play the
+synthesiser come from the MPC Sample itself. The port exists only while the engine
+runs, so start the engine before you open the DAW's MIDI settings. Turn on the
+input `mpc-iml` (or the IAC bus) for remote control, then map CC 20-27 on channel 1
+to synthesiser parameters:
 
-- **Ableton Live**: in Settings > Link, Tempo & MIDI, turn on **Remote** for the
-  input `mpc-iml`. Enter MIDI Map Mode (Cmd-M), click a parameter, send its CC,
-  and leave MIDI Map Mode.
+- **Ableton Live**: in Settings > Tempo & MIDI, in the Input Ports table, turn on
+  **Track** for the MPC Sample, and turn on **Remote** (Track off) for `mpc-iml`.
+  Leave the track's MIDI input on the MPC Sample (or All Ins); setting it to
+  `mpc-iml` gives no sound, because that port sends no notes. Enter MIDI Map Mode
+  (Cmd-M), click a parameter, send its CC, and leave MIDI Map Mode.
 - **Logic Pro**: select the parameter, choose Logic Pro > Control Surfaces > Learn
   Assignment for "<parameter>" (Cmd-L), send its CC, and turn Learn off.
 - DAWs that let you type a CC number for a mapping: enter 20-27 directly.
