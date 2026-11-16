@@ -1,21 +1,21 @@
 ---
-name: 錯誤回報
-about: 回報功能異常
+name: Bug report
+about: Report something that does not work
 title: "fix: "
 labels: ["type:fix"]
 ---
 
-## 現象
+## What happens
 
-## 重現步驟
+## Steps to reproduce
 
 1.
 
-## 預期結果
+## Expected result
 
-## 環境
+## Environment
 
-- 網址／分支／SHA：
-- 瀏覽器／裝置：
+- URL / branch / SHA:
+- Browser / device:
 
-## 補充（截圖、去敏 log）
+## Additional context (screenshots, redacted logs)

@@ -1,30 +1,29 @@
-# 標籤定義：bootstrap 腳本依此建立。新增標籤時同步更新本檔與 docs/workflow/constitution.md 第 7 節。
-# 群組對應模組（docs/workflow/modules.md）：core＝核心、online＝上線、collab＝協作、automation＝自動化、goal＝目標模式；只建立已啟用模組的群組。
-# phase:* 與 area:* 由各專案的 RFC 0001 決定，初始化時由決策 agent 建立（MCP 不能用時見 modules.md 的備援模組）。
+# Label definitions (English descriptions, process language en). bootstrap-github.mjs --lang en reads this file.
+# Names, colors, and groups must match .github/labels.yml; only the descriptions differ (checked by bootstrap-github.test.mjs).
 
 core:
-  - { name: "type:feat", color: "1d76db", description: "新功能" }
-  - { name: "type:fix", color: "d73a4a", description: "錯誤修正" }
-  - { name: "type:docs", color: "0075ca", description: "文件" }
-  - { name: "type:chore", color: "cfd3d7", description: "維護、設定、工具" }
-  - { name: "type:epic", color: "5319e7", description: "階段目標，任務掛為 sub-issue" }
-  - { name: "blocked", color: "b60205", description: "開發中卡住，或 agent 停下等待 ## 決定" }
-  - { name: "changes-requested", color: "e99695", description: "PR 有待修正的審查要求" }
-  - { name: "needs-human", color: "fbca04", description: "合併後有人工待辦，完成前不關 Issue" }
-  - { name: "rfc", color: "c5def5", description: "需要討論的提案或決策" }
-  - { name: "plan-first", color: "f9d0c4", description: "agent 先留言計畫，經人同意才實作" }
-  - { name: "fast-lane", color: "c2e0c6", description: "快速通道 PR，不需對應 Issue" }
-  - { name: "template-feedback", color: "bfd4f2", description: "值得回到 template 的做法，由總部每週回顧時讀取" }
+  - { name: "type:feat", color: "1d76db", description: "New feature" }
+  - { name: "type:fix", color: "d73a4a", description: "Bug fix" }
+  - { name: "type:docs", color: "0075ca", description: "Documentation" }
+  - { name: "type:chore", color: "cfd3d7", description: "Maintenance, configuration, tooling" }
+  - { name: "type:epic", color: "5319e7", description: "Phase goal; tasks attached as sub-issues" }
+  - { name: "blocked", color: "b60205", description: "Stuck, or the agent stopped and is waiting for ## Decision" }
+  - { name: "changes-requested", color: "e99695", description: "PR has review requests to address" }
+  - { name: "needs-human", color: "fbca04", description: "Manual tasks remain after merge; keep the Issue open until done" }
+  - { name: "rfc", color: "c5def5", description: "Proposal or decision that needs discussion" }
+  - { name: "plan-first", color: "f9d0c4", description: "Agent posts a plan first and implements only after approval" }
+  - { name: "fast-lane", color: "c2e0c6", description: "Fast-lane PR; no linked Issue needed" }
+  - { name: "template-feedback", color: "bfd4f2", description: "Practice worth bringing back to the template; read in the weekly review" }
 
 online:
-  - { name: "needs-setup", color: "d4c5f9", description: "程式完成，合併前需外部設定，保持 Draft" }
+  - { name: "needs-setup", color: "d4c5f9", description: "Code done; external setup needed before merge, keep as Draft" }
 
 collab:
-  - { name: "sync", color: "bfdadc", description: "同步會議議程" }
+  - { name: "sync", color: "bfdadc", description: "Sync meeting agenda" }
 
 automation:
-  - { name: "agent:ready", color: "0e8a16", description: "可以交給 agent；由人加，或決策 agent 經人確認後加" }
-  - { name: "agent:working", color: "1f883d", description: "runner 處理中；由 runner 加、由 runner 移除" }
+  - { name: "agent:ready", color: "0e8a16", description: "Ready for an agent; added by a human, or by the decision agent after confirmation" }
+  - { name: "agent:working", color: "1f883d", description: "Being worked on; added and removed by the runner" }
 
 goal:
-  - { name: "goal-mode", color: "006b75", description: "目標模式：已核准的目標，決策 agent 在範圍內自動推進（試驗中）" }
+  - { name: "goal-mode", color: "006b75", description: "Goal mode: approved goal the decision agent advances within scope (pilot)" }

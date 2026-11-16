@@ -1,39 +1,39 @@
-<!-- 標題用 feat: / fix: / docs: / chore: / ci: 前綴。快速通道的 PR 加 fast-lane 標籤，可不填 Closes／Refs。 -->
+<!-- Title prefix: feat: / fix: / docs: / chore: / ci:. Fast-lane PRs get the fast-lane label and may omit Closes/Refs. -->
 
-## 為什麼
+## Why
 
 Closes #
 
-## 變更內容
+## Changes
 
 -
 
-## 驗證
+## Verification
 
-<!-- 寫實際執行的指令與結果（AGENTS.md 第 2 節）；未執行的寫明原因，不得宣稱未執行的檢查已通過。 -->
+<!-- List the commands you actually ran and their results (AGENTS.md section 2). For anything not run, say why; never claim a check passed that was not run. -->
 
 -
 
-是否需要調整 CI：
+CI changes needed:
 
-- [ ] 不需要
-- [ ] 已在本 PR 更新 `.github/workflows/`
-- [ ] 需要但另開 Issue 追蹤：#
+- [ ] Not needed
+- [ ] Updated `.github/workflows/` in this PR
+- [ ] Needed, tracked in a separate Issue: #
 
-## 人工待辦
+## Manual tasks
 
-<!-- 沒有就寫「無」。有合併後待辦時寫 Refs #N，並在 Issue 留言列出、加上 needs-human。 -->
+<!-- Write "None" if there are none. If there are post-merge tasks, write Refs #N, list them in a comment on the Issue, and add needs-human. -->
 
-合併前：
-
-- [ ]
-
-合併後：
+Before merge:
 
 - [ ]
 
-## 風險
+After merge:
 
-- [ ] 改變資料結構、權限或金流
-- [ ] 新增相依套件、secret 或外部服務
-- [ ] 以上皆無
+- [ ]
+
+## Risk
+
+- [ ] Changes data structures, permissions, or payments
+- [ ] Adds dependencies, secrets, or external services
+- [ ] None of the above
