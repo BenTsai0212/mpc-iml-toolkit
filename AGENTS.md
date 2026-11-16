@@ -3,23 +3,25 @@
 給所有 coding agent（Claude Code、Codex 等）。本文件只描述 `main` 上實際存在的內容。
 
 ## 0. 專案設定
-<!-- 新專案初始化時改寫本節、第 2 節與第 3 節。 -->
-- Repo：`BenTsai0212/dev-workflow-template`（本 repo 即 template 本身）
-- 看板：GitHub Project #3「dev-workflow 範本看板」（https://github.com/users/BenTsai0212/projects/3）
-- 啟用模組：核心、雲端執行（試驗中，BenTsai0212/dev-workflow-template#104；見 `docs/workflow/modules.md`）、目標模式（試用中，BenTsai0212/dev-workflow-template#64 第 7 項；目標卡範本不複製到 `.github/ISSUE_TEMPLATE/`，因為本 repo 的 `.github/` 會帶入新專案，目標卡直接以範本內容建立 Epic；決策時段：每天 09:00 倫敦時間，含週末）；自動化（本機 runner，原啟用決定見 BenTsai0212/dev-workflow-template#20）不啟用：與雲端執行擇一（modules.md「雲端執行」）。改回時依 modules.md「雲端執行」的回退停用兩個排程任務，再把本行的雲端執行換回自動化
+- Repo：`BenTsai0212/mpc-iml-toolkit`（Akai MPC Sample 與 Mac 的互動式機器學習基礎工具包；由 `BenTsai0212/dev-workflow-template` 建立）
+- 看板：GitHub Project 12（https://github.com/users/BenTsai0212/projects/12）
+- 啟用模組：核心。雲端執行（試驗中，見 `docs/workflow/modules.md`）在 `agent:ready` 與 `changes-requested` 兩個觸發都測試過後，以後續 PR 加入本行（#13 的決定）
 - 流程語言：en（`zh-TW` 或 `en`；決定控制標題與 Issue、PR、commit 的語言，對照表見 `docs/workflow/headings.md`，BenTsai0212/dev-workflow-template#129）
 - 憲法版本：v0.37，template e8e03dc71374efab06f0f1577397a4a0e19e090d（`docs/workflow/constitution.md`）
 - 決定者：@BenTsai0212（停止回報與 `plan-first` 時 @ 此帳號）
 
 ## 1. 必讀
-你被指派的 Issue（驗收條件就是完成標準），以及 `docs/rfcs/` 的 RFC 0001 與 `docs/adr/README.md` 的 ADR 索引（已定的方向不要「改正」）。
+你被指派的 Issue（驗收條件就是完成標準），以及 `docs/rfcs/` 的 RFC 0001（專案章程）與 `docs/adr/README.md` 的 ADR 索引（ADR 0001：技術選型；已定的方向不要「改正」）。
 
 ## 2. 指令
-<!-- 依 ADR 0001 的技術選型填寫：安裝、開發、型別檢查、lint、測試、build。 -->
-本 repo 以文件與範本為主，驗證方式是核對內容、路徑、連結與 diff。各工具的參數與說明見 `tools/workflow/README.md`。
-- 測試：`npm test --prefix tools/workflow`（CI 的 `checks` job 也會執行）
+Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 依序執行下列前五項。各 workflow 工具的參數與說明見 `tools/workflow/README.md`。
+- workflow 工具測試：`npm test --prefix tools/workflow`
+- 安裝：`uv sync --locked`（改 `pyproject.toml` 的相依套件後執行 `uv lock`，並 commit `uv.lock`）
+- lint 與格式：`uv run ruff check`、`uv run ruff format --check`（修正格式：`uv run ruff format`）
+- 型別檢查：`uv run mypy`（strict，檢查 `src/`）
+- 測試：`uv run pytest`（預設略過 `@pytest.mark.hardware`）
+- 硬體測試：`uv run pytest -m hardware`（由人接上 MPC 後執行；agent 與 CI 不執行，對應 Issue 的 `needs-human` 待辦）
 - runner：`node tools/workflow/runner/agent-runner.mjs --dry-run`（試跑）、`--now`（由人執行一件；本 repo 未安裝排程）；見 `tools/workflow/runner/README.md`
-- 新 repo 的標籤與設定：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> [--modules core,online,collab,automation,goal] [--board] [--ruleset] [--lang zh-TW|en] [--dry-run]`
 - 讀 Issue 與 PR：`node tools/workflow/read-trusted.mjs --issue N`／`--pr N`（只輸出可信身分的內容；見 `docs/workflow/agent-workflow.md` 第 0 步）
 - PR 描述檢查：`PR_BODY='Closes #1' PR_LABELS='[]' node tools/workflow/check-pr-body.mjs`
 - 貼出前的檢查：`node tools/workflow/check-post-body.mjs --issue N --kind <種類> <檔案>`（見 `docs/workflow/agent-workflow.md`「貼出 PR 描述與留言」）
@@ -29,7 +31,10 @@
 ## 3. 結構
 | 路徑 | 內容 |
 | --- | --- |
-| `docs/workflow/` | 憲法與 workflow 手冊 |
+| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`；目前只有 `__version__`） |
+| `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware` |
+| `pyproject.toml`、`uv.lock`、`.python-version` | 套件設定（套件名 `mpc-iml-toolkit`、MIT）、ruff／mypy／pytest 設定、鎖定的相依套件 |
+| `docs/workflow/` | 憲法與 workflow 手冊（繁體中文） |
 | `docs/rfcs/`、`docs/adr/` | 專案章程與決策紀錄 |
 | `tools/workflow/` | workflow 工具（Node，無相依套件；說明見該資料夾的 README） |
 | `.claude/settings.json` | 在 `PreToolUse`（Bash）註冊合併與 push 到 main 的 hook（合併一律拒絕；push 到 main 本機確認、雲端拒絕）；`permissions.deny` 移除 GitHub MCP 的合併等工具 |

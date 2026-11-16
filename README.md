@@ -1,43 +1,62 @@
-# dev-workflow-template
+English | [繁體中文](README.zh-TW.md)
 
-個人開發 workflow 的 template：**Claude Project 做決策、coding agent 做實作、GitHub 記錄一切。**
-新專案從這裡建立；新專案初始化時會改寫本 README。
+# mpc-iml-toolkit
 
-- 版本：v0.33（試驗中，私人；以[憲法](docs/workflow/constitution.md)開頭的版本為準）
-- 原則與分工：[憲法](docs/workflow/constitution.md)
-- Claude Project 的操作手冊：[decision-center](docs/workflow/decision-center.md)
-- coding agent 的規則：[AGENTS.md](AGENTS.md)、[agent-workflow](docs/workflow/agent-workflow.md)
+A base toolkit for interactive machine learning (IML) with an Akai MPC Sample and a
+Mac. The MPC is used over USB as a gesture controller (velocity and polyphonic
+aftertouch on the 16 pads) and as an audio interface; models run on the Mac.
 
-## 開新專案
+The toolkit covers the shared plumbing of the IML loop: record examples, train, run
+in real time, then edit the examples and train again. Each IML practice (a research
+question, a piece, a teaching unit) lives in its own repository and depends on a
+pinned version of this toolkit, swapping inputs, models and outputs through
+extension points instead of editing the toolkit.
 
-1. 建立 repo 並 clone：`gh repo create <owner>/<name> --private --template <template repo> --clone`。
-2. 在新 repo 執行 bootstrap：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> --modules <群組> [--board] [--ruleset] [--lang en]`（可先加 `--dry-run`，只列出不執行；流程語言為 en 時加 `--lang en`，標籤描述與看板佔位選項改用英文）。
-   - 一定會做：依 `.github/labels.yml` 建立標籤，並設定合併後自動刪分支。`--modules` 只能填 `labels.yml` 裡有的群組（`core`、`online`、`collab`、`automation`、`goal`），預設 `core`。
-   - `--board`（選用）：在 owner 底下新建看板（Phase 與 Area 欄位）並連結到 repo。不加時不建看板，核心流程只靠標籤。auto-add 不是必要步驟，需要時在看板的 Workflows 開啟。
-   - `--ruleset`（選用）：為預設分支建立 ruleset（禁止刪除與強制推送、必須經 PR 才能合併）。GitHub Free 的私人 repo 不會套用 ruleset。
-3. 決定是否刪除 GitHub 自動產生的預設標籤（不刪也不影響流程）。
-4. 建立 Claude Project：貼上 `templates/claude-project/instructions.md` 並填好專案名與 repo，連結本機資料夾，把 `templates/claude-project/handoff.md` 放進知識庫。
-5. 在 Claude Project 說「依 decision-center 初始化」。
-6. 選擇 code agent 的執行方式（[modules.md](docs/workflow/modules.md)）：
-   - 手動（核心）：由人在 Claude Code 執行 `/work-on-issue <編號>`。
-   - 本機 runner（自動化模組）：runner 依 `agent:ready` 標籤接手 Issue，見 [runner/README.md](tools/workflow/runner/README.md)。
-   - 雲端執行（雲端執行模組，試驗中）：Claude Code 的雲端排程任務依標籤事件接手，不需要開著本機電腦；需要 main 的 ruleset（bootstrap 加 `--ruleset`）與 Claude GitHub App，prompt 範本在 `templates/modules/cloud/trigger-prompt.md`。
+The core is Python: MIDI input via `python-rtmidi`, models via `scikit-learn`, and
+output over OSC to any synthesiser, Max, Pure Data or nn~. See
+[RFC 0001](docs/rfcs/0001-project-charter.md) for the project charter and
+[ADR 0001](docs/adr/0001-technology-choices.md) for the technology choices.
 
-   本機 runner 與雲端執行擇一使用；兩者都沿用 `automation` 群組的標籤（bootstrap 加 `--modules core,automation`）。
+## Status
 
-完整步驟見憲法第 9 節。
+Phase 1 (Foundation), early. This repository currently contains only the package
+skeleton and the development setup; there is no toolkit functionality yet, and the
+package is not published. Interfaces will change without notice until the first
+release (`v0.1.0`).
 
-## 內容
+## Development
 
-| 路徑 | 內容 |
-| --- | --- |
-| `docs/workflow/` | 憲法、決策中心手冊、模組、agent 工作流程、決策 agent 寫入 GitHub 的確認規則、升級 template 的程序 |
-| `docs/rfcs/`、`docs/adr/` | 專案章程與決策紀錄（索引為空，新專案自行填寫） |
-| `AGENTS.md`、`CLAUDE.md` | coding agent 的規則（`CLAUDE.md` 只引用 `AGENTS.md`） |
-| `.claude/commands/` | `/work-on-issue`（備援模組另有 `/pm-apply`） |
-| `.github/` | Issue／PR 範本、標籤定義、CI 佔位 |
-| `templates/` | Claude Project 指示與交接範本、預設不啟用的模組檔案（協作、目標模式、備援、雲端執行） |
+Requirements: [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if needed)
+and Node.js 22 for the workflow tool tests.
 
-## 修改 template
+```bash
+uv sync --locked
+uv run ruff check
+uv run ruff format --check
+uv run mypy
+uv run pytest
+```
 
-依憲法第 10 節：開 Issue（`rfc`）→ PR → 合併 → 版本號加一。
+Tests marked `@pytest.mark.hardware` need a connected MPC Sample and are skipped by
+default. Run them with the MPC connected:
+
+```bash
+uv run pytest -m hardware
+```
+
+CI (`.github/workflows/ci.yml`, job `checks`) runs the workflow tool tests
+(`npm test --prefix tools/workflow`) followed by the commands above.
+
+## Project workflow
+
+Work is planned in GitHub Issues and implemented by coding agents in pull requests
+that a human reviews and merges. The rules for agents are in [AGENTS.md](AGENTS.md).
+The workflow documents under [`docs/workflow/`](docs/workflow/), and `AGENTS.md`
+itself, are written in Traditional Chinese; Issues, pull requests and commits are in
+English.
+
+## Licence
+
+[MIT](LICENSE). Optional extensions such as RAVE and nn~ have their own licences
+(CC BY-NC 4.0, non-commercial only) and are never bundled with or required by the
+toolkit.
