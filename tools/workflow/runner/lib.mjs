@@ -1,10 +1,12 @@
 // runner 的純邏輯：不呼叫 gh／git、不讀寫檔案，方便以 node:test 測試。
 import { checkSensitiveContent } from '../check-post-body.mjs';
 import { PERSONAL_PATH } from '../check-sensitive.mjs';
+import { allHeadings, DEFAULT_LANG, heading, startsWithAny } from '../headings.mjs';
 // 規則來源：憲法第 6 節「自動化 runner」、docs/workflow/modules.md「自動化」。
+// 控制標題從 headings.mjs 讀取，判斷時中英文等價；runner 自己留言時用 repo 的流程語言（BenTsai0212/dev-workflow-template#129）。
 
-export const STOP_HEADINGS = ['## agent 停止', '## 計畫'];
-export const DECISION_HEADING = '## 決定';
+export const STOP_HEADINGS = [...allHeadings('stop'), ...allHeadings('plan')];
+export const DECISION_HEADING = heading('decision');
 // 只採信這些身分寫的決定：公開 repo 中任何人都能留言，外部的「## 決定」不能讓 runner 無人值守執行
 export const TRUSTED_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 const BILLING_ENV = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'];
@@ -19,7 +21,6 @@ export function linkedIssue(body) {
 }
 
 const labelNames = (x) => (x.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name));
-const startsWith = (comment, heading) => (comment.body ?? '').trimStart().startsWith(heading);
 
 /** 作者是否為可信身分；缺少 authorAssociation 時不算。 */
 export const isTrusted = (item) => TRUSTED_ASSOCIATIONS.includes(item?.authorAssociation);
@@ -53,8 +54,8 @@ export const withAssociation = (issues = [], associations) =>
 export function hasDecision(comments = []) {
   const latest = (pred) =>
     Math.max(-1, ...comments.filter(pred).map((c) => Date.parse(c.createdAt)));
-  const stop = latest((c) => STOP_HEADINGS.some((h) => startsWith(c, h)));
-  const decision = latest((c) => startsWith(c, DECISION_HEADING) && isTrusted(c));
+  const stop = latest((c) => startsWithAny(c.body, 'stop') || startsWithAny(c.body, 'plan'));
+  const decision = latest((c) => startsWithAny(c.body, 'decision') && isTrusted(c));
   return stop >= 0 && decision > stop;
 }
 
@@ -210,7 +211,7 @@ export function wipBranchName(issue, date) {
   return `wip/${issue}-${d}-${pad(date.getHours())}${pad(date.getMinutes())}`;
 }
 
-// 每次執行專屬的暫存資料夾放在 worktree 內（已在 .gitignore），sandbox 本來就能寫入（#39）
+// 每次執行專屬的暫存資料夾放在 worktree 內（已在 .gitignore），sandbox 本來就能寫入（BenTsai0212/dev-workflow-template#39）
 export const RUN_TMP_DIR = '.runner-tmp';
 const RUN_TMP_NAME = /^\d{8}T\d{6}-\d+$/;
 
@@ -281,7 +282,7 @@ export function globalSlots(config) {
 
 /**
  * claude 的 stream-json 輸出（逐段收到的資料）→ 逐行解析。只處理收到換行的完整行；
- * 最後一段沒有換行的資料在 end()（stdout 結束）時處理一次。半行不會被當成一整行解析（PR #70 修正要求）。
+ * 最後一段沒有換行的資料在 end()（stdout 結束）時處理一次。半行不會被當成一整行解析（PR BenTsai0212/dev-workflow-template#70 修正要求）。
  * push()／end() 回傳新出現的計費方式檢查結果（第一個 init 行）：
  *   { apiKeySource }（可解析，'none' 表示使用訂閱帳號）或 { apiKeySource: null, error: true }（無法解析）。
  * state 保留額度判斷要用的最後一個 rate_limit_event 與 result 的 is_error（detectQuotaExhausted）。
@@ -328,7 +329,7 @@ const QUOTA_MAX_MS = 7 * 24 * 3600e3;
  * claude 是否因訂閱額度用完而結束（嚴格條件，任一不成立就回傳 null，維持現行的異常結束處理）：
  * runner 沒有主動終止（逾時、計費保護）；claude 非 0 結束或 result 的 is_error 為 true；
  * 最後一個 rate_limit_event 的 status 是 rejected／rate_limited；resetsAt 在未來 7 天內（大於 1e12 時當作毫秒）。
- * stream-json 的 rate_limit_event 沒有官方規格，status 的值曾經改變，所以只認這幾個值（#66 決定）。
+ * stream-json 的 rate_limit_event 沒有官方規格，status 的值曾經改變，所以只認這幾個值（BenTsai0212/dev-workflow-template#66 決定）。
  * 成立時回傳 { until: Date, status, rateLimitType }。
  */
 export function detectQuotaExhausted({ code, killedFor, resultIsError, lastRateLimit, now }) {
@@ -449,41 +450,81 @@ export const SENSITIVE_REASON = '原因含敏感內容，已記錄在本機紀�
 export const SENSITIVE_FACTS = '含敏感內容，已記錄在本機紀錄檔';
 
 /**
+ * runner 自己貼出的停止回報與 `## runner 提醒` 的固定文字，依流程語言（BenTsai0212/dev-workflow-template#129）。
+ * 欄位與 docs/workflow/agent-workflow.md「停止時的回報」的格式（中英文）一致。
+ */
+export const POST_TEXT = Object.freeze({
+  'zh-TW': {
+    colon: '：',
+    sensitiveReason: SENSITIVE_REASON,
+    sensitiveFacts: SENSITIVE_FACTS,
+    localLog: '（本機紀錄檔）',
+    step: '停在哪一步', reason: '原因', facts: '已確認的事實', options: '可行的選項', decider: '需要誰決定',
+    option1: (d) => `查看 runner 紀錄後，以 \`${d}\` 留言指示如何繼續（agent 建議）`,
+    option2: '移除 `blocked` 並重新加上 `agent:ready`，讓 runner 重試',
+    stopFooter: (log) => `（由本機 agent runner 留言；紀錄檔：\`${log}\`）`,
+    reminderTitle: (n) => `同一個錯誤已連續 ${n} 次`,
+    stage: '階段', error: '錯誤', count: '次數', countValue: (n) => `連續 ${n} 次`, logFile: '紀錄檔', action: '建議的處理',
+    actionValue: '查看紀錄檔找出原因並排除（例如清理 runner worktree 中未提交的變更、確認 gh 登入狀態），runner 會在下次執行時再試；成功一次後計數歸零。',
+    reminderFooter: (d) => `（由本機 agent runner 留言；這則提醒不改標籤，也不影響 \`${d}\` 的判斷。同一個錯誤不重複提醒。）`,
+  },
+  en: {
+    colon: ': ',
+    sensitiveReason: 'The reason contains sensitive content; see the local runner log',
+    sensitiveFacts: 'Contains sensitive content; see the local runner log',
+    localLog: '(local runner log)',
+    step: 'Stopped at', reason: 'Reason', facts: 'Confirmed facts', options: 'Options', decider: 'Decision needed from',
+    option1: (d) => `Check the runner log, then reply with a \`${d}\` comment on how to continue (agent's recommendation)`,
+    option2: 'Remove `blocked` and add `agent:ready` again so the runner retries',
+    stopFooter: (log) => `(Posted by the local agent runner; log file: \`${log}\`)`,
+    reminderTitle: (n) => `Same error ${n} times in a row`,
+    stage: 'Stage', error: 'Error', count: 'Count', countValue: (n) => `${n} times in a row`, logFile: 'Log file', action: 'Suggested action',
+    actionValue: 'Check the log file and fix the cause (for example, clean up uncommitted changes in the runner worktree or check the gh login). The runner retries on its next run; the count resets after one success.',
+    reminderFooter: (d) => `(Posted by the local agent runner. This reminder does not change labels or affect how \`${d}\` is read. The same error is reported only once.)`,
+  },
+});
+
+/** 流程語言的固定文字；lang 不認得時用預設語言。 */
+export const postText = (lang) => POST_TEXT[lang] ?? POST_TEXT[DEFAULT_LANG];
+
+/**
  * runner 自己留的停止回報要貼出的內容：原因、已確認的事實與紀錄檔路徑先遮蔽本機路徑，再以貼文檢查（與 runner 提醒同一套）。
  * 遮蔽後仍命中時**仍要貼出**（否則人不會知道 runner 停了），但原因與事實換成不含原文的固定文字；
  * sanitized 為 true，呼叫端另寫紀錄並發本機通知。
  */
-export function stopReportPost({ step, reason, facts, account, logPath, paths }) {
+export function stopReportPost({ step, reason, facts, account, logPath, paths, lang = DEFAULT_LANG }) {
   const masked = {
-    step, account,
+    step, account, lang,
     reason: maskLocalPaths(reason, paths), facts: maskLocalPaths(facts, paths), logPath: maskLocalPaths(logPath, paths),
   };
   const body = stopReportBody(masked);
   const problems = checkSensitiveContent(body);
   if (!problems.length) return { body, sanitized: false, problems };
-  const safe = { ...masked, reason: SENSITIVE_REASON, facts: SENSITIVE_FACTS };
-  if (checkSensitiveContent(stopReportBody(safe)).length) safe.logPath = '（本機紀錄檔）';
+  const t = postText(lang);
+  const safe = { ...masked, reason: t.sensitiveReason, facts: t.sensitiveFacts };
+  if (checkSensitiveContent(stopReportBody(safe)).length) safe.logPath = t.localLog;
   return { body: stopReportBody(safe), sanitized: true, problems };
 }
 
-/** runner 自己留的停止回報（格式同 docs/workflow/agent-workflow.md「停止時的回報」）。 */
-export function stopReportBody({ step, reason, facts, account, logPath }) {
+/** runner 自己留的停止回報（格式同 docs/workflow/agent-workflow.md「停止時的回報」）；標題與欄位依流程語言 lang。 */
+export function stopReportBody({ step, reason, facts, account, logPath, lang = DEFAULT_LANG }) {
+  const t = postText(lang);
   return [
-    `## agent 停止：${reason}`,
+    `${heading('stop', lang)}${t.colon}${reason}`,
     '',
-    `- **停在哪一步**：${step}`,
-    `- **原因**：${reason}`,
-    `- **已確認的事實**：${facts}`,
-    '- **可行的選項**：',
-    '  1. 查看 runner 紀錄後，以 `## 決定` 留言指示如何繼續（agent 建議）',
-    '  2. 移除 `blocked` 並重新加上 `agent:ready`，讓 runner 重試',
-    `- **需要誰決定**：@${account}`,
+    `- **${t.step}**${t.colon}${step}`,
+    `- **${t.reason}**${t.colon}${reason}`,
+    `- **${t.facts}**${t.colon}${facts}`,
+    `- **${t.options}**${t.colon.trimEnd()}`,
+    `  1. ${t.option1(heading('decision', lang))}`,
+    `  2. ${t.option2}`,
+    `- **${t.decider}**${t.colon}@${account}`,
     '',
-    `（由本機 agent runner 留言；紀錄檔：\`${logPath}\`）`,
+    t.stopFooter(logPath),
   ].join('\n');
 }
 
-// ---- 穩定性（#45）----
+// ---- 穩定性（BenTsai0212/dev-workflow-template#45）----
 
 // gh 暫時性錯誤：連線中斷、unexpected EOF、HTTP 5xx、逾時。權限、參數、404 等不重試。
 const TRANSIENT_GH = [
@@ -497,7 +538,7 @@ const TRANSIENT_GH = [
 // 錯誤訊息同時出現這些時，不視為暫時性（例如 404 的說明裡剛好有 timeout 字樣）
 const PERMANENT_GH = [/\bHTTP 4\d\d\b/i, /\b(?:401|403|404|422) (?:Unauthorized|Forbidden|Not Found|Unprocessable)/i];
 
-/** runner 呼叫 gh 的輸出上限：與 read-trusted.mjs、harness-retro.mjs 相同（execFileSync 預設只有 1 MB，#60、#78）。 */
+/** runner 呼叫 gh 的輸出上限：與 read-trusted.mjs、harness-retro.mjs 相同（execFileSync 預設只有 1 MB，BenTsai0212/dev-workflow-template#60、BenTsai0212/dev-workflow-template#78）。 */
 export const GH_MAX_BUFFER = 64 * 1024 * 1024;
 
 /** 等待後重試一次的間隔。 */
@@ -517,7 +558,7 @@ export function remainingLabels(current, removed) {
 
 /** 同一錯誤連續幾次後在 Issue 留 `## runner 提醒`。 */
 export const REMIND_AFTER = 3;
-export const REMINDER_HEADING = '## runner 提醒';
+export const REMINDER_HEADING = heading('runnerReminder');
 
 /**
  * 記錄一次 runner 自身的錯誤。同一個錯誤 = 同一階段＋同一個訊息首行；不同錯誤從 1 重新計算。
@@ -537,7 +578,7 @@ export function recordRunnerError(state, { stage, message, issue = null }, remin
   return { state: next, remind };
 }
 
-// 個人路徑整段：開頭與 check-sensitive.mjs 的 PERSONAL_PATH 相同（遮蔽與檢查一致，#78），
+// 個人路徑整段：開頭與 check-sensitive.mjs 的 PERSONAL_PATH 相同（遮蔽與檢查一致，BenTsai0212/dev-workflow-template#78），
 // 之後到空白、引號、括號或全形標點為止
 const PATH_END = '\\s`\'"()<>，。、：；（）「」';
 const LOCAL_PATH = new RegExp(`${PERSONAL_PATH.source}(?:\\/[^${PATH_END}]*)?`, 'g');
@@ -562,9 +603,9 @@ export function maskLocalPaths(text, { worktree, repoRoot, home } = {}) {
  * `## runner 提醒` 要貼出的內容：階段、錯誤訊息與紀錄檔路徑先遮蔽本機路徑，再以貼文檢查（check-post-body.mjs 的
  * email 與個人路徑規則）檢查。仍命中時 ok 為 false，呼叫端不貼出，只寫紀錄與本機通知。
  */
-export function runnerReminderPost(state, { logPath, paths }) {
+export function runnerReminderPost(state, { logPath, paths, lang = DEFAULT_LANG }) {
   const body = runnerReminderBody({
-    ...state, stage: maskLocalPaths(state.stage, paths), message: maskLocalPaths(state.message, paths), logPath: maskLocalPaths(logPath, paths),
+    ...state, lang, stage: maskLocalPaths(state.stage, paths), message: maskLocalPaths(state.message, paths), logPath: maskLocalPaths(logPath, paths),
   });
   const problems = checkSensitiveContent(body);
   return { ok: problems.length === 0, body, problems };
@@ -580,17 +621,18 @@ export function runnerBehindWarning(behind, runnerDir = 'tools/workflow/runner')
   return `主資料夾的 runner 程式落後 origin/main ${n} 個 commit（${runnerDir}）：本次仍以舊版執行，請先在主資料夾 git pull --ff-only`;
 }
 
-/** `## runner 提醒` 的內容：錯誤摘要、次數、紀錄檔位置、建議的處理；不加或移除標籤，不影響 `## 決定`。 */
-export function runnerReminderBody({ stage, message, count, logPath }) {
+/** `## runner 提醒` 的內容：錯誤摘要、次數、紀錄檔位置、建議的處理；不加或移除標籤，不影響 `## 決定`。標題與欄位依流程語言 lang。 */
+export function runnerReminderBody({ stage, message, count, logPath, lang = DEFAULT_LANG }) {
+  const t = postText(lang);
   return [
-    `${REMINDER_HEADING}：同一個錯誤已連續 ${count} 次`,
+    `${heading('runnerReminder', lang)}${t.colon}${t.reminderTitle(count)}`,
     '',
-    `- **階段**：${stage}`,
-    `- **錯誤**：${message}`,
-    `- **次數**：連續 ${count} 次`,
-    `- **紀錄檔**：\`${logPath}\``,
-    '- **建議的處理**：查看紀錄檔找出原因並排除（例如清理 runner worktree 中未提交的變更、確認 gh 登入狀態），runner 會在下次執行時再試；成功一次後計數歸零。',
+    `- **${t.stage}**${t.colon}${stage}`,
+    `- **${t.error}**${t.colon}${message}`,
+    `- **${t.count}**${t.colon}${t.countValue(count)}`,
+    `- **${t.logFile}**${t.colon}\`${logPath}\``,
+    `- **${t.action}**${t.colon}${t.actionValue}`,
     '',
-    '（由本機 agent runner 留言；這則提醒不改標籤，也不影響 `## 決定` 的判斷。同一個錯誤不重複提醒。）',
+    t.reminderFooter(heading('decision', lang)),
   ].join('\n');
 }

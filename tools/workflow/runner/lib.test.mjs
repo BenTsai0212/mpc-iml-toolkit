@@ -7,7 +7,7 @@ import {
   activeCooldown, advanceAwake, agentNote, buildSettings, canStartNew, countOpenPrs, DEFAULT_SLOTS, detectQuotaExhausted, globalSlots, hasDecision, inHours, issueAssociations, isTrusted, isRunTmpDir, isTransientGhError,
   latestStart, linkedIssue, lockIsActive, maskLocalPaths, needsWipSave, orderWork, pickWork, recordRunnerError, remainingLabels,
   REMIND_AFTER, REMINDER_HEADING, RUN_TMP_DIR, runnerBehindWarning, runnerReminderBody, runnerReminderPost, runTmpDir, runTmpEnv, shouldContinue, slotTurn, staleWorking, streamTracker,
-  SENSITIVE_FACTS, SENSITIVE_REASON, STOP_HEADINGS, stopReportBody, stopReportPost, trustedOnly, validateConfig, wipBranchName, withAssociation,
+  POST_TEXT, SENSITIVE_FACTS, SENSITIVE_REASON, STOP_HEADINGS, stopReportBody, stopReportPost, trustedOnly, validateConfig, wipBranchName, withAssociation,
 } from './lib.mjs';
 
 const ME = 'me';
@@ -389,7 +389,7 @@ test('權限比對：agent 正常工作需要的指令都允許', () => {
   }
 });
 
-test('權限比對：Issue／PR 的留言與審查只能經 read-trusted.mjs 讀取（#65）', () => {
+test('權限比對：Issue／PR 的留言與審查只能經 read-trusted.mjs 讀取（BenTsai0212/dev-workflow-template#65）', () => {
   for (const cmd of [
     'gh issue view 3', 'gh issue view 3 --json labels', 'gh pr view 4 --json comments,reviews',
     'gh api repos/o/r/issues/3/comments', 'gh api --paginate repos/o/r/pulls/4/comments?per_page=100',
@@ -417,7 +417,7 @@ test('agentNote：推送寫法只有一種；不啟動瀏覽器；時間上限�
   assert.doesNotMatch(note, /perl|alarm/);
 });
 
-test('權限比對：先檢查再以同一個檔案貼出的寫法都允許（#39）', () => {
+test('權限比對：先檢查再以同一個檔案貼出的寫法都允許（BenTsai0212/dev-workflow-template#39）', () => {
   const file = '/work/repo-runner/.runner-tmp/20261102T100000-104/pr.md';
   const check = `node tools/workflow/check-post-body.mjs --issue 104 --kind pr ${file}`;
   const post = `gh pr create --base main --title "fix: x" --body-file ${file}`;
@@ -431,7 +431,7 @@ test('權限比對：先檢查再以同一個檔案貼出的寫法都允許（#3
   assert.ok(`${check} && ${post}`.split(' && ').every(allowed));
 });
 
-test('sandbox：暫存資料夾在 worktree 內，不放寬可寫入的路徑（#39）', () => {
+test('sandbox：暫存資料夾在 worktree 內，不放寬可寫入的路徑（BenTsai0212/dev-workflow-template#39）', () => {
   assert.deepEqual(base.sandbox.filesystem.allowWrite, ['~/.npm', '~/.cache']);
   assert.doesNotMatch(JSON.stringify(settings.sandbox.filesystem.allowWrite), /tmp/);
   const gitignore = readFileSync(new URL('../../../.gitignore', import.meta.url), 'utf8').split('\n');
@@ -446,7 +446,7 @@ test('runTmpDir：在 worktree 的 .runner-tmp/ 底下，含時間與 Issue；�
   assert.notEqual(runTmpDir('/w/repo-runner', 105, new Date(2026, 10, 2, 9, 5, 7)), a);
 });
 
-test('isRunTmpDir：只接受本次執行的資料夾，不刪除其他東西（#39）', () => {
+test('isRunTmpDir：只接受本次執行的資料夾，不刪除其他東西（BenTsai0212/dev-workflow-template#39）', () => {
   const wt = '/w/repo-runner';
   assert.equal(isRunTmpDir(wt, runTmpDir(wt, 104, new Date())), true);
   for (const dir of [
@@ -483,7 +483,7 @@ test('stopReportBody：符合停止回報格式', () => {
   assert.match(body, /logs\/a\.log/);
 });
 
-// ---- 穩定性（#45）----
+// ---- 穩定性（BenTsai0212/dev-workflow-template#45）----
 
 test('isTransientGhError：連線中斷、unexpected EOF、HTTP 5xx、逾時才重試', () => {
   for (const msg of [
@@ -661,7 +661,7 @@ const initLine = (apiKeySource) => JSON.stringify({
   type: 'system', subtype: 'init', cwd: '/w', tools: Array.from({ length: 50 }, (_, i) => `Tool${i}`), apiKeySource,
 });
 
-test('streamTracker：init 行被切成兩段時，半行不解析，收到完整的行才判斷計費方式（PR #70 修正要求）', () => {
+test('streamTracker：init 行被切成兩段時，半行不解析，收到完整的行才判斷計費方式（PR BenTsai0212/dev-workflow-template#70 修正要求）', () => {
   const line = initLine('ANTHROPIC_API_KEY');
   for (const cut of [1, 20, Math.floor(line.length / 2), line.length - 1]) {
     const t = streamTracker();
@@ -710,7 +710,7 @@ test('maskLocalPaths：worktree、repo、家目錄換成佔位，其他個人路
   assert.equal(maskLocalPaths(`${U}/dev/app`, {}), '<本機路徑>', '沒有提供路徑時也整段遮蔽');
 });
 
-test('maskLocalPaths：與 check-sensitive 的個人路徑規則一致（#78）', () => {
+test('maskLocalPaths：與 check-sensitive 的個人路徑規則一致（BenTsai0212/dev-workflow-template#78）', () => {
   const macRunner = ['', 'Users', 'runner'].join('/');
   const ciRunner = ['', 'home', 'runner'].join('/');
   assert.equal(maskLocalPaths(`開啟 ${macRunner}/dev/app/x.log 失敗`, {}), '開啟 <本機路徑> 失敗', '/Users/ 底下名稱為 runner 也遮蔽');
@@ -719,7 +719,7 @@ test('maskLocalPaths：與 check-sensitive 的個人路徑規則一致（#78）'
   assert.equal(scanText(`${ciRunner}/work/x`).length, 0, '/home/runner 檢查也不命中');
 });
 
-test('maskLocalPaths：路徑結尾的全形標點不算路徑的一部分（#78）', () => {
+test('maskLocalPaths：路徑結尾的全形標點不算路徑的一部分（BenTsai0212/dev-workflow-template#78）', () => {
   const other = ['', 'Users', 'another'].join('/');
   assert.equal(maskLocalPaths(`（設定：${other}/a）`, {}), '（設定：<本機路徑>）');
   for (const p of '，。、：；（）「」') assert.equal(maskLocalPaths(`${other}/a/b${p}後`, {}), `<本機路徑>${p}後`, p);
@@ -736,7 +736,7 @@ test('runnerReminderPost：錯誤訊息與紀錄檔路徑遮蔽後通過貼文�
   assert.ok(!post.body.includes(U));
 });
 
-test('runnerReminderPost：階段中的本機路徑也遮蔽（#78）', () => {
+test('runnerReminderPost：階段中的本機路徑也遮蔽（BenTsai0212/dev-workflow-template#78）', () => {
   const other = ['', 'Users', 'another'].join('/');
   const post = runnerReminderPost({ stage: `git -C ${other}/w`, message: 'x', count: 3 }, { logPath: 'logs/x.log', paths: PATHS });
   assert.equal(post.ok, true);
@@ -792,4 +792,59 @@ test('stopReportPost：紀錄檔路徑遮蔽後仍命中時也換掉', () => {
   assert.equal(post.sanitized, true);
   assert.match(post.body, /紀錄檔：`（本機紀錄檔）`/);
   assert.deepEqual(checkSensitiveContent(post.body), []);
+});
+
+// ---- 流程語言（BenTsai0212/dev-workflow-template#129）----
+
+test('hasDecision：英文的停止回報、計畫與決定和中文等價', () => {
+  assert.equal(hasDecision([c('## Agent stopped: x', '2026-01-01T00:00Z'), c('## Decision\noption 1', '2026-01-01T01:00Z')]), true);
+  assert.equal(hasDecision([c('## Plan (#1)', '2026-01-01T00:00Z'), c('## Decision (addendum)', '2026-01-01T01:00Z')]), true);
+  assert.equal(hasDecision([c('## agent 停止：x', '2026-01-01T00:00Z'), c('## Decision', '2026-01-01T01:00Z')]), true, '混用也認得');
+  assert.equal(hasDecision([c('## Agent stopped: x', '2026-01-01T00:00Z'), c('## Decisions needed', '2026-01-01T01:00Z')]), false);
+  assert.equal(hasDecision([c('## Agent stopped', '2026-01-01T00:00Z'), c('## Decision', '2026-01-01T01:00Z', 'NONE')]), false);
+  assert.equal(hasDecision([c('## Decision', '2026-01-01T00:00Z'), c('## Agent stopped: y', '2026-01-01T01:00Z')]), false);
+});
+
+test('stopReportBody／runnerReminderBody：流程語言 en 時控制標題用英文，預設不變', () => {
+  const args = { step: 's', reason: 'r', facts: 'f', account: 'me', logPath: 'logs/x.log' };
+  assert.equal(stopReportBody(args), stopReportBody({ ...args, lang: 'zh-TW' }));
+  const en = stopReportBody({ ...args, lang: 'en' });
+  assert.ok(en.startsWith('## Agent stopped: r'));
+  assert.ok(en.includes('`## Decision`') && !en.includes('## 決定') && !en.includes('## agent 停止'));
+  assert.equal(hasDecision([{ body: en, createdAt: '2026-01-01T00:00Z' }, c('## Decision', '2026-01-01T01:00Z')]), true);
+  const post = stopReportPost({ ...args, lang: 'en', paths: {} });
+  assert.ok(post.body.startsWith('## Agent stopped: '));
+  const reminder = runnerReminderBody({ stage: 'gh', message: 'x', count: 3, logPath: 'l', lang: 'en' });
+  assert.ok(reminder.startsWith('## Runner reminder: '));
+  assert.ok(!reminder.includes('## 決定') && !reminder.includes(REMINDER_HEADING));
+  assert.ok(runnerReminderPost({ stage: 'gh', message: 'x', count: 3 }, { logPath: 'l', paths: {}, lang: 'en' }).body.startsWith('## Runner reminder'));
+  assert.equal(hasDecision([c('## Agent stopped: x', '2026-01-01T00:00Z'), c('## Decision', '2026-01-01T01:00Z'), { body: reminder, createdAt: '2026-01-01T02:00Z' }]), true, '提醒不算停止');
+});
+
+test('stopReportBody／runnerReminderBody：流程語言 en 時內文欄位與結尾也是英文（BenTsai0212/dev-workflow-template#129）', () => {
+  const cjk = /[　-〿一-鿿＀-￯]/;
+  const args = { step: 'running', reason: 'timeout', facts: 'f', account: 'me', logPath: 'logs/x.log', lang: 'en' };
+  const en = stopReportBody(args);
+  assert.doesNotMatch(en, cjk);
+  for (const field of ['Stopped at', 'Reason', 'Confirmed facts', 'Options', 'Decision needed from']) {
+    assert.match(en, new RegExp(`^- \\*\\*${field}\\*\\*:`, 'm'), field);
+  }
+  assert.match(en, /\*\*Decision needed from\*\*: @me/);
+  assert.match(en, /log file: `logs\/x\.log`/);
+  const reminder = runnerReminderBody({ stage: 'gh', message: 'x', count: 3, logPath: 'l', lang: 'en' });
+  assert.doesNotMatch(reminder, cjk);
+  assert.ok(reminder.startsWith('## Runner reminder: Same error 3 times in a row'));
+  for (const field of ['Stage', 'Error', 'Count', 'Log file', 'Suggested action']) {
+    assert.match(reminder, new RegExp(`^- \\*\\*${field}\\*\\*:`, 'm'), field);
+  }
+  // 敏感內容換掉時，替代文字也跟隨流程語言
+  const email = ['someone', 'gmail.com'].join('@');
+  const post = stopReportPost({ ...args, reason: `login ${email}`, facts: email, logPath: `logs/${email}.log`, paths: {} });
+  assert.equal(post.sanitized, true);
+  assert.doesNotMatch(post.body, cjk);
+  assert.ok(post.body.startsWith(`## Agent stopped: ${POST_TEXT.en.sensitiveReason}`));
+  assert.deepEqual(checkSensitiveContent(post.body), []);
+  // 預設語言的固定文字不變
+  assert.equal(POST_TEXT['zh-TW'].sensitiveReason, SENSITIVE_REASON);
+  assert.match(stopReportBody({ ...args, lang: 'zh-TW' }), /^- \*\*停在哪一步\*\*：running$/m);
 });
