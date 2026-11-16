@@ -1,8 +1,8 @@
 # ADR 0005: Engine protocol 1.1, MIDI learn
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-16
-- Related: ADR 0004, #78, #65, #61 (Epic)
+- Related: ADR 0004, #78, #81, #65, #61 (Epic)
 
 ## Context
 
@@ -74,6 +74,8 @@ The state table of ADR 0004 gains one row:
   (`l1`-`l8`), one at a time, without training anything.
 - Front ends written for 1.0 keep working: the major version is unchanged.
 - Tests use a fake MIDI backend to check that only the chosen CC is sent; mapping in
-  a real DAW is a manual task in #78.
+  a real DAW was the manual check in #78. It was confirmed on hardware with a DAW
+  (#78): with the engine `idle`, each button `l1`-`l8` let Ableton Live's MIDI Map
+  Mode learn exactly one CC, and `run` then moved all 8 parameters as trained.
 - A separate command-line tool can still be added later for setups without a front
   end, if needed.
