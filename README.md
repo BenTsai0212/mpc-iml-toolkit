@@ -60,6 +60,23 @@ Phase 1 (Foundation), early. So far the toolkit has:
   loop.run(read_recording("performance.jsonl").events)
   ```
 
+  A recording's events run as fast as possible. A real-time source (`LiveSource`
+  or `ReplaySource(..., realtime=True)`) runs on its clock: one frame every
+  1 / rate seconds (10 ms at 100 Hz) whether or not MIDI arrives, so a held pad
+  keeps sending. If a step takes longer than a frame interval, late frames are
+  dropped: the next frame is the latest one due and includes every event up to its
+  time, and `loop.dropped_frames` counts the skipped frames. `duration` and `stop`
+  end the run:
+
+  ```python
+  from mpc_iml.sources import LiveSource
+
+  with LiveSource() as source:
+      loop.run(source, duration=60)
+  ```
+
+  `mpc_iml.frames.realtime_frames` gives the same real-time frames without the loop.
+
 Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The package
 is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).

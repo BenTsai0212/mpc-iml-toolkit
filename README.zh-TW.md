@@ -54,6 +54,22 @@
   loop.run(read_recording("performance.jsonl").events)
   ```
 
+  錄音的事件以最快速度執行。即時來源（`LiveSource` 或
+  `ReplaySource(..., realtime=True)`）依來源的時鐘執行：不論有沒有 MIDI，每
+  1 / rate 秒產生一個 frame（100 Hz 時是 10 ms），所以按住不動的 pad 也會持續送出。
+  某一步花的時間超過一個 frame 間隔時，丟棄遲到的 frame：下一個 frame 是已到時間的
+  最新一個，包含其時間之前的所有事件；`loop.dropped_frames` 記錄略過的 frame 數。
+  以 `duration` 與 `stop` 結束執行：
+
+  ```python
+  from mpc_iml.sources import LiveSource
+
+  with LiveSource() as source:
+      loop.run(source, duration=60)
+  ```
+
+  不經過迴圈時，`mpc_iml.frames.realtime_frames` 產生相同的即時 frame。
+
 格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。套件尚未發布。
 第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 

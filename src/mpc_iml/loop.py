@@ -16,17 +16,23 @@ restarting, also from another thread while `run` is running: a retrain builds a
 new model and swaps it in with one assignment, so each frame is predicted by
 either the old or the new model.
 
-`run` does not sleep: a replayed recording runs as fast as frames can be computed.
-Real-time pacing of live input belongs to the event source.
+Real-time sources (`LiveSource`, `ReplaySource(realtime=True)`) run on their clock:
+one frame per interval (10 ms at 100 Hz) whether or not MIDI arrives, so a held pad
+keeps sending. When a step takes longer than an interval, late frames are dropped:
+the next frame is the latest one due, with every event up to its time, and the
+number of skipped frames is added to `dropped_frames`. Other event iterables, such
+as a recording's events or `ReplaySource(realtime=False)`, run as fast as frames can
+be computed, without sleeping.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator
 
 from mpc_iml.events import Event
 from mpc_iml.examples import ExampleSet
-from mpc_iml.frames import DEFAULT_RATE, Frame, frames
+from mpc_iml.frames import DEFAULT_RATE, Frame, frames, realtime_frames
 from mpc_iml.model import Model, ModelFactory
 from mpc_iml.osc import OscSender
+from mpc_iml.sources import ClockedSource
 
 
 class BackendOffError(RuntimeError):
@@ -56,6 +62,8 @@ class IMLLoop:
         self.inputs = inputs
         self.outputs = outputs
         self.rate = rate
+        self.dropped_frames = 0
+        """Frames skipped by the last `run` because a step fell behind the clock."""
         self._model: Model | None = None
 
     @property
@@ -95,10 +103,35 @@ class IMLLoop:
             self.outputs.send(prediction)
         return prediction
 
-    def run(self, events: Iterable[Event]) -> int:
-        """Run `step` on every frame computed from `events`; return the frame count."""
+    def run(
+        self,
+        events: Iterable[Event] | ClockedSource,
+        duration: float | None = None,
+        stop: Callable[[], bool] | None = None,
+    ) -> int:
+        """Run `step` on every frame computed from `events`; return the frame count.
+
+        A real-time source is run on its clock (see the module docstring); anything
+        else as fast as possible. Stops at the end of the events, before a frame at
+        or after `duration` seconds, or when `stop()` is true.
+        """
+        self.dropped_frames = 0
+        stream: Iterator[Frame]
+        if isinstance(events, ClockedSource) and events.realtime:
+            stream = realtime_frames(events, self.rate, duration, stop, self._count_dropped)
+        elif isinstance(events, Iterable):
+            stream = frames(events, self.rate)
+        else:
+            raise TypeError("events must be an iterable of events or a real-time source")
         count = 0
-        for frame in frames(events, self.rate):
+        for frame in stream:
+            if duration is not None and frame.t >= duration:
+                break
+            if stop is not None and stop():
+                break
             self.step(frame)
             count += 1
         return count
+
+    def _count_dropped(self, skipped: int) -> None:
+        self.dropped_frames += skipped
