@@ -161,8 +161,20 @@ def test_the_patch_is_inside_the_package() -> None:
         "oscformat mpciml run",
         "oscformat mpciml stop",
         "unpack f f f f f f f f",
+        "oscformat mpciml midi learn",
     ]:
         assert any(line.endswith(box) for line in boxes), box
+    # Learn buttons l1-l8 send /mpciml/midi/learn 1-8 (ADR 0005).
+    learn = next(i for i, b in enumerate(boxes) if b.endswith("oscformat mpciml midi learn"))
+    edges = {
+        tuple(int(n) for n in line.split()[2:]) for line in lines if line.startswith("#X connect")
+    }
+    sent = {boxes[s].split()[-1] for s, _, d, _ in edges if d == learn}
+    assert sent == {str(n) for n in range(1, 9)}
+    for n in range(1, 9):
+        button = next(i for i, b in enumerate(boxes) if f" l{n} " in b and " bng " in b)
+        message = next(d for s, _, d, _ in edges if s == button)
+        assert boxes[message].startswith("#X msg") and boxes[message].endswith(f" {n}")
     assert "mpciml preset pressure" not in patch.read_text()
 
 
@@ -404,6 +416,25 @@ def test_midi_cc_sender_opens_an_existing_port() -> None:
     assert missing.closed
 
 
+def test_midi_cc_sender_sends_one_controller() -> None:
+    backend = FakeMidiOut()
+    output = MidiCcOutput(controllers=(20, 21), channel=2)
+    sender = MidiCcSender(output, backend=lambda: backend)  # type: ignore[arg-type]
+    with pytest.raises(RuntimeError, match="not open"):
+        sender.send_controller(0, 1)
+    sender.open()
+    assert sender.last_value(1) is None
+    sender.send_controller(1, 64)
+    sender.send_controller(1, 64)
+    assert backend.sent == [bytes([0xB1, 21, 64])] * 2
+    assert sender.last_value(1) == 64
+    with pytest.raises(ValueError, match="0-127"):
+        sender.send_controller(1, 128)
+    backend.sent.clear()
+    sender.send([0.0, 64 / 127])
+    assert backend.sent == [bytes([0xB1, 20, 0])]
+
+
 def test_fan_out_sends_to_every_sender_and_closes_them() -> None:
     first, second = Collect(), Collect()
     fan = FanOut([first, second])
@@ -526,3 +557,74 @@ def test_engine_save_and_load_give_the_same_examples(engines: Any) -> None:
     saved = ExampleSet(features=pressure_features)
     saved.add_events(read_recording(front.engine.data_dir / "take.jsonl").events)
     assert saved.examples == before
+
+
+# MIDI learn (#78, ADR 0005)
+
+UP = [0, 32, 64, 96, 127]
+
+
+def test_midi_learn_sends_only_the_chosen_controller(engines: Any) -> None:
+    backend = FakeMidiOut()
+    front, _ = engines(LoopingReplay(HOLD), backend)
+    assert front.ask("/mpciml/midi/learn", 3) == [("/mpciml/midi/sent", [3, 22])]
+    assert backend.sent == [bytes([0xB0, 22, v]) for v in UP]
+
+    backend.sent.clear()
+    assert front.ask("/mpciml/midi/learn", 3.0) == [("/mpciml/midi/sent", [3, 22])]
+    assert backend.sent == [bytes([0xB0, 22, v]) for v in reversed(UP)]
+
+    backend.sent.clear()
+    for output in range(1, 9):
+        front.ask("/mpciml/midi/learn", output)
+    assert [m[1] for m in backend.sent] == [c for c in range(20, 28) for _ in UP]
+    assert backend.sent[:5] == [bytes([0xB0, 20, v]) for v in UP]
+    assert backend.sent[10:15] == [bytes([0xB0, 22, v]) for v in UP]
+
+
+@pytest.mark.parametrize("args", [[0], [9], [], [1, 2], ["one"], [1.5]])
+def test_midi_learn_rejects_bad_arguments(engines: Any, args: list[Any]) -> None:
+    backend = FakeMidiOut()
+    front, _ = engines(None, backend)
+    assert front.error("/mpciml/midi/learn", *args) == ("bad_arguments", "/mpciml/midi/learn")
+    assert backend.sent == []
+
+
+def learn_error(front: Front) -> list[Any]:
+    errors = [m[1] for m in front.ask("/mpciml/midi/learn", 1) if m[0] == "/mpciml/error"]
+    assert len(errors) == 1
+    return list(errors[0])
+
+
+def test_midi_learn_without_a_midi_output(engines: Any) -> None:
+    front, _ = engines(None, FakeMidiOut(fail=True))
+    assert learn_error(front) == ["bad_arguments", "/mpciml/midi/learn", "MIDI output not open"]
+
+    front.send("/mpciml/preset/load", "demo")
+    front.expect("/mpciml/counts")
+    code, address, message = learn_error(front)
+    assert (code, address) == ("bad_arguments", "/mpciml/midi/learn")
+    assert "no MIDI output" in message
+
+
+def test_midi_learn_is_refused_while_running_and_run_still_sends(engines: Any) -> None:
+    backend = FakeMidiOut()
+    front, _ = engines(LoopingReplay(HOLD), backend)
+    load_examples(front)
+    front.send("/mpciml/train")
+    front.expect("/mpciml/train/done")
+    assert front.expect("/mpciml/state") == ["idle"]
+    for output in range(1, 9):
+        front.ask("/mpciml/midi/learn", output)
+    assert len(backend.sent) == 40
+
+    front.send("/mpciml/run")
+    assert front.expect("/mpciml/state") == ["running"]
+    assert front.error("/mpciml/midi/learn", 1) == ("wrong_state", "/mpciml/midi/learn")
+    deadline = time.monotonic() + TIMEOUT
+    while len(backend.sent) == 40 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    played = backend.sent[40:]
+    assert played and all(m[0] == 0xB0 and 20 <= m[1] <= 27 for m in played)
+    front.send("/mpciml/stop")
+    assert front.expect("/mpciml/state") == ["idle"]

@@ -8,7 +8,8 @@ it sends instead to the first existing output port whose name contains that text
 (case-insensitive), for example `IAC`.
 
 A controller is only sent when its 0-127 value changes, so a steady prediction at
-100 frames/s does not flood the port.
+100 frames/s does not flood the port. `send_controller` sends one controller on its
+own, for MIDI learn in a DAW (`/mpciml/midi/learn`, ADR 0005).
 
 `RtMidiOutBackend` wraps `python-rtmidi`; tests pass a fake `MidiOutputBackend`.
 """
@@ -119,6 +120,24 @@ class MidiCcSender:
             if self._last.get(controller) != value:
                 self._backend.send(message)
                 self._last[controller] = value
+
+    def send_controller(self, index: int, value: int) -> None:
+        """Send one control change: controller `index` (0-based) set to `value` (0-127).
+
+        Always sent, also when the value did not change, and recorded as the last
+        value so `send` keeps sending only changes afterwards.
+        """
+        if not 0 <= value <= 127:
+            raise ValueError(f"value must be 0-127: {value}")
+        controller = self.output.controllers[index]
+        if self._backend is None:
+            raise RuntimeError("the MIDI output is not open")
+        self._backend.send(bytes([0xB0 | (self.output.channel - 1), controller, value]))
+        self._last[controller] = value
+
+    def last_value(self, index: int) -> int | None:
+        """The last value sent on controller `index` (0-based), or `None`."""
+        return self._last.get(self.output.controllers[index])
 
     def close(self) -> None:
         """Close the port; the next `open()` starts with every controller unsent."""

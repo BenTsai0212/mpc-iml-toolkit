@@ -168,7 +168,8 @@ velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值
 ## 執行 engine
 
 engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
-協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)。依[參考範例](#參考範例)接好
+協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)，1.1 版見
+[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)。依[參考範例](#參考範例)接好
 MPC 後，指定一個存放範例集的資料夾來啟動：
 
 ```bash
@@ -190,7 +191,9 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 `/mpciml/class soft`、`/mpciml/record/start`、演奏、`/mpciml/record/stop`，接著
 `/mpciml/train`、`/mpciml/run`、`/mpciml/stop`。`/mpciml/examples/save <名稱>` 寫入
 `my-data/<名稱>.jsonl`（ADR 0002 格式的錄音）；engine 不會寫入這個資料夾以外的地方。每個
-訊息都會得到回覆、狀態回報或 `/mpciml/error`。按 Ctrl-C 停止 engine：關閉輸入與 socket，
+訊息都會得到回覆、狀態回報或 `/mpciml/error`。有 MIDI 輸出的 preset，在 `idle` 或 `training`
+時送 `/mpciml/midi/learn <輸出>`（1 是第一個 controller），engine 只在該 controller 送出一段
+短的掃動讓 DAW 學習，並回覆 `/mpciml/midi/sent <輸出> <controller>`。按 Ctrl-C 停止 engine：關閉輸入與 socket，
 進行中的訓練會先完成。
 
 ## 演奏 preset pressure
@@ -252,10 +255,17 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
   "<參數>"（Cmd-L），送出它的 CC，再關閉 Learn。
 - 可以直接輸入 CC 編號的 DAW：直接輸入 20-27。
 
-模型執行時 8 個 CC 會一起變化，MIDI learn 可能抓到錯的 CC。請一次學一個 CC：用兩個只在
-要對應的輸出上不同的範例訓練一個臨時模型（例如全部為 0 的休息，以及只有 `t3` 為 1 的
-pad 1，對應 CC 22），執行後按 pad 1、完成對應，再換下一個。之後載入或重錄真正的範例並重新
-訓練；對應會保留。
+模型執行時 8 個 CC 會一起變化，MIDI learn 會抓到最先送來的那一個。請改在 engine 沒有執行時
+（狀態框顯示 `idle`），用 patch 的 learn 按鈕 `l1`-`l8` 一次對應一個：
+
+1. 在 DAW 為輸出 1 要控制的參數開始 MIDI learn。
+2. 按 patch 的 `l1`。engine 只送 CC 20，從 0 掃到 127，DAW 就學到它。再按一次會從 127 掃回 0，
+   也可以用來確認對應。
+3. 結束 MIDI learn，再對 `l2`（CC 21）到 `l8`（CC 27）重複。
+
+`l3` 送 CC 22，與 `t3`、`o3` 同為輸出 3。從自己的前端送 `/mpciml/midi/learn 3` 效果相同。
+執行中送這個訊息會得到 `wrong_state` 錯誤，請先按 `stop`。錄範例之前或之後對應都可以；重新
+訓練後對應會保留。
 
 輕觸一端的表現（#76）：
 
