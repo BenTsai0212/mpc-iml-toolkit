@@ -1,0 +1,45 @@
+[project]
+name = "$project"
+version = "0.0.0"
+description = "An interactive machine learning practice built on mpc-iml-toolkit."
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "mpc-iml-toolkit @ git+https://github.com/BenTsai0212/mpc-iml-toolkit@v$version",
+]
+
+[dependency-groups]
+dev = ["mypy", "pytest", "ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/$package"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["$package"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = ["rtmidi", "rtmidi.*", "sklearn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
