@@ -1,6 +1,6 @@
 # RFC 0002: Platform positioning
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-16
 - Related: RFC 0001, ADR 0001, ADR 0002, ADR 0003, #43
 
@@ -135,6 +135,11 @@ user's own model.
   version, prompt, response and resulting mapping. Results are reproduced from the
   stored mapping, not by calling the model again.
 
+This amends scenario 6 of RFC 0001. Instead of asking an LLM in natural language
+to write the mapping code, the comparison is between designing by demonstration
+and asking an LLM in natural language to produce a declarative mapping. Whether
+the LLM may also generate code remains an open question.
+
 ### Hardware scope
 
 Releases support the MPC Sample only, which is the only controller the maintainers
@@ -173,9 +178,10 @@ Phase 3 then covers the scenario 4 and scenario 6 presets, the LLM mapping
 feature (before scenario 6) and the interface stabilisation already planned in
 RFC 0001.
 
-The Phase 1 gate "a new practice repository implements scenario 1 without
-modifying toolkit code" is replaced by the plugin gate above, because scenario 1
-becomes a built-in preset.
+The Phase 1 gate "a new practice repository implements a new scenario (1 or 3)
+without modifying toolkit code" is replaced by the plugin gate above. Scenario 1
+becomes a built-in preset, and any scenario, including 3, can meet the plugin
+gate as a preset in an external package.
 
 ## Open questions
 
