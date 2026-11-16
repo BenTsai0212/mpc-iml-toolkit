@@ -51,9 +51,18 @@ CLASSES = {"rest": 1, "soft": 2, "hard": 3}
 
 PROMPTS = {
     "rest": "Do not touch any pad.",
-    "soft": "Press and hold pad 1 lightly.",
-    "hard": "Press and hold pad 1 firmly.",
+    "soft": "Press and hold pad 1 lightly, for example a light fingertip touch.",
+    "hard": (
+        "Press and hold pad 1 firmly, for example a firm press with the whole finger;"
+        " make it clearly different from soft."
+    ),
 }
+
+AFTER = {
+    "soft": "Release pad 1 now.",
+    "hard": "Release pad 1 now.",
+}
+"""Said when a class ends, before the next countdown starts."""
 
 LABELS = {number: label for label, number in CLASSES.items()}
 
@@ -96,6 +105,8 @@ def guided_record(
         events.append(ExampleStart(t=start, label=label))
         _collect(source, events, start + seconds)
         events.append(ExampleEnd(t=source.now()))
+        if label in AFTER:
+            say(AFTER[label])
     say("Done.")
     return events
 
