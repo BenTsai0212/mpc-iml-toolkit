@@ -149,6 +149,21 @@ uv run python -m mpc_iml.demo run tests/data/demo_examples.jsonl --replay tests/
 pressure），而不是預設的 49 個值，因為預設值在放開 pad 後仍保留最後的 velocity。範例不送
 `/wek/inputs`。
 
+## 建立練習 repo
+
+`python -m mpc_iml.new` 建立一個以相依套件使用本工具包、而不複製其程式碼的專案：
+`pyproject.toml` 把 `mpc-iml-toolkit` 固定在執行中版本的 git tag，另有待替換的空模型
+（`src/<package>/model.py`）、以錄音訓練並在重播上執行的程式、測試、範例錄音與簡短的
+README。套件名稱取自資料夾名稱（可用 `--name` 指定）。
+
+```bash
+uv run python -m mpc_iml.new ../my-practice
+```
+
+目前還沒有 tag：版本是 `0.0.0`，在第一個版本加上 tag 之前，`v0.0.0` 的固定版本無法安裝。
+在那之前，請在新專案中以 `uv add --editable <mpc-iml-toolkit 的路徑>` 改指向本機的
+checkout，再執行 `uv sync`。
+
 ## 開發
 
 需要 [uv](https://docs.astral.sh/uv/)（必要時會自動安裝 Python 3.12），以及執行

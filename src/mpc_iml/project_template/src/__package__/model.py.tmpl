@@ -1,0 +1,17 @@
+"""The model of this practice: an empty implementation of `mpc_iml.model.Model`.
+
+Replace `fit` and `predict`; no toolkit base class is needed.
+"""
+
+from collections.abc import Sequence
+
+
+class EmptyModel:
+    """Learns nothing and always predicts `[0.0]`."""
+
+    def fit(self, inputs: Sequence[Sequence[float]], outputs: Sequence[Sequence[float]]) -> None:
+        """Train on `inputs[i]` -> `outputs[i]`; the empty model ignores them."""
+
+    def predict(self, values: Sequence[float]) -> list[float]:
+        """Predict the output values for one frame's feature values."""
+        return [0.0]

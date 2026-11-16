@@ -1,0 +1,31 @@
+"""The empty model satisfies the toolkit's extension point and runs on a replay."""
+
+from pathlib import Path
+
+import pytest
+from mpc_iml.loop import IMLLoop
+from mpc_iml.model import Model
+from mpc_iml.sources import ReplaySource
+
+from $package.__main__ import main
+from $package.model import EmptyModel
+
+EXAMPLE = Path(__file__).parent / "data" / "example.jsonl"
+
+
+def test_empty_model_is_a_model() -> None:
+    assert isinstance(EmptyModel(), Model)
+
+
+def test_loop_runs_on_a_replay() -> None:
+    loop = IMLLoop(EmptyModel)
+    assert loop.examples.add_recording(EXAMPLE) > 0
+    loop.train()
+    assert loop.run(ReplaySource(EXAMPLE)) > 0
+    assert loop.model is not None
+    assert loop.model.predict([0.0]) == [0.0]
+
+
+def test_main(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main([str(EXAMPLE)]) == 0
+    assert "Trained on" in capsys.readouterr().out

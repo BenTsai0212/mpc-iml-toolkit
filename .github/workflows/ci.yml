@@ -29,3 +29,10 @@ jobs:
         run: uv run mypy
       - name: pytest
         run: uv run pytest
+      - name: Practice template installs and runs
+        run: |
+          uv run python -m mpc_iml.new "$RUNNER_TEMP/my-practice"
+          cd "$RUNNER_TEMP/my-practice"
+          uv add --editable "$GITHUB_WORKSPACE"
+          uv run python -m my_practice tests/data/example.jsonl
+          uv run pytest
