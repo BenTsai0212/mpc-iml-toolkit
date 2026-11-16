@@ -1,29 +1,26 @@
 #!/usr/bin/env node
-// 貼出前的檢查：agent 以 gh --body-file 貼出 PR 描述或留言之前，確認檔案是這次、這張 Issue 寫的（#39）。
+// 貼出前的檢查：agent 以 gh --body-file 貼出 PR 描述或留言之前，確認檔案是這次、這張 Issue 寫的（BenTsai0212/dev-workflow-template#39）。
 // 共用的 $TMPDIR 中可能有其他專案留下的同名檔案；寫入失敗時沿用舊檔，會把其他專案的內容貼到本 repo。
-// 用法：node tools/workflow/check-post-body.mjs --issue N --kind pr|plan|stop|fix|todo|decision|change-request <檔案或 ->
-// decision、change-request 是決策中心送出 `## 決定` 與修正要求前的檢查（#53）。
+// 用法：node tools/workflow/check-post-body.mjs --issue N --kind pr|plan|stop|fix|todo|decision|change-request [--lang zh-TW|en] <檔案或 ->
+// 控制標題依 repo 的流程語言（AGENTS.md 第 0 節，預設 zh-TW；--lang 可覆寫）檢查；對照表見 headings.mjs（BenTsai0212/dev-workflow-template#129）。
+// decision、change-request 是決策中心送出 `## 決定` 與修正要求前的檢查（BenTsai0212/dev-workflow-template#53）。
 // 通過時以 0 結束；不通過時以 1 結束，agent 不貼出。
 // runner 執行時（有 RUNNER_RUN_TMP）：檔案必須在 RUNNER_RUN_TMP 底下、修改時間不早於 RUNNER_RUN_STARTED，不接受標準輸入。
 // 手動執行時（沒有 RUNNER_RUN_TMP）不檢查位置與修改時間，只檢查內容。
-// 內容不能有 email、個人路徑（#49）與禁用名稱（#96）：規則與 check-sensitive.mjs 共用，只輸出行號與種類，不輸出命中的文字。
+// 內容不能有 email、個人路徑（BenTsai0212/dev-workflow-template#49）與禁用名稱（BenTsai0212/dev-workflow-template#96）：規則與 check-sensitive.mjs 共用，只輸出行號與種類，不輸出命中的文字。
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanText } from './check-sensitive.mjs';
+import { DEFAULT_LANG, heading, headingLang, headingLineRe, HEADINGS as TABLE, LANGS, processLang } from './headings.mjs';
 
-// 各種貼出內容的開頭標題；pr 是 PR 描述，改為檢查 Closes／Refs
-export const HEADINGS = {
-  plan: '## 計畫',
-  stop: '## agent 停止',
-  fix: '## 修正回報',
-  todo: '## 合併後待辦',
-};
-// 決策中心的貼文（#53）：只檢查開頭與格式，不要求內容提到 #N（留言本來就在該 Issue 或 PR 上）
-export const DECISION_HEADING = '## 決定';
-export const CHANGE_REQUEST_HEADING = '## 修正要求';
+// 各種貼出內容的開頭標題（流程語言 zh-TW 的寫法）；pr 是 PR 描述，改為檢查 Closes／Refs
+const KIND_KEYS = { plan: 'plan', stop: 'stop', fix: 'fix', todo: 'todo' };
+export const HEADINGS = Object.fromEntries(Object.entries(KIND_KEYS).map(([kind, key]) => [kind, TABLE[key][DEFAULT_LANG]]));
+// 決策中心的貼文（BenTsai0212/dev-workflow-template#53）：只檢查開頭與格式，不要求內容提到 #N（留言本來就在該 Issue 或 PR 上）
+export const DECISION_HEADING = heading('decision');
+export const CHANGE_REQUEST_HEADING = heading('changeRequest');
 // 第一行必須正好是「## 決定」，可接括號說明，例如「## 決定（補充）」；「## 補充決定」「## 決定補充」不通過
-const DECISION_LINE = /^## 決定(?:\s*[（(][^）)\n]*[）)])?\s*$/;
 const UNCHECKED_BOX = /^\s*[-*] \[ \]\s+\S/m;
 export const KINDS = ['pr', ...Object.keys(HEADINGS), 'decision', 'change-request'];
 // 檔案系統的修改時間可能只精確到秒
@@ -36,8 +33,15 @@ const stripCode = (text) => text
   .replace(/`[^`\n]*`/g, '');
 const LINKS = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs)\s*:?\s+#(\d+)\b/gi;
 
+/** 開頭是另一種語言的標題時的錯誤訊息；不是時回傳 null。 */
+function wrongLang(text, key, lang) {
+  const found = headingLang(text, key);
+  if (!found || found === lang) return null;
+  return `流程語言是 ${lang}（AGENTS.md 第 0 節）：開頭寫「${heading(key, lang)}」，不寫「${heading(key, found)}」`;
+}
+
 /** 內容檢查：回傳問題清單，沒有問題時為空陣列。 */
-export function checkContent(body, { issue, kind }) {
+export function checkContent(body, { issue, kind, lang = DEFAULT_LANG }) {
   const text = stripCode(body ?? '');
   if (!text.trim()) return ['內容是空的'];
   const errors = [];
@@ -50,18 +54,22 @@ export function checkContent(body, { issue, kind }) {
   }
   const firstLine = body.trimStart().split(/\r?\n/)[0].trimEnd();
   if (kind === 'decision') {
-    if (!DECISION_LINE.test(firstLine)) {
-      errors.push(`第一行不是「${DECISION_HEADING}」（追加或修改時寫「## 決定（補充）」，不要寫「## 補充決定」「## 決定補充」）：程式只採用開頭是「${DECISION_HEADING}」的留言`);
+    if (!headingLineRe('decision', lang).test(firstLine)) {
+      const h = heading('decision', lang);
+      errors.push(wrongLang(firstLine, 'decision', lang)
+        ?? `第一行不是「${h}」（追加或修改時寫「${h}${lang === 'en' ? ' (addendum)' : '（補充）'}」，不要寫「## 補充決定」「## 決定補充」）：程式只採用開頭是「${h}」的留言`);
     }
     return errors;
   }
   if (kind === 'change-request') {
-    if (!firstLine.startsWith(CHANGE_REQUEST_HEADING)) errors.push(`開頭不是「${CHANGE_REQUEST_HEADING}」`);
+    if (headingLang(firstLine, 'changeRequest') !== lang) {
+      errors.push(wrongLang(firstLine, 'changeRequest', lang) ?? `開頭不是「${heading('changeRequest', lang)}」`);
+    }
     if (!UNCHECKED_BOX.test(text)) errors.push('沒有未勾選的核取方塊（- [ ]）：修正模式只讀取含未勾選核取方塊的留言');
     return errors;
   }
-  const heading = HEADINGS[kind];
-  if (!body.trimStart().startsWith(heading)) errors.push(`開頭不是「${heading}」`);
+  const key = KIND_KEYS[kind];
+  if (headingLang(body, key) !== lang) errors.push(wrongLang(body, key, lang) ?? `開頭不是「${heading(key, lang)}」`);
   if (!new RegExp(`#${issue}(?!\\d)`).test(text)) errors.push(`內容沒有提到 #${issue}`);
   return errors;
 }
@@ -84,32 +92,54 @@ export function checkSource({ file, runTmp, startedMs, mtimeMs }) {
 }
 
 export function parseArgs(argv) {
-  const out = { issue: null, kind: null, file: null };
+  const out = { issue: null, kind: null, file: null, lang: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--issue') out.issue = Number(argv[++i]);
     else if (a === '--kind') out.kind = argv[++i];
+    else if (a === '--lang') out.lang = argv[++i] ?? '';
     else out.file = a;
   }
   const errors = [];
   if (!Number.isInteger(out.issue) || out.issue < 1) errors.push('--issue 必須是 Issue 編號');
   if (!KINDS.includes(out.kind)) errors.push(`--kind 必須是 ${KINDS.join('、')} 之一`);
+  if (out.lang !== null && !LANGS.includes(out.lang)) errors.push(`--lang 必須是 ${LANGS.join('、')} 之一`);
   if (!out.file) errors.push('缺少檔案路徑（或 - 表示標準輸入）');
   return { ...out, errors };
 }
 
 /**
- * email、個人路徑（#49）與禁用名稱（#96）：逐行檢查，程式碼區塊與行內程式碼貼出後一樣公開，也要檢查。
+ * email、個人路徑（BenTsai0212/dev-workflow-template#49）與禁用名稱（BenTsai0212/dev-workflow-template#96）：逐行檢查，程式碼區塊與行內程式碼貼出後一樣公開，也要檢查。
  * 回傳問題清單，只含行號與種類。
  */
 export function checkSensitiveContent(body, names) {
   return scanText(body, names).map((f) => `第 ${f.line} 行：${f.kind}`);
 }
 
-/** 完整檢查；env 是環境變數。回傳 { ok, errors }。 */
-export function checkPostBody(argv, env = process.env) {
-  const { issue, kind, file, errors } = parseArgs(argv);
+const AGENTS_FILE = fileURLToPath(new URL('../../AGENTS.md', import.meta.url));
+
+/** repo 的流程語言：讀 AGENTS.md 第 0 節；檔案不存在時是預設語言。回傳 { lang, error }。 */
+export function repoLang(agentsFile = AGENTS_FILE) {
+  let text = '';
+  try {
+    text = readFileSync(agentsFile, 'utf8');
+  } catch {
+    return { lang: DEFAULT_LANG, error: null };
+  }
+  return processLang(text);
+}
+
+/** 完整檢查；env 是環境變數。回傳 { ok, errors }。--lang 沒有指定時讀 agentsFile 的流程語言。 */
+export function checkPostBody(argv, env = process.env, { agentsFile = AGENTS_FILE } = {}) {
+  const parsed = parseArgs(argv);
+  const { issue, kind, file, errors } = parsed;
   if (errors.length) return { ok: false, errors };
+  let lang = parsed.lang;
+  if (lang === null) {
+    const r = repoLang(agentsFile);
+    if (r.error) return { ok: false, errors: [r.error] };
+    lang = r.lang;
+  }
   const runTmp = env.RUNNER_RUN_TMP || null;
   const startedMs = env.RUNNER_RUN_STARTED ? Date.parse(env.RUNNER_RUN_STARTED) : NaN;
   let body;
@@ -122,7 +152,7 @@ export function checkPostBody(argv, env = process.env) {
   }
   const all = [
     ...checkSource({ file, runTmp, startedMs, mtimeMs }),
-    ...checkContent(body, { issue, kind }),
+    ...checkContent(body, { issue, kind, lang }),
     ...checkSensitiveContent(body),
   ];
   return { ok: all.length === 0, errors: all };

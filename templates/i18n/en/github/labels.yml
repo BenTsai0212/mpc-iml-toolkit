@@ -1,0 +1,29 @@
+# Label definitions (English descriptions, process language en). bootstrap-github.mjs --lang en reads this file.
+# Names, colors, and groups must match .github/labels.yml; only the descriptions differ (checked by bootstrap-github.test.mjs).
+
+core:
+  - { name: "type:feat", color: "1d76db", description: "New feature" }
+  - { name: "type:fix", color: "d73a4a", description: "Bug fix" }
+  - { name: "type:docs", color: "0075ca", description: "Documentation" }
+  - { name: "type:chore", color: "cfd3d7", description: "Maintenance, configuration, tooling" }
+  - { name: "type:epic", color: "5319e7", description: "Phase goal; tasks attached as sub-issues" }
+  - { name: "blocked", color: "b60205", description: "Stuck, or the agent stopped and is waiting for ## Decision" }
+  - { name: "changes-requested", color: "e99695", description: "PR has review requests to address" }
+  - { name: "needs-human", color: "fbca04", description: "Manual tasks remain after merge; keep the Issue open until done" }
+  - { name: "rfc", color: "c5def5", description: "Proposal or decision that needs discussion" }
+  - { name: "plan-first", color: "f9d0c4", description: "Agent posts a plan first and implements only after approval" }
+  - { name: "fast-lane", color: "c2e0c6", description: "Fast-lane PR; no linked Issue needed" }
+  - { name: "template-feedback", color: "bfd4f2", description: "Practice worth bringing back to the template; read in the weekly review" }
+
+online:
+  - { name: "needs-setup", color: "d4c5f9", description: "Code done; external setup needed before merge, keep as Draft" }
+
+collab:
+  - { name: "sync", color: "bfdadc", description: "Sync meeting agenda" }
+
+automation:
+  - { name: "agent:ready", color: "0e8a16", description: "Ready for an agent; added by a human, or by the decision agent after confirmation" }
+  - { name: "agent:working", color: "1f883d", description: "Being worked on; added and removed by the runner" }
+
+goal:
+  - { name: "goal-mode", color: "006b75", description: "Goal mode: approved goal the decision agent advances within scope (pilot)" }

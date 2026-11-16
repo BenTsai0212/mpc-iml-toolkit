@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
-  LABELS_FILE, RULESET_NAME, formatCommand, labelCommand, parseArgs, parseGhJson, parseLabels, planLabels, run,
+  LABELS_FILE, LABELS_FILE_EN, RULESET_NAME, formatCommand, labelCommand, parseArgs, parseGhJson, parseLabels, planLabels, run,
 } from './bootstrap-github.mjs';
 
 const realLabels = readFileSync(LABELS_FILE, 'utf8');
@@ -203,4 +203,40 @@ test('實際執行：gh 的讀取輸出空字串時，仍正常建立標籤、�
 
 test('不再有指向作者帳號的 config.json', () => {
   assert.equal(existsSync(join(dirname(LABELS_FILE), '..', 'tools', 'workflow', 'config.json')), false);
+});
+
+// ---- 流程語言（BenTsai0212/dev-workflow-template#129）----
+
+const CJK = /[　-〿一-鿿＀-￯]/;
+
+test('英文 labels.yml：名稱、顏色與群組與 .github/labels.yml 相同，描述沒有中文', () => {
+  const zh = parseLabels(realLabels);
+  const en = parseLabels(readFileSync(LABELS_FILE_EN, 'utf8'));
+  const shape = (g) => Object.fromEntries(Object.entries(g).map(([k, ls]) => [k, ls.map(({ name, color }) => `${name}:${color}`)]));
+  assert.deepEqual(shape(en), shape(zh));
+  for (const l of Object.values(en).flat()) assert.doesNotMatch(l.description, CJK, l.name);
+});
+
+test('--lang en：標籤用英文描述，看板佔位選項是英文；--lang 只接受 zh-TW、en', () => {
+  const gh = fakeGh();
+  go(['--lang', 'en', '--board'], gh);
+  const labels = writesOf(gh).filter(({ args }) => args[1] === 'label');
+  assert.equal(labels.length, 12);
+  assert.ok(labels.some(({ args }) => args.includes('New feature')));
+  assert.ok(labels.every(({ args }) => !args.some((a) => CJK.test(a))));
+  const fields = writesOf(gh).filter(({ args }) => args[2] === 'field-create');
+  assert.ok(fields.length === 2 && fields.every(({ args }) => args.at(-1) === 'Not set'));
+  assert.equal(parseArgs(['--repo', 'o/r', '--lang=zh-TW']).lang, 'zh-TW');
+  assert.throws(() => parseArgs(['--repo', 'o/r', '--lang', 'fr']), /--lang/);
+});
+
+test('英文範本（templates/i18n/en/github/）：與 .github/ 的範本一一對應，沒有中文', () => {
+  const root = join(dirname(LABELS_FILE), '..');
+  for (const f of ['pull_request_template.md', 'ISSUE_TEMPLATE/feature.md', 'ISSUE_TEMPLATE/bug.md', 'ISSUE_TEMPLATE/rfc.md', 'labels.yml']) {
+    assert.ok(existsSync(join(root, '.github', f)), f);
+    const text = readFileSync(join(root, 'templates', 'i18n', 'en', 'github', f), 'utf8');
+    assert.doesNotMatch(text, CJK, f);
+  }
+  // PR 範本保留 Closes 的位置，check-pr-body 的 Issue 連結照常運作
+  assert.match(readFileSync(join(root, 'templates', 'i18n', 'en', 'github', 'pull_request_template.md'), 'utf8'), /^Closes #$/m);
 });

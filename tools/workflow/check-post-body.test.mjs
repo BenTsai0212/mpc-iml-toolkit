@@ -66,7 +66,7 @@ test('checkPostBody：參數錯誤時列出原因', () => {
   assert.deepEqual(KINDS, ['pr', 'plan', 'stop', 'fix', 'todo', 'decision', 'change-request']);
 });
 
-// 重現 #39：另一個專案在共用的暫存資料夾留下同名檔案，本次的寫入失敗，agent 沿用了舊檔
+// 重現 BenTsai0212/dev-workflow-template#39：另一個專案在共用的暫存資料夾留下同名檔案，本次的寫入失敗，agent 沿用了舊檔
 test('重現：其他專案留下的同名暫存檔不會通過檢查', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'check-post-body-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -139,7 +139,7 @@ test('agent-workflow.md：貼出的檔案就是檢查通過的檔案', () => {
   assert.match(doc, /寫入失敗時不執行 `gh`/);
 });
 
-// ---- email 與個人路徑（#49）----
+// ---- email 與個人路徑（BenTsai0212/dev-workflow-template#49）----
 // 本檔也在 repo 掃描範圍內：會命中的範例以片段組成
 const email = `alice${'@'}mail.co`;
 const userPath = `/${'Users'}/alice/repo`;
@@ -167,7 +167,7 @@ test('指令：email 或個人路徑命中時不通過，輸出不含命中的�
   assert.equal(checkPostBody(['--issue', '49', '--kind', 'pr', file], {}).ok, false);
 });
 
-// 禁用名稱（#96）：虛構的佔位名稱，只用暫存清單檔
+// 禁用名稱（BenTsai0212/dev-workflow-template#96）：虛構的佔位名稱，只用暫存清單檔
 test('禁用名稱：命中時不通過，輸出不含名稱與該行內容；清單檔不存在時略過', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'check-post-body-names-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -188,7 +188,7 @@ test('禁用名稱：命中時不通過，輸出不含名稱與該行內容；�
   assert.equal(r.status, 0, r.stderr);
 });
 
-// ---- 決策中心的貼文（#53）----
+// ---- 決策中心的貼文（BenTsai0212/dev-workflow-template#53）----
 
 test('checkContent decision：開頭必須是 ## 決定，可接括號說明', () => {
   ok('## 決定\n\n- 採用選項 1', 53, 'decision');
@@ -231,4 +231,96 @@ test('指令 decision／change-request：套用 email 與個人路徑檢查；�
   assert.equal(leak.ok, false);
   assert.deepEqual(leak.errors, ['第 3 行：個人路徑']);
   assert.equal(run('change-request', write('c2.md', `## 修正要求\n\n- [ ] 寄給 alice${'@'}mail.co\n`)).ok, false);
+});
+
+// ---- 流程語言（BenTsai0212/dev-workflow-template#129）----
+
+const okL = (body, issue, kind, lang) => assert.deepEqual(checkContent(body, { issue, kind, lang }), [], `應通過（${lang}）：${body}`);
+const errL = (body, issue, kind, lang) => checkContent(body, { issue, kind, lang });
+
+test('流程語言 en：英文控制標題通過（含括號說明）', () => {
+  okL('## Plan (#129)\n\n- files', 129, 'plan', 'en');
+  okL('## Agent stopped: tests fail\n\n- Issue: #129', 129, 'stop', 'en');
+  okL('## Fix report (#129)\n\n- ✅ done', 129, 'fix', 'en');
+  okL('## Post-merge tasks (#129)\n\n- [ ] check', 129, 'todo', 'en');
+  okL('## Decision\n\n- option 1', 129, 'decision', 'en');
+  okL('## Decision (addendum)\n\n- also', 129, 'decision', 'en');
+  okL('## Decision（補充）\n\n- also', 129, 'decision', 'en');
+  okL('## Change request (round 2)\n\n- [ ] fix A', 129, 'change-request', 'en');
+  okL('Closes #129', 129, 'pr', 'en');
+  assert.notDeepEqual(errL('## Decisions needed\n', 129, 'decision', 'en'), []);
+  assert.notDeepEqual(errL('## Planning (#129)', 129, 'plan', 'en'), []);
+});
+
+test('流程語言不符：明確說明應寫哪一種', () => {
+  const zhInEn = errL('## 計畫（#129）\n\n內容', 129, 'plan', 'en');
+  assert.equal(zhInEn.length, 1);
+  assert.match(zhInEn[0], /流程語言是 en.*「## Plan」.*不寫「## 計畫」/);
+  assert.match(errL('## 決定\n- x', 129, 'decision', 'en')[0], /流程語言是 en.*「## Decision」/);
+  assert.match(errL('## 修正要求\n- [ ] a', 129, 'change-request', 'en')[0], /流程語言是 en.*「## Change request」/);
+  const enInZh = errL('## Agent stopped: x\n#129', 129, 'stop', 'zh-TW');
+  assert.match(enInZh[0], /流程語言是 zh-TW.*「## agent 停止」.*不寫「## Agent stopped」/);
+  assert.match(errL('## Decision (addendum)', 129, 'decision', 'zh-TW')[0], /流程語言是 zh-TW.*「## 決定」/);
+  assert.match(errL('## Plan', 129, 'plan', 'en')[0], /#129/, '標題正確時仍檢查 Issue 編號');
+});
+
+test('checkPostBody：流程語言讀 AGENTS.md 第 0 節，--lang 可覆寫；沒有設定時是 zh-TW', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'check-post-body-lang-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = (name, text) => {
+    const f = join(dir, name);
+    writeFileSync(f, text);
+    return f;
+  };
+  const en = file('AGENTS-en.md', '## 0. 專案設定\n- 流程語言：en\n');
+  const none = file('AGENTS-none.md', '## 0. 專案設定\n- 決定者：@x\n');
+  const bad = file('AGENTS-bad.md', '- 流程語言：fr\n');
+  const plan = file('plan.md', '## Plan (#129)\n\n- a\n');
+  const run = (argv, agentsFile) => checkPostBody(['--issue', '129', '--kind', 'plan', ...argv, plan], {}, { agentsFile });
+  assert.equal(run([], en).ok, true);
+  assert.equal(run([], none).ok, false, '預設 zh-TW 時英文標題不通過');
+  assert.match(run([], none).errors[0], /流程語言是 zh-TW/);
+  assert.equal(run([], join(dir, 'missing.md')).ok, false, 'AGENTS.md 不存在時是 zh-TW');
+  assert.equal(run(['--lang', 'en'], none).ok, true);
+  assert.equal(run(['--lang', 'zh-TW'], en).ok, false);
+  assert.match(run([], bad).errors[0], /fr/);
+  assert.match(run(['--lang', 'fr'], none).errors[0], /--lang/);
+});
+
+test('指令：--lang en 時英文標題通過、中文標題不通過', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'check-post-body-cli-lang-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const f = join(dir, 'd.md');
+  writeFileSync(f, '## Decision\n\n- option 2\n');
+  const env = { ...process.env, RUNNER_RUN_TMP: '' };
+  const run = (lang) => spawnSync(process.execPath, [SCRIPT, '--issue', '129', '--kind', 'decision', '--lang', lang, f], { encoding: 'utf8', env });
+  assert.equal(run('en').status, 0);
+  const zh = run('zh-TW');
+  assert.equal(zh.status, 1);
+  assert.match(zh.stderr, /流程語言是 zh-TW/);
+});
+
+test('流程語言 en：從初始化到第一個 PR，英文範本與英文控制標題都通過檢查，不需要中文標題（BenTsai0212/dev-workflow-template#129）', async () => {
+  const { processLang } = await import('./headings.mjs');
+  const { checkPrBody } = await import('./check-pr-body.mjs');
+  // 第一個 PR 把 AGENTS.md 第 0 節改為「流程語言：en」
+  const { lang, error } = processLang('## 0. 專案設定\n- 流程語言：en\n');
+  assert.equal(lang, 'en');
+  assert.equal(error, null);
+  // PR 描述以英文 PR 範本填寫
+  const template = readFileSync(join(HERE, '..', '..', 'templates', 'i18n', 'en', 'github', 'pull_request_template.md'), 'utf8');
+  const pr = template.replace('Closes #', 'Closes #1').replace('## Changes\n\n-', '## Changes\n\n- Set up the project');
+  assert.deepEqual(checkContent(pr, { issue: 1, kind: 'pr', lang }), []);
+  assert.equal(checkPrBody(pr, []).ok, true);
+  // 途中的計畫、停止回報、決定、修正要求、修正回報與人工待辦都用英文標題
+  for (const [kind, body] of [
+    ['plan', '## Plan (#1)\n\n- files'],
+    ['stop', '## Agent stopped: unclear criteria\n\n- **Issue**: #1'],
+    ['decision', '## Decision'],
+    ['change-request', '## Change request\n\n- [ ] fix the typo'],
+    ['fix', '## Fix report (#1)\n\n- ✅ done'],
+    ['todo', '## Post-merge tasks (#1)\n\n- [ ] update the scheduled task'],
+  ]) {
+    assert.deepEqual(checkContent(body, { issue: 1, kind, lang }), [], kind);
+  }
 });

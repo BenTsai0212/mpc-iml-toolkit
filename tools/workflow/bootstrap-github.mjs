@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // 從 template 建立新 repo 後，一個指令完成標籤、合併後刪分支，以及選用的看板與 ruleset（憲法第 9 節 B 段第 2～4 步）。
-// 用法：node tools/workflow/bootstrap-github.mjs --repo <owner/name> [--modules core,online,collab,automation,goal] [--board] [--ruleset] [--dry-run]
+// 用法：node tools/workflow/bootstrap-github.mjs --repo <owner/name> [--modules core,online,collab,automation,goal] [--board] [--ruleset] [--lang zh-TW|en] [--dry-run]
 // --modules 預設只有 core；--board 新建看板並連結；--ruleset 為預設分支建立 ruleset；
+// --lang en 改用英文的標籤描述（templates/i18n/en/github/labels.yml）與看板佔位選項，給流程語言 en 的 repo（BenTsai0212/dev-workflow-template#129）；預設 zh-TW。
 // --dry-run 只列出將執行的 gh 指令（仍會讀取現有標籤、看板與 ruleset，不做任何寫入）。
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -10,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const LABELS_FILE = join(HERE, '..', '..', '.github', 'labels.yml');
+/** 流程語言 en 的標籤定義：名稱、顏色與群組與 LABELS_FILE 相同，只有描述是英文（BenTsai0212/dev-workflow-template#129）。 */
+export const LABELS_FILE_EN = join(HERE, '..', '..', 'templates', 'i18n', 'en', 'github', 'labels.yml');
+export const BOOTSTRAP_LANGS = ['zh-TW', 'en'];
 
 const GROUP = /^([A-Za-z][\w-]*):\s*$/;
 const ITEM = /^\s+-\s*\{\s*name:\s*"([^"]+)",\s*color:\s*"([0-9a-fA-F]{6})",\s*description:\s*"([^"]*)"\s*\}\s*$/;
@@ -80,16 +84,20 @@ export function parseArgs(argv) {
     else if (a.startsWith('--repo=')) opts.repo = a.slice(7);
     else if (a === '--modules') opts.modules = (argv[++i] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a.startsWith('--modules=')) opts.modules = a.slice(10).split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--lang') opts.lang = argv[++i];
+    else if (a.startsWith('--lang=')) opts.lang = a.slice(7);
     else throw new Error(`不認得的參數：${a}`);
   }
   if (!opts.repo || !/^[\w.-]+\/[\w.-]+$/.test(opts.repo)) throw new Error('需要 --repo <owner/name>');
   if (!opts.modules.length) throw new Error('--modules 不能是空的');
+  if ('lang' in opts && !BOOTSTRAP_LANGS.includes(opts.lang)) throw new Error(`--lang 只能是 ${BOOTSTRAP_LANGS.join('、')}`);
   return opts;
 }
 
 /** 看板的單選欄位；GitHub 的單選欄位至少要有一個選項，所以各放佔位選項「未設定」。 */
 export const BOARD_FIELDS = ['Phase', 'Area'];
 export const PLACEHOLDER_OPTION = '未設定';
+export const PLACEHOLDER_OPTION_EN = 'Not set';
 
 export const RULESET_NAME = 'protect-default-branch';
 
@@ -125,7 +133,8 @@ export function rulesetBody() {
 export function run({ argv, exec, readText = (f) => readFileSync(f, 'utf8'), log = console.log }) {
   const opts = parseArgs(argv);
   const [owner, name] = opts.repo.split('/');
-  const groups = parseLabels(readText(LABELS_FILE));
+  const en = opts.lang === 'en';
+  const groups = parseLabels(readText(en ? LABELS_FILE_EN : LABELS_FILE));
   const writes = [];
   const todos = [];
   const write = (args, input) => {
@@ -179,7 +188,7 @@ export function run({ argv, exec, readText = (f) => readFileSync(f, 'utf8'), log
     for (const field of BOARD_FIELDS) {
       if (fieldNames.has(field)) log(`略過（欄位已存在）：${field}`);
       else write(['gh', 'project', 'field-create', number, '--owner', owner, '--name', field,
-        '--data-type', 'SINGLE_SELECT', '--single-select-options', PLACEHOLDER_OPTION]);
+        '--data-type', 'SINGLE_SELECT', '--single-select-options', en ? PLACEHOLDER_OPTION_EN : PLACEHOLDER_OPTION]);
     }
     write(['gh', 'project', 'link', number, '--owner', owner, '--repo', name]);
     todos.push(`（選用）在看板（${owner} 的 #${number}「${name}」）的 Workflows 開啟 auto-add，新 Issue 才會自動加入看板`);
