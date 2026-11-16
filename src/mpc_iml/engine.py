@@ -6,7 +6,8 @@ the reply port (default `127.0.0.1:6451`; `hello` can change it). While running,
 engine sends `/wek/inputs` and the active preset's outputs as in ADR 0002: every
 declared output, OSC (`OscOutput`) and MIDI control changes (`MidiCcOutput`, on a
 virtual port, or an existing port with `--midi-port`). An output that cannot be
-opened is logged and skipped; the others keep working.
+opened is logged and skipped; the others keep working. `/mpciml/midi/learn` sends
+one MIDI controller on its own so a DAW can learn it (protocol 1.1, ADR 0005).
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -75,8 +76,8 @@ __all__ = [
     "main",
 ]
 
-PROTOCOL_VERSION = (1, 0)
-"""Control protocol version `(major, minor)` (ADR 0004)."""
+PROTOCOL_VERSION = (1, 1)
+"""Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005)."""
 
 CONTROL_PORT = 6450
 """Default port the engine listens on for control messages."""
@@ -108,8 +109,12 @@ ALLOWED: Mapping[str, frozenset[str]] = {
     "run": frozenset({IDLE}),
     "stop": frozenset({IDLE, RECORDING, RUNNING}),
     "preset/load": frozenset({IDLE}),
+    "midi/learn": frozenset({IDLE, TRAINING}),
 }
-"""The states in which each control message is accepted (ADR 0004, States)."""
+"""The states in which each control message is accepted (ADR 0004, States; ADR 0005)."""
+
+LEARN_SWEEP = (0, 32, 64, 96, 127)
+"""The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
 
 _NAME = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
 
@@ -245,6 +250,8 @@ class Engine:
         self._input_thread: threading.Thread | None = None
         self._server: BlockingOSCUDPServer | None = None
         self._serving = False
+        self._midi: list[MidiCcSender] = []
+        self._midi_outputs: list[MidiCcOutput] = []
         try:
             found = self._find(preset)
         except ControlError as error:
@@ -270,6 +277,7 @@ class Engine:
             "stop": self._stop,
             "preset/list": self._preset_list,
             "preset/load": self._preset_load,
+            "midi/learn": self._midi_learn,
         }
 
     # Life cycle
@@ -525,6 +533,24 @@ class Engine:
         self._counts()
         self._report_trained()
 
+    def _midi_learn(self, args: list[Any]) -> None:
+        _check_count(args, 1, 1)
+        output = _int(args[0])
+        if not self._midi_outputs:
+            raise ControlError("bad_arguments", f"preset {self._preset.name!r} has no MIDI output")
+        count = max(len(o.controllers) for o in self._midi_outputs)
+        if not 1 <= output <= count:
+            raise ControlError("bad_arguments", f"output must be 1-{count}, got {output}")
+        senders = [s for s in self._midi if output <= len(s.output.controllers)]
+        if not senders:
+            raise ControlError("bad_arguments", "MIDI output not open")
+        index = output - 1
+        for sender in senders:
+            down = sender.last_value(index) == LEARN_SWEEP[-1]
+            for value in reversed(LEARN_SWEEP) if down else LEARN_SWEEP:
+                sender.send_controller(index, value)
+        self._send("midi/sent", output, senders[0].output.controllers[index])
+
     def _preset_message(self, rest: str, args: list[Any]) -> None:
         name, _, control = rest.partition("/")
         address = PREFIX + "preset/" + rest
@@ -657,9 +683,14 @@ class Engine:
     def _build_loop(self, preset: Preset, examples: ExampleSet) -> IMLLoop:
         senders: list[ValuesSender] = []
         first_osc = True
+        self._midi_outputs = [o for o in preset.outputs if isinstance(o, MidiCcOutput)]
+        self._midi = []
         for output in preset.outputs:
             try:
-                senders.append(self._open_output(output, first_osc))
+                sender = self._open_output(output, first_osc)
+                senders.append(sender)
+                if isinstance(sender, MidiCcSender):
+                    self._midi.append(sender)
             except Exception as error:
                 self._log(f"output {output} not opened, continuing without it: {error}")
             first_osc = first_osc and not isinstance(output, OscOutput)

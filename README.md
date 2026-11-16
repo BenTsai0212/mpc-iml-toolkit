@@ -192,7 +192,8 @@ uses it.
 
 The engine is a long-running IML loop that a front end (Pure Data, Max, later an
 app) drives with OSC control messages; the protocol is
-[ADR 0004](docs/adr/0004-engine-control-protocol.md). Start it with a folder for
+[ADR 0004](docs/adr/0004-engine-control-protocol.md), version 1.1 in
+[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md). Start it with a folder for
 its saved example sets, with the MPC connected as in the
 [reference example](#reference-example):
 
@@ -218,7 +219,10 @@ whole-number float like `1.0`, so plain Pure Data messages work without a type t
 `/mpciml/record/stop`, then `/mpciml/train`, `/mpciml/run` and `/mpciml/stop`.
 `/mpciml/examples/save <name>` writes `my-data/<name>.jsonl` (an ADR 0002
 recording); the engine writes nothing outside that folder. Every message gets a
-reply, a state report or an `/mpciml/error`. Ctrl-C stops the engine: input and
+reply, a state report or an `/mpciml/error`. For a preset with MIDI output,
+`/mpciml/midi/learn <output>` (1 for its first controller), in `idle` or `training`,
+sends a short sweep on that one controller so a DAW can learn it, and answers
+`/mpciml/midi/sent <output> <controller>`. Ctrl-C stops the engine: input and
 sockets are closed and a training in progress is finished first.
 
 ## Play the pressure preset
@@ -294,11 +298,19 @@ to synthesiser parameters:
   Assignment for "<parameter>" (Cmd-L), send its CC, and turn Learn off.
 - DAWs that let you type a CC number for a mapping: enter 20-27 directly.
 
-While the model runs, all 8 CCs move together, so MIDI learn may catch the wrong
-one. Learn one CC at a time: train a quick model with two examples whose targets
-differ only in the output you want (for example rest with all 0, and pad 1 with
-only `t3` at 1, for CC 22), run it, press pad 1, map, and repeat. Then load or
-record your real examples and train again; the mappings stay.
+While the model runs, all 8 CCs move together, so MIDI learn would catch whichever
+comes first. Map them one at a time with the `learn` buttons `l1`-`l8` in the patch
+instead, while the engine is not running (the state box shows `idle`):
+
+1. In the DAW, start MIDI learn for the parameter that output 1 should control.
+2. Click `l1` in the patch. The engine sends only CC 20, sweeping 0 to 127; the DAW
+   learns it. Clicking again sweeps back down, which also checks the mapping.
+3. Leave MIDI learn, and repeat for `l2` (CC 21) to `l8` (CC 27).
+
+`l3` sends CC 22, as `t3` and `o3` are output 3. From your own front end, send
+`/mpciml/midi/learn 3` for the same. While running, the message gets the error
+`wrong_state`; click `stop` first. You can map before or after recording examples;
+the mappings stay when you train again.
 
 What you get at the light end (#76):
 

@@ -281,7 +281,7 @@ def test_hello_sends_version_then_full_state(start: Any) -> None:
     front.send("/mpciml/hello", 1)
     replies = front.replies.until("/mpciml/trained")
     assert replies == [
-        ("/mpciml/version", [1, 0, __version__]),
+        ("/mpciml/version", [1, 1, __version__]),
         ("/mpciml/state", ["idle"]),
         ("/mpciml/preset", ["demo", DEMO.version]),
         ("/mpciml/counts", ["rest", 0, "soft", 0, "hard", 0]),
@@ -305,7 +305,7 @@ def test_hello_accepts_whole_number_floats(start: Any, receivers: list[Receiver]
     receivers.append(other)
     front.send("/mpciml/hello", 1.0, float(other.port))
     replies = other.until("/mpciml/trained")
-    assert replies[0] == ("/mpciml/version", [1, 0, __version__])
+    assert replies[0] == ("/mpciml/version", [1, 1, __version__])
     front.replies = other
     assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
 
@@ -316,7 +316,7 @@ def test_hello_with_another_major_reports_mismatch_and_keeps_working(start: Any)
     replies = front.replies.until("/mpciml/trained")
     assert replies[0][0] == "/mpciml/error"
     assert replies[0][1][:2] == ["version_mismatch", "/mpciml/hello"]
-    assert replies[1] == ("/mpciml/version", [1, 0, __version__])
+    assert replies[1] == ("/mpciml/version", [1, 1, __version__])
     assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
 
 
@@ -570,6 +570,7 @@ ARGS: dict[str, list[Any]] = {
     "examples/save": ["kept"],
     "examples/load": ["seed"],
     "preset/load": ["gated"],
+    "midi/learn": [1],
 }
 
 TABLE = {
@@ -590,8 +591,10 @@ TABLE = {
     "run": "✓✗✗✗",
     "stop": "✓✓✗✓",
     "preset/load": "✓✗✗✗",
+    "midi/learn": "✓✗✓✗",
 }
-"""ADR 0004's state table, columns idle, recording, training, running."""
+"""ADR 0004's state table with ADR 0005's `midi/learn`; columns idle, recording,
+training, running."""
 
 STATES = ("idle", "recording", "training", "running")
 
