@@ -33,8 +33,12 @@
   ```
 
   不加 `--duration` 時錄到按 Ctrl-C 為止。
+- 由錄音中 `example_start`／`example_end` 區段建立訓練範例，類別編號固定不變
+  （`mpc_iml.examples`）；
+- 模型擴充點（`mpc_iml.model.Model`：`fit` 與 `predict`）與內建的 scikit-learn
+  模型：1 近鄰分類器與 MLP 迴歸器（`mpc_iml.sklearn_backend`）。
 
-格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。模型尚未實作，
+格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。執行迴圈尚未實作，
 套件也尚未發布。第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 
 ## 開發
