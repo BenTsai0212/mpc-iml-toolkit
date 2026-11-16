@@ -11,6 +11,7 @@
 3. 新工作：帶 `agent:ready` 的 Issue（沒有 `agent:working`／`blocked`），最舊的先做
 
 - 2、3 的 Issue 須由可信身分開立（Issue 本身的 `authorAssociation`，以 `gh api` 的 REST 清單取得，清單中的 PR 先排除；缺少時視為非可信）。其他人開的 Issue 即使已有可信身分的 `## 決定` 也不挑選，紀錄檔只列編號與身分、不列標題（見 `docs/workflow/agent-workflow.md`「外部 Issue」）。
+- 控制標題（`## agent 停止`、`## 計畫`、`## 決定`）的英文寫法同樣認得；runner 自己留的停止回報與 `## runner 提醒`，標題用 repo 的流程語言（`AGENTS.md` 第 0 節；對照表見 [docs/workflow/headings.md](../../../docs/workflow/headings.md)，BenTsai0212/dev-workflow-template#129）。
 - PR 一律換成描述中 `Closes`／`Refs` 的 Issue；`agent:working` 只加在 Issue 上。描述找不到 Issue 的 PR 不接。
 - 新工作只在「自己開的、開啟中、非 Draft 的 PR」少於 `maxOpenPrs` 時才接；修正模式與依決定繼續不受此限制。
 - 開始時把 `agent:ready` 換成 `agent:working`、看板設為 In progress；結束時移除 `agent:working`，沒有 `blocked` 時看板設為 Review。
@@ -19,7 +20,7 @@
 - runner 自身的錯誤（fetch、建立或清理 worktree、worktree 有未提交的變更、標籤操作失敗等）：寫紀錄檔並發本機通知，**不改標籤**，並停止本次的連續處理。GitHub 上的 `## agent 停止` 只用於需要人決定的問題，避免讓剛寫好的 `## 決定` 失效。同一個錯誤連續 3 次且與某張 Issue 有關時，在該 Issue 留一則 `## runner 提醒`（見下方「重複錯誤提醒」）。
 - 移除標籤（例如結束時的 `agent:working`）後讀回確認；仍存在時重試一次，仍失敗就視為 runner 自身的錯誤，不會讓標籤悄悄留著。
 - `gh` 遇到暫時性錯誤（連線中斷、`unexpected EOF`、HTTP 5xx、逾時）時等 10 秒後重試一次；權限、參數、404 等錯誤不重試（判斷在 `lib.mjs` 的 `isTransientGhError()`）。
-- `gh` 的輸出上限是 64 MB（`lib.mjs` 的 `GH_MAX_BUFFER`，與 `read-trusted.mjs`、`harness-retro.mjs` 相同），例如以 REST 讀取全部開啟中的 Issue 時不會超過 Node 預設的 1 MB 而失敗。〔來源：Issue 多的 repo 會超過預設上限（#78）｜不刪〕
+- `gh` 的輸出上限是 64 MB（`lib.mjs` 的 `GH_MAX_BUFFER`，與 `read-trusted.mjs`、`harness-retro.mjs` 相同），例如以 REST 讀取全部開啟中的 Issue 時不會超過 Node 預設的 1 MB 而失敗。〔來源：Issue 多的 repo 會超過預設上限（BenTsai0212/dev-workflow-template#78）｜不刪〕
 - `agent:working` 超過 `staleHours` 沒有更新、且沒有 runner 在跑：視為中斷，留言並加 `blocked`。
 
 ### 連續處理
@@ -49,7 +50,7 @@ claude 非正常結束後，若 runner 的 worktree 有未提交的修改或未�
 
 ### 本次執行的暫存資料夾
 
-sandbox 給 agent 的 `$TMPDIR`（`/tmp/claude-<uid>`）是同一台電腦上所有專案共用的；檔案已存在時 Write 工具會寫入失敗，agent 沿用舊檔就會把其他專案的內容貼到本 repo（#39）。因此 runner 每次啟動 claude 前：
+sandbox 給 agent 的 `$TMPDIR`（`/tmp/claude-<uid>`）是同一台電腦上所有專案共用的；檔案已存在時 Write 工具會寫入失敗，agent 沿用舊檔就會把其他專案的內容貼到本 repo（BenTsai0212/dev-workflow-template#39）。因此 runner 每次啟動 claude 前：
 
 1. 建立 `<worktree>/.runner-tmp/<YYYYMMDDTHHmmss>-<Issue>/`（`.runner-tmp/` 在 `.gitignore`；worktree 本來就能寫入，不放寬 sandbox）。
 2. 以環境變數 `RUNNER_RUN_TMP`（資料夾）、`RUNNER_RUN_STARTED`（開始時間）傳給 agent，`TMPDIR` 也指到同一個資料夾（sandbox 可能改掉 `TMPDIR`，不依賴它）；給 agent 的說明列出這個資料夾的絕對路徑。
@@ -143,7 +144,7 @@ cp tools/workflow/runner/config.example.json tools/workflow/runner/config.local.
   - claude 非 0 結束，或 stream-json 的 `result` 為 `is_error: true`；
   - 最後一個 `rate_limit_event` 的 `rate_limit_info.status` 是 `rejected` 或 `rate_limited`；
   - `resetsAt` 在未來 7 天內（大於 1e12 時當作毫秒）。
-- **為什麼這麼嚴格**：`rate_limit_event` 沒有官方規格，`status` 的值曾經改變，本 repo 的紀錄也沒有實際用完額度的樣本（#66 的查證）。任一條件不成立（包括未知的 `status`）時，維持一般的異常結束處理（停止回報＋`blocked`），並在紀錄檔保留最後一個 `rate_limit_event` 的原文，方便之後修正判斷（判斷在 `lib.mjs` 的 `detectQuotaExhausted()`）。
+- **為什麼這麼嚴格**：`rate_limit_event` 沒有官方規格，`status` 的值曾經改變，本 repo 的紀錄也沒有實際用完額度的樣本（BenTsai0212/dev-workflow-template#66 的查證）。任一條件不成立（包括未知的 `status`）時，維持一般的異常結束處理（停止回報＋`blocked`），並在紀錄檔保留最後一個 `rate_limit_event` 的原文，方便之後修正判斷（判斷在 `lib.mjs` 的 `detectQuotaExhausted()`）。
 - **成立時**：
   - 保存進度（同「中斷時保存進度」），寫入 `~/.agent-runner/cooldown.json`（恢復時間取 `resetsAt`；已有較晚的恢復時間時保留較晚的），發本機通知。
   - **不留** `## agent 停止`、**不加** `blocked`。標籤還原成開始前的狀態：新工作加回 `agent:ready`；修正模式與依決定繼續只移除 `agent:working`。看板狀態不變，下次排程重新挑選。
@@ -201,7 +202,7 @@ runner 自身的錯誤（準備階段失敗、無法在 GitHub 留言、runner �
 - `## runner 提醒` 不是停止回報，不影響 `## 決定` 的判斷（不在 `lib.mjs` 的 `STOP_HEADINGS`）。
 - `--dry-run` 不寫狀態檔、不留言。
 - **貼出前遮蔽本機路徑**：階段、錯誤訊息與紀錄檔路徑中的 worktree、repo、家目錄換成 `<worktree>`、`<repo>`、`~`，其他個人路徑整段換成 `<本機路徑>`。遮蔽後再以貼文檢查（`check-post-body.mjs` 的 email 與個人路徑規則）檢查，仍命中時不貼出，只寫紀錄檔並發本機通知。〔來源：提醒直接放入錯誤訊息與紀錄檔的絕對路徑，公開 repo 會貼出本機路徑｜不刪〕
-- **遮蔽與檢查共用規則**：個人路徑的判斷與 `check-sensitive.mjs` 的 `PERSONAL_PATH` 共用（`/Users/<名稱>/…`、`/home/<名稱>/…`，`/home/runner` 除外），路徑到空白、引號、括號或全形標點（`，。、：；（）「」`）為止。〔來源：遮蔽與檢查各自定義規則，`/Users/` 底下名稱為 runner 的路徑不遮蔽卻被檢查命中（#78）｜不刪〕
+- **遮蔽與檢查共用規則**：個人路徑的判斷與 `check-sensitive.mjs` 的 `PERSONAL_PATH` 共用（`/Users/<名稱>/…`、`/home/<名稱>/…`，`/home/runner` 除外），路徑到空白、引號、括號或全形標點（`，。、：；（）「」`）為止。〔來源：遮蔽與檢查各自定義規則，`/Users/` 底下名稱為 runner 的路徑不遮蔽卻被檢查命中（BenTsai0212/dev-workflow-template#78）｜不刪〕
 
 判斷邏輯在 `lib.mjs` 的 `recordRunnerError()`；遮蔽與檢查在 `maskLocalPaths()`、`runnerReminderPost()`。
 
@@ -227,7 +228,7 @@ runner 從主資料夾（使用者平常的 repo 資料夾）執行，worktree �
   - `node *` 是允許的，agent 可以在 Node 程式中執行其他指令。
   - 讀取：允許清單不含 gh 的 Issue／PR `view` 子命令，禁止清單擋下 `gh api` 讀留言與審查（`gh api*/comments*`、`gh api*/reviews*`；`read-trusted.mjs` 在 Node 子程序中呼叫 `gh`，不受影響）。仍擋不到的是以 `gh api` 直接讀 Issue／PR 本文（例如 `gh api repos/<owner>/<name>/issues/N`）與在 Node 程式中呼叫 `gh`；只讀可信內容靠 `agent-workflow.md` 第 0 步的規則。
   - 實際防線是 sandbox（檔案寫入與網路限制）、人的審查，以及合併由人決定。
-- 合併確認 hook（`.claude/settings.json`）對合併類指令一律回傳 `deny`（#123）；對推送 main 回傳 `ask`，在 `claude -p` 無人值守下**等同拒絕**：指令不會執行（`permission_denied`，原因為 hook），agent 收到 hook 的訊息作為錯誤結果後繼續工作，session 不會卡住等待確認（2026-10-13 實測，#24）。
+- 合併確認 hook（`.claude/settings.json`）對合併類指令一律回傳 `deny`（BenTsai0212/dev-workflow-template#123）；對推送 main 回傳 `ask`，在 `claude -p` 無人值守下**等同拒絕**：指令不會執行（`permission_denied`，原因為 hook），agent 收到 hook 的訊息作為錯誤結果後繼續工作，session 不會卡住等待確認（2026-10-13 實測，BenTsai0212/dev-workflow-template#24）。
   - 因此 hook 無法判斷目標分支的推送（例如先 `cd` 再 `git push`、`--git-dir`）在 runner 下一律被拒絕。給 agent 的共用說明已要求推送時直接寫明分支（`git push origin HEAD:<分支>`），不要先 `cd` 再推送。
   - 確定推到 main 的指令本來就在禁止清單中，不受影響。
 - 只支援 macOS（launchd、通知、sandbox）。

@@ -20,6 +20,7 @@ import {
   runTmpDir, runTmpEnv, shouldContinue, SLOT_POLL_MS, staleWorking, streamTracker, stopReportPost, TICK_MS, validateConfig, wipBranchName, withAssociation,
 } from './lib.mjs';
 import { notify } from './platform.mjs';
+import { repoLang } from '../check-post-body.mjs';
 import {
   acquireProjectLock, cooldownFile, readCooldown, readSlotStatus, waitForSlot, writeCooldown,
 } from './slots.mjs';
@@ -39,7 +40,7 @@ function log(...m) {
 const firstLine = (error) => error.message.split('\n')[0];
 const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-// 重複錯誤的狀態檔（每個 repo 的 logs/ 底下，不進版本控制）；試跑時不設定，不寫狀態檔、不留言（#45）
+// 重複錯誤的狀態檔（每個 repo 的 logs/ 底下，不進版本控制）；試跑時不設定，不寫狀態檔、不留言（BenTsai0212/dev-workflow-template#45）
 let errorTracking = null;
 
 /**
@@ -79,6 +80,8 @@ async function main() {
 
   const labelNames = (x) => (x?.labels ?? []).map((l) => l.name);
   const ROOT = repoRoot();
+  // runner 自己留言（停止回報、runner 提醒）的控制標題用 repo 的流程語言（AGENTS.md 第 0 節，BenTsai0212/dev-workflow-template#129）
+  const LANG = repoLang(join(ROOT, 'AGENTS.md')).lang;
   const { worktree: WORKTREE, logDir: LOG_DIR } = resolvePaths(config, ROOT);
   const REPO = config.repo;
   const ME = config.account;
@@ -86,7 +89,7 @@ async function main() {
   logFile = join(LOG_DIR, `${stamp}${DRY ? '-dry' : ''}.log`);
   const relLog = relative(ROOT, logFile);
 
-  /** gh：暫時性錯誤（連線中斷、unexpected EOF、HTTP 5xx、逾時）時等待後重試一次，其他錯誤直接丟出（#45）。 */
+  /** gh：暫時性錯誤（連線中斷、unexpected EOF、HTTP 5xx、逾時）時等待後重試一次，其他錯誤直接丟出（BenTsai0212/dev-workflow-template#45）。 */
   const ghOnce = (a) => execFileSync('gh', a, {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120e3, maxBuffer: GH_MAX_BUFFER,
   });
@@ -106,7 +109,7 @@ async function main() {
       file: join(LOG_DIR, 'runner-errors.json'),
       // 錯誤訊息與紀錄檔路徑先遮蔽本機路徑，再以貼文檢查；仍命中時不貼出，只寫紀錄與本機通知
       remind: (issue, state) => {
-        const post = runnerReminderPost(state, { logPath: relLog, paths: { worktree: WORKTREE, repoRoot: ROOT, home: homedir() } });
+        const post = runnerReminderPost(state, { lang: LANG, logPath: relLog, paths: { worktree: WORKTREE, repoRoot: ROOT, home: homedir() } });
         if (!post.ok) {
           log(`runner 提醒遮蔽後仍有敏感內容（${post.problems.join('、')}），不貼到 #${issue}`);
           notify(`#${issue} 的 runner 提醒含敏感內容，未貼出（詳見 logs）`);
@@ -128,7 +131,7 @@ async function main() {
 
   /**
    * 加／移除標籤。移除後讀回確認：仍存在時重試一次，仍失敗就丟出錯誤（由呼叫端以 runnerError 處理）。
-   * 移除不存在的標籤時 gh 可能回報錯誤，以讀回的結果為準（#45）。
+   * 移除不存在的標籤時 gh 可能回報錯誤，以讀回的結果為準（BenTsai0212/dev-workflow-template#45）。
    */
   function setLabels(issue, add = [], remove = []) {
     for (const l of add) gh('issue', 'edit', String(issue), '-R', REPO, '--add-label', l);
@@ -153,7 +156,7 @@ async function main() {
    */
   function stopReport(issue, step, reason, facts) {
     const post = stopReportPost({
-      step, reason, facts, account: ME, logPath: relLog, paths: { worktree: WORKTREE, repoRoot: ROOT, home: homedir() },
+      step, reason, facts, account: ME, lang: LANG, logPath: relLog, paths: { worktree: WORKTREE, repoRoot: ROOT, home: homedir() },
     });
     if (post.sanitized) {
       log(`#${issue} 的停止回報遮蔽後仍有敏感內容（${post.problems.join('、')}），改用不含原文的原因貼出。原因：${reason}；事實：${facts}`);
@@ -253,7 +256,7 @@ async function main() {
       : `進度已保存到本機分支 \`${branch}\`（推送失敗，只在 runner 的 worktree）`;
   }
 
-  /** 刪除本次執行的暫存資料夾；只刪 runTmpDir 產生的路徑，不碰其他檔案（#39）。 */
+  /** 刪除本次執行的暫存資料夾；只刪 runTmpDir 產生的路徑，不碰其他檔案（BenTsai0212/dev-workflow-template#39）。 */
   function removeRunTmp(dir) {
     if (!isRunTmpDir(WORKTREE, dir)) throw new Error(`不是本次執行的暫存資料夾，不刪除：${dir}`);
     rmSync(dir, { recursive: true, force: true });
@@ -376,11 +379,13 @@ async function main() {
     const quota = detectQuotaExhausted({ code, killedFor, resultIsError, lastRateLimit, now: new Date() });
     if (quota) return quotaExhausted(pick, quota, saveWipSafely());
     if (code !== 0 || killedFor) {
-      // 不符合額度用完的條件時維持現行處理，保留原文以便之後修正判斷（#66 決定）
+      // 不符合額度用完的條件時維持現行處理，保留原文以便之後修正判斷（BenTsai0212/dev-workflow-template#66 決定）
       if (lastRateLimit) log('最後一個 rate_limit_event（不符合額度用完的條件）：', JSON.stringify(lastRateLimit));
       const saved = saveWipSafely();
       try {
-        stopReport(pick.issue, '/work-on-issue 執行中', killedFor ?? `claude 以代碼 ${code} 結束`, `${saved}；詳見 runner 紀錄檔`);
+        stopReport(pick.issue, ...(LANG === 'en'
+          ? ['/work-on-issue running', killedFor ?? `claude exited with code ${code}`, `${saved}; see the runner log`]
+          : ['/work-on-issue 執行中', killedFor ?? `claude 以代碼 ${code} 結束`, `${saved}；詳見 runner 紀錄檔`]));
       } catch (error) {
         runnerError(`無法在 #${pick.issue} 留停止回報`, error, { issue: pick.issue });
         return 'runner-error';
@@ -516,7 +521,9 @@ async function main() {
     log(`中斷的工作：#${s.number} ${s.title}（agent:working 超過 ${config.staleHours} 小時）`);
     if (DRY) continue;
     try {
-      stopReport(s.number, '執行中', 'runner 執行中斷（例如電腦睡眠或關機）', `agent:working 超過 ${config.staleHours} 小時沒有更新`);
+      stopReport(s.number, ...(LANG === 'en'
+        ? ['running', 'The runner was interrupted (for example, the computer slept or shut down)', `agent:working has not been updated for over ${config.staleHours} hours`]
+        : ['執行中', 'runner 執行中斷（例如電腦睡眠或關機）', `agent:working 超過 ${config.staleHours} 小時沒有更新`]));
     } catch (error) {
       runnerError(`無法在中斷的 #${s.number} 留停止回報`, error, { issue: s.number });
     }
