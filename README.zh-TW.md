@@ -225,13 +225,16 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 
 2. 在 Pure Data 開啟前端 `src/mpc_iml/patches/pressure.pd`。它會向 engine 送 `hello` 並載入
    preset；狀態欄顯示 `idle`，Pd 視窗印出每個回覆（`mpc-iml: …`）。若在 patch 之後才啟動
-   engine，再按一次 `hello`。
+   engine，再按一次 `hello`。patch 分成三欄：左欄是連線與錄音；中欄是存檔、`train`／`run`／
+   `stop` 與 MIDI learn；右欄是 engine 狀態與模型輸出。
 
 3. 錄幾個範例。每個範例：把左邊 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的聲音，在 pad 上
    保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按 `stop_recording`。
    先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，各自設定目標值。
    多個 pad 與其他力道的做法相同。若要讓輕觸的一端連續，另外錄一個能保持的最輕觸碰（手指
    放在 pad 1 上幾乎不施力），目標值接近休息，讓模型把最輕的 pressure 對應到休息附近。
+   要重新開始（例如錄音順序錯了）時按 `clear`：刪除 engine 中所有範例，已存的檔案不受影響。
+   在 `idle` 與 `running` 都可以使用，Pd 視窗會印出新的數量。
 
 4. 按 `train`。狀態變成 `training` 再回到 `idle`，`trained` 顯示 1。按 `run` 並演奏：右邊
    的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。`save` 與 `load`
