@@ -1,0 +1,15 @@
+{"type": "header", "format": "mpc-iml-recording", "format_version": 1, "toolkit_version": "0.0.0", "device": "MPC Sample", "firmware": "1.3.0", "settings": {"full_level": false}}
+{"t": 2.0969931250001537, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 83}
+{"t": 2.167342250002548, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 37}
+{"t": 2.1788687919979566, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 31}
+{"t": 2.18777499999851, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 14}
+{"t": 2.1966423749981914, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 1}
+{"t": 2.1992755839964957, "type": "midi", "kind": "note_off", "channel": 1, "note": 36, "value": 0}
+{"t": 3.6054172919975827, "type": "midi", "kind": "note_on", "channel": 1, "note": 52, "value": 90}
+{"t": 3.674989958999504, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 52, "value": 2}
+{"t": 3.682746958998905, "type": "midi", "kind": "note_off", "channel": 1, "note": 52, "value": 0}
+{"t": 6.072051124996506, "type": "midi", "kind": "note_on", "channel": 1, "note": 20, "value": 103}
+{"t": 6.1413737920011044, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 20, "value": 16}
+{"t": 6.151587624997774, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 20, "value": 6}
+{"t": 6.161788750003325, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 20, "value": 1}
+{"t": 6.164410167002643, "type": "midi", "kind": "note_off", "channel": 1, "note": 20, "value": 0}
