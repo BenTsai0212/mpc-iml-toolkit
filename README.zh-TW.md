@@ -169,7 +169,8 @@ velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值
 
 engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
 協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)，1.1 版見
-[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)。依[參考範例](#參考範例)接好
+[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)，1.2 版見
+[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md)。依[參考範例](#參考範例)接好
 MPC 後，指定一個存放範例集的資料夾來啟動：
 
 ```bash
@@ -193,7 +194,9 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 `my-data/<名稱>.jsonl`（ADR 0002 格式的錄音）；engine 不會寫入這個資料夾以外的地方。每個
 訊息都會得到回覆、狀態回報或 `/mpciml/error`。有 MIDI 輸出的 preset，在 `idle` 或 `training`
 時送 `/mpciml/midi/learn <輸出>`（1 是第一個 controller），engine 只在該 controller 送出一段
-短的掃動讓 DAW 學習，並回覆 `/mpciml/midi/sent <輸出> <controller>`。按 Ctrl-C 停止 engine：關閉輸入與 socket，
+短的掃動讓 DAW 學習，並回覆 `/mpciml/midi/sent <輸出> <controller>`。engine 回報 preset 時一併送出
+`/mpciml/layout <targets> <controllers>`：preset 的目標值個數（分類為 0）與 MIDI controller
+個數（沒有 MIDI 輸出為 0），讓前端顯示對應的控制項。按 Ctrl-C 停止 engine：關閉輸入與 socket，
 進行中的訓練會先完成。
 
 ## 演奏 preset pressure
