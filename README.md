@@ -19,9 +19,11 @@ output over OSC to any synthesiser, Max, Pure Data or nn~. See
 
 ## Status
 
-Phase 1 (Foundation), early. This repository currently contains only the package
-skeleton and the development setup; there is no toolkit functionality yet, and the
-package is not published. Interfaces will change without notice until the first
+Phase 1 (Foundation), early. So far the toolkit has only an OSC sender
+(`mpc_iml.osc`) that follows Wekinator's defaults (`/wek/inputs` on port 6448,
+`/wek/outputs` on port 12000; see [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)).
+MIDI input, recording and models are not implemented yet, and the package is not
+published. Interfaces will change without notice until the first
 release (`v0.1.0`).
 
 ## Development
