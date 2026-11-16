@@ -107,9 +107,9 @@ def event_from_dict(d: dict[str, Any]) -> Event:
     raise RecordingFormatError(f"unknown event type: {kind!r}")
 
 
-def write_recording(path: Path | str, header: Header, events: Iterable[Event]) -> None:
-    """Write a header and events to `path` as JSON Lines."""
-    head = {
+def header_to_dict(header: Header) -> dict[str, Any]:
+    """Encode a header as the first JSON Lines object of a recording."""
+    return {
         "type": "header",
         "format": FORMAT,
         "format_version": header.format_version,
@@ -118,8 +118,12 @@ def write_recording(path: Path | str, header: Header, events: Iterable[Event]) -
         "firmware": header.firmware,
         "settings": header.settings,
     }
+
+
+def write_recording(path: Path | str, header: Header, events: Iterable[Event]) -> None:
+    """Write a header and events to `path` as JSON Lines."""
     with Path(path).open("w", encoding="utf-8") as f:
-        f.write(json.dumps(head) + "\n")
+        f.write(json.dumps(header_to_dict(header)) + "\n")
         for event in events:
             f.write(json.dumps(event_to_dict(event)) + "\n")
 

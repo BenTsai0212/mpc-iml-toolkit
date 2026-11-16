@@ -12,7 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Sound/Audio :: MIDI",
 ]
-dependencies = ["python-osc>=1.10.3"]
+dependencies = ["python-osc>=1.10.3", "python-rtmidi>=1.5.8"]
 
 [dependency-groups]
 dev = ["mypy", "pytest", "ruff"]
@@ -35,6 +35,10 @@ select = ["E", "F", "W", "I", "B", "UP"]
 strict = true
 files = ["src"]
 python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = ["rtmidi", "rtmidi.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

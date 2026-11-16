@@ -23,9 +23,18 @@
   `/wek/outputs` 送到 12000 埠）；
 - MIDI 訊息與範例標記的事件型別（`mpc_iml.events`）；
 - 以 JSON Lines 讀寫錄音（`mpc_iml.recording`）；
-- 由事件計算 frame，每個 frame 產生 49 個 OSC 輸入值（`mpc_iml.frames`）。
+- 由事件計算 frame，每個 frame 產生 49 個 OSC 輸入值（`mpc_iml.frames`）；
+- 事件來源（`mpc_iml.sources`）：以 `python-rtmidi` 讀取 MPC 的即時 MIDI 輸入，以及
+  重播錄音，兩者對下游可互換；MIDI 解碼在 `mpc_iml.midi`；
+- 即時輸入的錄音工具：
 
-格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。MIDI 輸入與模型尚未實作，
+  ```bash
+  uv run python -m mpc_iml.record out.jsonl --duration 5 --firmware 1.3.0 --no-full-level
+  ```
+
+  不加 `--duration` 時錄到按 Ctrl-C 為止。
+
+格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。模型尚未實作，
 套件也尚未發布。第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 
 ## 開發
