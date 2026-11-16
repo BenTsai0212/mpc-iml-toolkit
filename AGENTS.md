@@ -5,7 +5,7 @@
 ## 0. 專案設定
 - Repo：`BenTsai0212/mpc-iml-toolkit`（Akai MPC Sample 與 Mac 的互動式機器學習基礎工具包；由 `BenTsai0212/dev-workflow-template` 建立）
 - 看板：GitHub Project 12（https://github.com/users/BenTsai0212/projects/12）
-- 啟用模組：核心。雲端執行（試驗中，見 `docs/workflow/modules.md`）在 `agent:ready` 與 `changes-requested` 兩個觸發都測試過後，以後續 PR 加入本行（#13 的決定）
+- 啟用模組：核心、雲端執行（試驗中，見 `docs/workflow/modules.md`）。排程任務：`mpc-code-agent-issue`（Issue 加上 `agent:ready`）、`mpc-code-agent-fix`（PR 加上 `changes-requested`）
 - 流程語言：en（`zh-TW` 或 `en`；決定控制標題與 Issue、PR、commit 的語言，對照表見 `docs/workflow/headings.md`，BenTsai0212/dev-workflow-template#129）
 - 憲法版本：v0.37，template e8e03dc71374efab06f0f1577397a4a0e19e090d（`docs/workflow/constitution.md`）
 - 決定者：@BenTsai0212（停止回報與 `plan-first` 時 @ 此帳號）
