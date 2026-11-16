@@ -13,6 +13,7 @@
 
 - Repo：<owner/repo>。決定者：@<決定者帳號>。
 - 規則一律以 repo 的 `AGENTS.md` 與 `docs/workflow/agent-workflow.md` 為準（雲端的差異見 agent-workflow.md「在雲端執行時」）；本指示不重抄規則，不一致時以 repo 為準。
+- 控制標題（下文的 `## 開工`、`## 決定`、`## 修正回報` 等）與 PR、留言、commit 的語言依 `AGENTS.md` 第 0 節的流程語言；流程語言為 en 時一律寫英文，例如開工留言寫 `## Started (#<N>)`，對照表見 `docs/workflow/headings.md`。
 
 ## 1. 先確認觸發的標籤
 

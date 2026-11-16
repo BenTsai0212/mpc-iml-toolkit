@@ -8,14 +8,17 @@ import {
 } from './bootstrap-github.mjs';
 
 const realLabels = readFileSync(LABELS_FILE, 'utf8');
+// .github/labels.yml 的描述依流程語言是中文或英文（en 的專案以 templates/i18n/en/github/ 覆蓋），預期值從檔案本身取
+const realLabel = (name) => Object.values(parseLabels(realLabels)).flat().find((l) => l.name === name);
 
 test('parseLabels：解析 repo 內的 labels.yml', () => {
   const groups = parseLabels(realLabels);
   assert.deepEqual(Object.keys(groups), ['core', 'online', 'collab', 'automation', 'goal']);
-  assert.deepEqual(groups.goal, [{ name: 'goal-mode', color: '006b75', description: '目標模式：已核准的目標，決策 agent 在範圍內自動推進（試驗中）' }]);
+  assert.deepEqual(groups.goal.map(({ name, color }) => ({ name, color })), [{ name: 'goal-mode', color: '006b75' }]);
+  assert.ok(groups.goal[0].description);
   assert.equal(groups.core.length, 12);
-  assert.deepEqual(groups.core[0], { name: 'type:feat', color: '1d76db', description: '新功能' });
-  assert.ok(groups.core.some((l) => l.description.includes('## 決定')), '描述中的 # 不是註解');
+  assert.deepEqual([groups.core[0].name, groups.core[0].color], ['type:feat', '1d76db']);
+  assert.ok(groups.core.some((l) => /## (決定|Decision)/.test(l.description)), '描述中的 # 不是註解');
 });
 
 test('parseLabels：無法解析的行指出行號', () => {
@@ -147,13 +150,13 @@ test('--ruleset：已有同名 ruleset 時不重複建立', () => {
 });
 
 test('dry-run：列出標籤、刪分支、看板與 ruleset 指令，不呼叫任何寫入', () => {
-  const gh = fakeGh({ labels: [{ name: 'blocked', color: 'b60205', description: '開發中卡住，或 agent 停下等待 ## 決定' }] });
+  const gh = fakeGh({ labels: [realLabel('blocked')] });
   const out = [];
   const { writes, todos } = go(['--dry-run', '--board', '--ruleset'], gh, out);
   assert.equal(writesOf(gh).length, 0, '試跑不得執行寫入');
   assert.equal(writes.length, 11 + 1 + 4 + 1, '11 個標籤、刪分支、看板 create／2 個欄位／link、ruleset');
   const text = out.join('\n');
-  assert.match(text, /（試跑）\$ gh label create type:feat --repo me\/new-app --color 1d76db --description '新功能'/);
+  assert.ok(text.includes(`（試跑）$ gh label create type:feat --repo me/new-app --color 1d76db --description '${realLabel('type:feat').description}'`));
   assert.match(text, /略過（已存在且相同）：blocked/);
   assert.match(text, /（試跑）\$ gh repo edit me\/new-app --delete-branch-on-merge/);
   assert.match(text, /\$ gh project create --owner me --title new-app --format json/);

@@ -1,19 +1,19 @@
 ---
-name: 提案或決策討論
-about: 方向性變更、技術選型、修憲；討論後寫成 RFC 或 ADR
+name: Proposal or decision
+about: Direction changes, technology choices, constitution amendments; written up as an RFC or ADR after discussion
 title: "rfc: "
 labels: ["rfc"]
 ---
 
-## 想解決的問題
+## Problem
 
-## 選項
+## Options
 
 1.
 2.
 
-## 建議
+## Recommendation
 
-## 影響範圍（資料、部署、成本、規則）
+## Impact (data, deployment, cost, rules)
 
-## 結論（決定後填寫，並連到 ADR／RFC）
+## Conclusion (fill in after deciding, and link the ADR / RFC)

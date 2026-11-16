@@ -1,28 +1,28 @@
 ---
-name: 功能／交付項目
-about: 一項可交付的工作；驗收條件就是完成標準
+name: Feature / deliverable
+about: One deliverable piece of work; the acceptance criteria define done
 title: "feat: "
 labels: ["type:feat"]
 ---
 
-## 目標
+## Goal
 
-<!-- 完成後使用者能做到什麼 -->
+<!-- What users can do once this is done -->
 
-## 驗收條件
+## Acceptance criteria
 
 - [ ]
 
-## 範圍外
+## Out of scope
 
-<!-- 只列具體項目，不寫「其他文件」這類模糊描述 -->
+<!-- List concrete items only; avoid vague entries such as "other docs" -->
 
 -
 
-## 依賴與相關
+## Dependencies and related
 
-- 階段（Epic）：
-- RFC／ADR：
-- 依賴 Issue／PR：
+- Phase (Epic):
+- RFC / ADR:
+- Depends on Issue / PR:
 
-<!-- 高風險（schema、權限、金流）、預估超過 400 行或做法不確定時，加上 plan-first 標籤 -->
+<!-- Add the plan-first label for high-risk work (schema, permissions, payments), more than 400 lines, or an uncertain approach -->

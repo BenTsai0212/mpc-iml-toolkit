@@ -11,7 +11,7 @@
 ## 開新專案
 
 1. 建立 repo 並 clone：`gh repo create <owner>/<name> --private --template <template repo> --clone`。
-2. 在新 repo 執行 bootstrap：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> --modules <群組> [--board] [--ruleset]`（可先加 `--dry-run`，只列出不執行）。
+2. 在新 repo 執行 bootstrap：`node tools/workflow/bootstrap-github.mjs --repo <owner/name> --modules <群組> [--board] [--ruleset] [--lang en]`（可先加 `--dry-run`，只列出不執行；流程語言為 en 時加 `--lang en`，標籤描述與看板佔位選項改用英文）。
    - 一定會做：依 `.github/labels.yml` 建立標籤，並設定合併後自動刪分支。`--modules` 只能填 `labels.yml` 裡有的群組（`core`、`online`、`collab`、`automation`、`goal`），預設 `core`。
    - `--board`（選用）：在 owner 底下新建看板（Phase 與 Area 欄位）並連結到 repo。不加時不建看板，核心流程只靠標籤。auto-add 不是必要步驟，需要時在看板的 Workflows 開啟。
    - `--ruleset`（選用）：為預設分支建立 ruleset（禁止刪除與強制推送、必須經 PR 才能合併）。GitHub Free 的私人 repo 不會套用 ruleset。

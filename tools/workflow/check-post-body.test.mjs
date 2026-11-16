@@ -224,7 +224,8 @@ test('指令 decision／change-request：套用 email 與個人路徑檢查；�
     utimesSync(f, old, old);
     return f;
   };
-  const run = (kind, file) => checkPostBody(['--issue', '53', '--kind', kind, file], {});
+  // 中文控制標題的案例：指定 --lang zh-TW，不受本 repo AGENTS.md 的流程語言影響
+  const run = (kind, file) => checkPostBody(['--issue', '53', '--kind', kind, '--lang', 'zh-TW', file], {});
   assert.equal(run('decision', write('d.md', '## 決定（補充）\n\n- 選項 2\n')).ok, true);
   assert.equal(run('change-request', write('c.md', '## 修正要求\n\n- [ ] 改 A\n')).ok, true);
   const leak = run('decision', write('d2.md', `## 決定\n\n- 路徑 /${'Users'}/alice/x\n`));
