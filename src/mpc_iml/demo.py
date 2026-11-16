@@ -14,8 +14,8 @@ held lightly) and "hard" (pad 1 held firmly), with the built-in 1-nearest-neighb
 - `python -m mpc_iml.demo listen`: a terminal receiver that shows each new class
   received on `/wek/outputs`.
 
-The demo uses its own features (`played_features`): per pad, the velocity while
-the pad is held (0 once released) and the pressure. The default 49 values keep a
+The demo uses the feature set `mpc_iml.examples.played_features`: per pad, the
+velocity while the pad is held (0 once released) and the pressure. The default 49 values keep a
 pad's last velocity after release, so "rest" after playing would look like the
 last hit.
 
@@ -34,7 +34,7 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 
 from mpc_iml import __version__
 from mpc_iml.events import Event, ExampleEnd, ExampleStart
-from mpc_iml.frames import Frame
+from mpc_iml.examples import played_features
 from mpc_iml.loop import IMLLoop
 from mpc_iml.osc import DEFAULT_HOST, OUTPUTS_ADDRESS, OUTPUTS_PORT, outputs_sender
 from mpc_iml.presets import OscOutput, Preset
@@ -71,14 +71,6 @@ AFTER = {
 LABELS = {number: label for label, number in CLASSES.items()}
 
 Say = Callable[[str], None]
-
-
-def played_features(frame: Frame) -> list[float]:
-    """32 values: per pad, velocity while held (else 0), then per pad, pressure; 0-1."""
-    return [
-        *(v / 127 if h else 0.0 for v, h in zip(frame.velocity, frame.held, strict=True)),
-        *(p / 127 for p in frame.pressure),
-    ]
 
 
 PRESET = Preset(

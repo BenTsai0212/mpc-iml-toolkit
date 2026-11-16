@@ -14,8 +14,8 @@ import pytest
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
-from mpc_iml.demo import CLASSES, PRESET, played_features
-from mpc_iml.examples import ExampleSet
+from mpc_iml.demo import CLASSES, PRESET
+from mpc_iml.examples import ExampleSet, played_features
 from mpc_iml.presets import (
     MidiCcOutput,
     OscOutput,

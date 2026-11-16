@@ -29,6 +29,20 @@ def default_features(frame: Frame) -> Sequence[float]:
     return frame.to_osc_values()
 
 
+def played_features(frame: Frame) -> list[float]:
+    """32 values: per pad, velocity while held (else 0), then per pad, pressure; 0-1.
+
+    The feature set for playing (#43): the default 49 values keep a pad's last
+    velocity after release, so "rest" after playing would look like the last hit.
+    Here a released pad gives 0, so the velocity of released pads never reaches the
+    model, also after `examples/load` (ADR 0004, clarification 10).
+    """
+    return [
+        *(v / 127 if h else 0.0 for v, h in zip(frame.velocity, frame.held, strict=True)),
+        *(p / 127 for p in frame.pressure),
+    ]
+
+
 def labelled_frames(
     events: Iterable[Event], rate: float = DEFAULT_RATE
 ) -> Iterator[tuple[Frame, ExampleStart | None]]:

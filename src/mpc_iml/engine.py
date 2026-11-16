@@ -3,7 +3,10 @@
 Front ends (Pure Data, Max, later an app) send control messages under `/mpciml/` to
 the control port (default `127.0.0.1:6450`) and receive replies and state reports on
 the reply port (default `127.0.0.1:6451`; `hello` can change it). While running, the
-engine sends `/wek/inputs` and the active preset's outputs as in ADR 0002.
+engine sends `/wek/inputs` and the active preset's outputs as in ADR 0002: every
+declared output, OSC (`OscOutput`) and MIDI control changes (`MidiCcOutput`, on a
+virtual port, or an existing port with `--midi-port`). An output that cannot be
+opened is logged and skipped; the others keep working.
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -41,10 +44,12 @@ from mpc_iml import __version__
 from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, RawMidiEvent
 from mpc_iml.examples import ExampleError, ExampleSet
 from mpc_iml.frames import DEFAULT_RATE, PADS, Frame, bank_pad_to_note, frames, realtime_frames
-from mpc_iml.loop import IMLLoop
+from mpc_iml.loop import FanOut, IMLLoop, ValuesSender
+from mpc_iml.midi_out import MidiCcSender, MidiOutputBackend, RtMidiOutBackend
 from mpc_iml.osc import DEFAULT_HOST, INPUTS_ADDRESS, INPUTS_PORT, OscSender
 from mpc_iml.presets import (
     RESERVED_NAMES,
+    MidiCcOutput,
     OscOutput,
     Preset,
     PresetError,
@@ -201,8 +206,11 @@ class Engine:
 
     `source` is the gesture input (`None`: no input). `presets` lists the installed
     presets; the default reads the `mpc_iml.presets` entry points. `outputs_port`
-    overrides the port of the preset's first `OscOutput`. Port 0 picks a free port
-    for the control server (see `control_port`).
+    overrides the port of the preset's first `OscOutput`. `midi_port` sends MIDI
+    control changes to the first existing output port whose name contains it,
+    instead of a virtual port; `midi_backend` makes the MIDI output backend (tests
+    pass a fake). Port 0 picks a free port for the control server (see
+    `control_port`).
     """
 
     def __init__(
@@ -217,6 +225,8 @@ class Engine:
         reply_port: int = REPLY_PORT,
         inputs_port: int = INPUTS_PORT,
         outputs_port: int | None = None,
+        midi_port: str | None = None,
+        midi_backend: Callable[[], MidiOutputBackend] = RtMidiOutBackend,
         rate: float = DEFAULT_RATE,
         log: Callable[[str], None] = lambda line: print(line, file=sys.stderr),
     ) -> None:
@@ -230,6 +240,8 @@ class Engine:
         self._reply_port = reply_port
         self._inputs_port = inputs_port
         self._outputs_port = outputs_port
+        self._midi_port = midi_port
+        self._midi_backend = midi_backend
         self._rate = rate
         self._log = log
         self._lock = threading.RLock()
@@ -457,6 +469,12 @@ class Engine:
             examples.add_events(events, self._rate)
         except ValueError as error:
             raise ControlError("bad_arguments", f"cannot load {name!r}: {error}") from error
+        if examples.examples:
+            first = examples.examples[0]
+            try:
+                self._check_preset_task(first.label, first.targets)
+            except ControlError as error:
+                raise ControlError("bad_arguments", f"cannot load {name!r}: {error}") from error
         self._examples = examples
         self._loop.examples = examples
         self._timeline = list(events)
@@ -600,8 +618,25 @@ class Engine:
             raise ControlError("not_found", f"unknown preset {name!r}; available: {known}")
         return presets[name]
 
+    def _check_preset_task(self, label: str | None, targets: tuple[float, ...] | None) -> None:
+        """Reject a class or targets that the preset's declared `targets` rule out."""
+        expected = self._preset.targets
+        if expected is None:
+            return
+        if label is not None:
+            raise ControlError(
+                "bad_arguments", f"preset {self._preset.name!r} is regression; send targets"
+            )
+        if targets is not None and len(targets) != expected:
+            raise ControlError(
+                "bad_arguments",
+                f"preset {self._preset.name!r} expects {expected} target values, "
+                f"got {len(targets)}",
+            )
+
     def _check_task(self, label: str | None, targets: tuple[float, ...] | None) -> None:
         """Reject a class or targets that cannot join the current examples."""
+        self._check_preset_task(label, targets)
         examples = self._examples.examples
         if not examples:
             return
@@ -635,15 +670,34 @@ class Engine:
         self._timeline.append(ExampleEnd(start + (len(take) - 0.5) / rate))
 
     def _build_loop(self, preset: Preset, examples: ExampleSet) -> IMLLoop:
-        output = next((o for o in preset.outputs if isinstance(o, OscOutput)), None)
-        outputs = None
-        if output is not None:
-            port = output.port if self._outputs_port is None else self._outputs_port
-            outputs = OscSender(output.address, output.host, port)
+        senders: list[ValuesSender] = []
+        first_osc = True
+        for output in preset.outputs:
+            try:
+                senders.append(self._open_output(output, first_osc))
+            except Exception as error:
+                self._log(f"output {output} not opened, continuing without it: {error}")
+            first_osc = first_osc and not isinstance(output, OscOutput)
+        outputs: ValuesSender | None = None
+        if len(senders) == 1:
+            outputs = senders[0]
+        elif senders:
+            outputs = FanOut(senders)
         inputs = OscSender(INPUTS_ADDRESS, DEFAULT_HOST, self._inputs_port)
         loop = preset.build_loop(examples, inputs=inputs, outputs=outputs)
         loop.rate = self._rate
         return loop
+
+    def _open_output(self, output: OscOutput | MidiCcOutput, first_osc: bool) -> ValuesSender:
+        if isinstance(output, OscOutput):
+            port = output.port
+            if first_osc and self._outputs_port is not None:
+                port = self._outputs_port
+            return OscSender(output.address, output.host, port)
+        sender = MidiCcSender(output, self._midi_port, self._midi_backend)
+        sender.open()
+        self._log(f"MIDI control changes on {sender.port_name!r}")
+        return sender
 
     @staticmethod
     def _close_senders(loop: IMLLoop) -> None:
@@ -743,6 +797,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reply-port", type=int, default=REPLY_PORT)
     parser.add_argument("--inputs-port", type=int, default=INPUTS_PORT, help="/wek/inputs port")
     parser.add_argument("--outputs-port", type=int, help="override the preset's output port")
+    parser.add_argument(
+        "--midi-port",
+        help="send MIDI CCs to the existing output port whose name contains this (e.g. IAC)"
+        " instead of the virtual port",
+    )
     return parser
 
 
@@ -769,6 +828,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             reply_port=args.reply_port,
             inputs_port=args.inputs_port,
             outputs_port=args.outputs_port,
+            midi_port=args.midi_port,
         )
     except PresetError as error:
         print(f"error: {error}", file=sys.stderr)
