@@ -4,6 +4,7 @@
 - Date: 2026-11-15
 - Related: ADR 0001 (technology choices and adoption method, to be written)
 - Amended: 2026-11-15, third Phase 1 gate added (#5)
+- Amended: 2026-11-16, gesture input narrowed to the pads after the hardware check (#15)
 
 ## Summary
 
@@ -35,8 +36,9 @@ and would weaken the reproducibility of published papers.
 
 The toolkit provides shared capabilities (exact scope to be refined in ADRs):
 
-- **Hardware connection**: the MPC Sample as a USB gesture input (pad velocity and
-  polyphonic aftertouch, knobs, encoder, fader) and as an audio interface.
+- **Hardware connection**: the MPC Sample as a USB gesture input (velocity and
+  polyphonic aftertouch on the 16 pads) and as an audio interface. With the official
+  firmware (v1.3.0) the knobs, encoder and fader send nothing over USB MIDI (#10).
 - **IML loop**: record examples → train → run in real time → edit examples and retrain.
 - **Data**: one consistent format to record, store and replay example data.
 - **Extension points**: practice repositories can swap inputs, models and outputs
@@ -113,8 +115,8 @@ Gates:
 
 ## Open questions
 
-- Which USB MIDI messages does the MPC Sample actually send (especially polyphonic
-  aftertouch and the fader)? To be verified on hardware by a human early in Phase 1.
+- Whether the knobs, encoder and fader can become inputs once an official SDK is
+  available (details expected in January 2027).
 - Technology choices (ADR 0001). Candidates: Wekinator (OSC), FluCoMa (Max / Pure
   Data), Python (python-rtmidi, scikit-learn), RapidLib, RAVE with nn~.
 - Adoption method and update path for practice repositories (ADR 0001).
