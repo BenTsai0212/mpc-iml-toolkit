@@ -1,0 +1,17 @@
+{"type": "header", "format": "mpc-iml-recording", "format_version": 1, "toolkit_version": "0.0.0", "device": "MPC Sample", "firmware": "1.3.0", "settings": {"full_level": false}}
+{"t": 0.0, "type": "example_start", "label": "rest"}
+{"t": 0.5, "type": "example_end"}
+{"t": 1.0, "type": "example_start", "label": "soft"}
+{"t": 1.0, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 30}
+{"t": 1.0, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 20}
+{"t": 1.2, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 30}
+{"t": 1.4, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 25}
+{"t": 1.5, "type": "example_end"}
+{"t": 1.6, "type": "midi", "kind": "note_off", "channel": 1, "note": 36, "value": 0}
+{"t": 2.0, "type": "example_start", "label": "hard"}
+{"t": 2.0, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 110}
+{"t": 2.0, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 90}
+{"t": 2.2, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 110}
+{"t": 2.4, "type": "midi", "kind": "poly_pressure", "channel": 1, "note": 36, "value": 100}
+{"t": 2.5, "type": "example_end"}
+{"t": 2.6, "type": "midi", "kind": "note_off", "channel": 1, "note": 36, "value": 0}

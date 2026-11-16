@@ -19,7 +19,8 @@ output over OSC to any synthesiser, Max, Pure Data or nn~. See
 
 ## Status
 
-Phase 1 (Foundation), early. So far the toolkit has:
+Phase 1 (Foundation), early. To try the whole loop, follow the
+[reference example](#reference-example). So far the toolkit has:
 
 - an OSC sender (`mpc_iml.osc`) that follows Wekinator's defaults (`/wek/inputs`
   on port 6448, `/wek/outputs` on port 12000);
@@ -80,6 +81,90 @@ Phase 1 (Foundation), early. So far the toolkit has:
 Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The package
 is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
+
+## Reference example
+
+A minimal end-to-end run of the IML loop, from a fresh Mac: record a few examples
+on the pads, train the built-in 1-nearest-neighbour model, and run it live. It has
+three classes on pad 1 (bottom left, bank A): **rest** (no pads), **soft** (pad 1
+held lightly) and **hard** (pad 1 held firmly). The model sends the class number to
+`/wek/outputs` on `127.0.0.1:12000`: 1 rest, 2 soft, 3 hard. The code is
+`src/mpc_iml/demo.py`.
+
+You need an MPC Sample, a USB cable, and a Mac with a terminal (Terminal.app).
+
+1. Install [uv](https://docs.astral.sh/uv/) with its official installer, then open
+   a new terminal window so that `uv` is found:
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+2. Get the toolkit and install it (uv also installs Python 3.12 if needed):
+
+   ```bash
+   git clone https://github.com/BenTsai0212/mpc-iml-toolkit.git
+   cd mpc-iml-toolkit
+   uv sync
+   ```
+
+   If macOS asks to install the command line developer tools for `git`, accept
+   and run `git clone` again afterwards.
+
+3. Set up the MPC Sample: connect it to the Mac over USB, then in its MIDI
+   settings set **MIDI Port** to **USB** and **Pad MIDI Out** to **Always**, and
+   turn **Full Level** off (with Full Level on every velocity is 127, so soft and
+   hard cannot be told apart).
+
+4. Start the receiver in its own terminal window and leave it open. It prints a
+   line each time the class changes:
+
+   ```bash
+   cd mpc-iml-toolkit
+   uv run python -m mpc_iml.demo listen
+   ```
+
+   Optional, to hear the result: install [Pure Data](https://puredata.info)
+   (vanilla; the patch was written for Pd 0.54) from its website or with
+   `brew install --cask pd`, open `examples/reference/receiver.pd` and turn the
+   volume up. Soft plays 220 Hz, hard 440 Hz, rest is silent. Pd and the terminal
+   receiver cannot both listen on port 12000: to use Pd, close the terminal
+   receiver with Ctrl-C (or run both on different ports with `--osc-port`).
+
+5. Record the examples in the first window. For each class the terminal says what
+   to do and counts down 3 seconds, then records 3 seconds: for **rest** do not
+   touch the pads; for **soft** press and hold pad 1 lightly before the countdown
+   ends and keep holding until the next prompt; for **hard** do the same, firmly.
+
+   ```bash
+   uv run python -m mpc_iml.demo record examples.jsonl --no-full-level
+   ```
+
+   `--seconds` and `--countdown` change the timing. Run it again to start over.
+
+6. Train and run live. The command trains on `examples.jsonl`, then reads the pads
+   until Ctrl-C. Hold pad 1 lightly, then firmly, then let go: the receiver shows
+   2 soft, 3 hard, 1 rest.
+
+   ```bash
+   uv run python -m mpc_iml.demo run examples.jsonl
+   ```
+
+Without an MPC, the same example runs from recordings in `tests/data/` (the replay
+path that CI tests). Start the receiver as in step 4, then:
+
+```bash
+uv run python -m mpc_iml.demo run tests/data/demo_examples.jsonl --replay tests/data/demo_performance.jsonl
+```
+
+The replay plays soft, hard and rest in about 2.5 seconds. `--replay` also takes
+your own recording from `python -m mpc_iml.record`. If the MPC is not found, the
+command lists the MIDI input ports it sees; `--port` picks another port by part of
+its name.
+
+The demo uses its own features (`played_features`, 32 values: per pad, velocity
+while held and pressure) rather than the default 49, which keep a pad's last
+velocity after it is released. It does not send `/wek/inputs`.
 
 ## Development
 
