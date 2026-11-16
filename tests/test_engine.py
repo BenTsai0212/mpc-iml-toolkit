@@ -2,7 +2,9 @@
 
 Each test starts an engine on free ports, sends OSC control messages and checks the
 replies on a reply socket. Gestures come from the recorded MPC fixtures replayed in
-real time (`LoopingReplay`), never from the MPC.
+real time (`LoopingReplay`), never from the MPC. Tests that compare recorded and
+saved examples use `SteppedReplay` instead: the test moves its clock, so which frames
+are recorded and which are dropped does not depend on machine load (#73).
 """
 
 import dataclasses
@@ -20,8 +22,10 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from mpc_iml import __version__
 from mpc_iml.demo import PRESET as DEMO
-from mpc_iml.engine import ALLOWED, Engine, build_parser
+from mpc_iml.engine import ALLOWED, Engine, _transition, build_parser
 from mpc_iml.events import Event
+from mpc_iml.examples import labelled_frames
+from mpc_iml.frames import DEFAULT_RATE, PADS, Frame, PadState
 from mpc_iml.presets import Preset, PresetError, available_presets
 from mpc_iml.recording import read_recording
 from mpc_iml.sklearn_backend import Classifier, Regressor
@@ -67,6 +71,51 @@ class LoopingReplay:
 
     def done(self) -> bool:
         return False
+
+
+class SteppedReplay(LoopingReplay):
+    """`LoopingReplay` on a clock that only the test moves, one `advance` at a time.
+
+    The engine's frame loop yields one frame per `advance`, the latest one due, and
+    drops the frames skipped in between, as when the machine is busy (#39).
+    `advance` returns once that frame has been handled.
+    """
+
+    def __init__(self, path: Path, rate: float = DEFAULT_RATE) -> None:
+        super().__init__(path)
+        self.rate = rate
+        self._k = 0
+        self._seen = 0
+        self._waiting_at: int | None = None
+        self._changed = threading.Condition()
+
+    def start(self) -> None:
+        pass
+
+    def now(self) -> float:
+        with self._changed:
+            self._seen = self._k
+            return self._k / self.rate
+
+    def sleep(self, seconds: float) -> None:
+        with self._changed:
+            if self._seen != self._k:
+                return
+            self._waiting_at = self._k
+            self._changed.notify_all()
+            self._changed.wait(0.05)
+
+    def advance(self, frames: int = 1) -> None:
+        """Move the clock by `frames` frame intervals; wait until the loop catches up."""
+        with self._changed:
+            self._k += frames
+            target = self._k
+            self._changed.notify_all()
+            assert self._changed.wait_for(lambda: self._waiting_at == target, TIMEOUT)
+
+
+DROPS = (1, 3, 1, 1, 5, 2, 1, 4, 1, 1) * 3
+"""Clock steps for a take: a step of `n` frames drops `n - 1` of them."""
 
 
 class Receiver:
@@ -210,6 +259,16 @@ def record(front: Front, seconds: float = 0.3) -> list[Any]:
     front.send("/mpciml/record/start")
     assert front.expect("/mpciml/state") == ["recording"]
     time.sleep(seconds)
+    front.send("/mpciml/record/stop")
+    return front.expect("/mpciml/counts")
+
+
+def record_steps(front: Front, source: SteppedReplay, steps: Sequence[int] = DROPS) -> list[Any]:
+    """Record one take while moving the clock by `steps`; one frame is kept per step."""
+    front.send("/mpciml/record/start")
+    assert front.expect("/mpciml/state") == ["recording"]
+    for frames in steps:
+        source.advance(frames)
     front.send("/mpciml/record/stop")
     return front.expect("/mpciml/counts")
 
@@ -394,11 +453,14 @@ def test_retrain_while_running(start: Any) -> None:
 
 
 def test_delete_clear_save_list_load(start: Any) -> None:
-    front = start(LoopingReplay(HOLD))
+    source = SteppedReplay(HOLD)
+    front = start(source)
+    source.advance(180)
     front.send("/mpciml/class", "hard")
-    record(front)
+    record_steps(front, source)
     front.send("/mpciml/class", "soft")
-    counts = record(front)
+    counts = record_steps(front, source, (2,) * 33)
+    assert counts == ["rest", 0, "soft", 33, "hard", len(DROPS)]
     before = list(front.engine.examples.examples)
 
     assert front.ask("/mpciml/examples/save", "take-1") == []
@@ -419,6 +481,58 @@ def test_delete_clear_save_list_load(start: Any) -> None:
     front.send("/mpciml/examples/save", "take-1")
     front.send("/mpciml/examples/load", "take-1")
     assert front.expect("/mpciml/counts") == ["rest", 0, "soft", counts[3], "hard", 0]
+
+
+def test_save_and_load_give_the_recorded_examples_when_frames_are_dropped(start: Any) -> None:
+    source = SteppedReplay(HOLD)
+    front = start(source)
+    source.advance(180)
+    for label in ("soft", "hard", "soft"):
+        front.send("/mpciml/class", label)
+        record_steps(front, source)
+    before = list(front.engine.examples.examples)
+    assert len(before) == 3 * len(DROPS) < 3 * sum(DROPS)
+    assert len({e.features for e in before}) > 10
+
+    assert front.ask("/mpciml/examples/save", "dropped") == []
+    front.send("/mpciml/examples/clear")
+    front.expect("/mpciml/counts")
+    front.send("/mpciml/examples/load", "dropped")
+    assert front.expect("/mpciml/counts") == ["rest", 0, "soft", 60, "hard", 30]
+    assert front.engine.examples.examples == before
+
+    saved = DEMO.example_set()
+    saved.add_recording(front.engine.data_dir / "dropped.jsonl")
+    assert saved.examples == before
+
+
+def _frame(bank: int, pressure: dict[int, int], velocity: dict[int, int], held: set[int]) -> Frame:
+    return Frame(
+        t=0.0,
+        pressure=tuple(pressure.get(p, 0) for p in range(PADS)),
+        velocity=tuple(velocity.get(p, 0) for p in range(PADS)),
+        held=tuple(p in held for p in range(PADS)),
+        bank=bank,
+    )
+
+
+def test_transition_events_replay_to_every_frame() -> None:
+    """Frames a real-time loop could give with frames dropped in between (#73)."""
+    wanted = [
+        _frame(0, {}, {}, set()),
+        _frame(0, {3: 40}, {3: 90}, {3}),
+        _frame(2, {3: 40, 5: 7}, {3: 90, 5: 20}, {3, 5}),
+        _frame(2, {5: 9}, {3: 90, 5: 20}, {5}),
+        _frame(4, {}, {3: 90, 5: 20}, set()),
+        _frame(4, {}, {3: 64, 5: 20}, {3}),
+        _frame(1, {}, {3: 64, 5: 20}, set()),
+        _frame(1, {2: 5}, {3: 64, 5: 20}, set()),
+    ]
+    state, events = PadState(), []
+    for k, frame in enumerate(wanted):
+        events += _transition(state, frame, k / DEFAULT_RATE)
+    replayed = [f for f, _ in labelled_frames(events)][: len(wanted)]
+    assert [dataclasses.replace(f, t=0.0) for f in replayed] == wanted
 
 
 def test_load_a_demo_recording(start: Any) -> None:

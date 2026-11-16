@@ -15,8 +15,9 @@ Gesture input is read continuously from one event source (the MPC, or a recordin
 with `--replay`), so the pad state is known before `record/start`. Recording keeps
 the frames between `record/start` and `record/stop` as examples with the current
 class or targets. The example set is also kept as one recording (ADR 0002 format)
-for `examples/save`: each example is appended with the pad state at its start
-written as MIDI events, so loading the file gives the same examples.
+for `examples/save`: each recorded frame is written as the MIDI events that give its
+pad state, one frame interval apart, so loading the file gives the same examples,
+also when the real-time frame loop dropped late frames during a take (#73).
 
 Threads: control messages are handled one at a time on the server thread; frames
 are handled on the input thread; training runs on its own thread. A lock keeps them
@@ -30,7 +31,6 @@ import re
 import sys
 import threading
 import time
-from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -41,9 +41,17 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 from pythonosc.udp_client import UDPClient
 
 from mpc_iml import __version__
-from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, RawMidiEvent
+from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, MidiKind
 from mpc_iml.examples import ExampleError, ExampleSet
-from mpc_iml.frames import DEFAULT_RATE, PADS, Frame, bank_pad_to_note, frames, realtime_frames
+from mpc_iml.frames import (
+    DEFAULT_RATE,
+    PADS,
+    Frame,
+    PadState,
+    bank_pad_to_note,
+    frames,
+    realtime_frames,
+)
 from mpc_iml.loop import FanOut, IMLLoop, ValuesSender
 from mpc_iml.midi_out import MidiCcSender, MidiOutputBackend, RtMidiOutBackend
 from mpc_iml.osc import DEFAULT_HOST, INPUTS_ADDRESS, INPUTS_PORT, OscSender
@@ -150,55 +158,36 @@ def _name(args: Sequence[Any]) -> str:
     return value
 
 
-def _prelude(frame: Frame, t: float) -> list[Event]:
-    """MIDI events at `t` that give the pad state of `frame` when replayed.
+def _transition(state: PadState, frame: Frame, t: float) -> list[Event]:
+    """MIDI events at `t` that turn `state` into the pad state of `frame`.
 
-    A pad's velocity cannot return to 0 once set, so a pad never hit at `frame`
-    keeps any velocity set earlier in the recording.
+    `state` is updated with the events. A pad's velocity cannot return to 0 once
+    set, so a pad never hit at `frame` keeps any velocity set earlier in the
+    recording (ADR 0004, clarification 10); everything else matches `frame`.
     """
     events: list[Event] = []
+
+    def emit(kind: MidiKind, pad: int, value: int) -> None:
+        event = MidiEvent(t, kind, 1, value, note=bank_pad_to_note(frame.bank, pad))
+        state.apply(event)
+        events.append(event)
+
     for pad in range(PADS):
-        note = bank_pad_to_note(frame.bank, pad)
-        velocity, held, pressure = frame.velocity[pad], frame.held[pad], frame.pressure[pad]
-        if velocity == 0 or held:
-            events.append(MidiEvent(t, "note_off", 1, 0, note=note))
-        if velocity > 0:
-            events.append(MidiEvent(t, "note_on", 1, velocity, note=note))
-            if not held:
-                events.append(MidiEvent(t, "note_off", 1, 0, note=note))
-        if pressure > 0:
-            events.append(MidiEvent(t, "poly_pressure", 1, pressure, note=note))
+        velocity, held = frame.velocity[pad], frame.held[pad]
+        if velocity > 0 and (state.velocity[pad] != velocity or (held and not state.held[pad])):
+            emit("note_on", pad, velocity)
+        if state.held[pad] and not held:
+            emit("note_off", pad, 0)
+    if state.bank != frame.bank:
+        hit = [pad for pad in range(PADS) if frame.velocity[pad] > 0]
+        if hit:
+            emit("note_on", hit[0], frame.velocity[hit[0]])
+            if not frame.held[hit[0]]:
+                emit("note_off", hit[0], 0)
+    for pad in range(PADS):
+        if state.pressure[pad] != frame.pressure[pad]:
+            emit("poly_pressure", pad, frame.pressure[pad])
     return events
-
-
-class _Capture:
-    """A real-time source that also passes every polled event to `sink`."""
-
-    def __init__(self, source: ClockedSource, sink: Callable[[Event], None]) -> None:
-        self._source = source
-        self._sink = sink
-
-    @property
-    def realtime(self) -> bool:
-        return self._source.realtime
-
-    def start(self) -> None:
-        self._source.start()
-
-    def now(self) -> float:
-        return self._source.now()
-
-    def poll(self) -> Event | None:
-        event = self._source.poll()
-        if event is not None:
-            self._sink(event)
-        return event
-
-    def sleep(self, seconds: float) -> None:
-        self._source.sleep(seconds)
-
-    def done(self) -> bool:
-        return self._source.done()
 
 
 class Engine:
@@ -250,8 +239,6 @@ class Engine:
         self._label: str | None = None
         self._targets: tuple[float, ...] | None = None
         self._take: list[Frame] = []
-        self._take_events: list[Event] = []
-        self._heard: deque[Event] = deque()
         self._timeline: list[Event] = []
         self._trained = False
         self._train_thread: threading.Thread | None = None
@@ -400,17 +387,16 @@ class Engine:
         if self._label is None and self._targets is None:
             raise ControlError("bad_arguments", "send /mpciml/class or /mpciml/targets first")
         self._check_task(self._label, self._targets)
-        self._take, self._take_events = [], []
+        self._take = []
         self._set_state(RECORDING)
 
     def _record_stop(self, args: list[Any]) -> None:
         _check_count(args, 0, 0)
-        take, events = self._take, self._take_events
-        self._take, self._take_events = [], []
+        take, self._take = self._take, []
         for frame in take:
             self._examples.add(frame, self._label, self._targets)
         if take:
-            self._append_take(take, events)
+            self._append_take(take)
         self._set_state(IDLE)
         self._counts()
 
@@ -514,7 +500,7 @@ class Engine:
         _check_count(args, 0, 0)
         if self._state == IDLE:
             return
-        self._take, self._take_events = [], []
+        self._take = []
         self._set_state(IDLE)
 
     def _preset_list(self, args: list[Any]) -> None:
@@ -649,25 +635,24 @@ class Engine:
             if len(targets) != len(first.targets):
                 raise ControlError("bad_arguments", f"expected {len(first.targets)} target values")
 
-    def _append_take(self, take: list[Frame], events: list[Event]) -> None:
-        """Append a recorded example to the timeline that `examples/save` writes."""
+    def _append_take(self, take: list[Frame]) -> None:
+        """Append a recorded example to the timeline that `examples/save` writes.
+
+        Frame `i` of the take is written at frame time `(k + i) / rate`, so replaying
+        the timeline gives exactly the frames of the take, one per frame interval,
+        whatever their times were: the real-time loop may have dropped frames in
+        between (#73). Frame `k - 1` is outside every example.
+        """
         rate = self._rate
+        state = PadState()
+        for event in self._timeline:
+            state.apply(event)
         last = self._timeline[-1].t if self._timeline else None
         k = 0 if last is None else math.floor(last * rate) + 2
-        start = k / rate
-        shift = start - take[0].t
-        self._timeline += _prelude(take[0], start)
-        self._timeline.append(ExampleStart(start, self._label, self._targets))
-        for event in events:
-            match event:
-                case MidiEvent():
-                    self._timeline.append(MidiEvent(
-                        event.t + shift, event.kind, event.channel, event.value,
-                        event.note, event.control,
-                    ))  # fmt: skip
-                case RawMidiEvent():
-                    self._timeline.append(RawMidiEvent(event.t + shift, event.data))
-        self._timeline.append(ExampleEnd(start + (len(take) - 0.5) / rate))
+        self._timeline.append(ExampleStart(k / rate, self._label, self._targets))
+        for i, frame in enumerate(take):
+            self._timeline += _transition(state, frame, (k + i) / rate)
+        self._timeline.append(ExampleEnd((k + len(take) - 0.5) / rate))
 
     def _build_loop(self, preset: Preset, examples: ExampleSet) -> IMLLoop:
         senders: list[ValuesSender] = []
@@ -739,27 +724,16 @@ class Engine:
     def _frames(self) -> Iterator[Frame]:
         source = self._source
         if isinstance(source, ClockedSource) and source.realtime:
-            capture = _Capture(source, self._heard.append)
-            yield from realtime_frames(capture, self._rate, stop=self._closing.is_set)
+            yield from realtime_frames(source, self._rate, stop=self._closing.is_set)
         elif isinstance(source, Iterable):
-            for frame in frames(self._tee(source), self._rate):
+            for frame in frames(source, self._rate):
                 if self._closing.is_set():
                     return
                 yield frame
 
-    def _tee(self, events: Iterable[Event]) -> Iterator[Event]:
-        for event in events:
-            self._heard.append(event)
-            yield event
-
     def _on_frame(self, frame: Frame) -> None:
-        applied: list[Event] = []
-        while self._heard and self._heard[0].t <= frame.t:
-            applied.append(self._heard.popleft())
         with self._lock:
             if self._state == RECORDING:
-                if self._take:
-                    self._take_events += applied
                 self._take.append(frame)
             elif self._state == RUNNING:
                 try:
