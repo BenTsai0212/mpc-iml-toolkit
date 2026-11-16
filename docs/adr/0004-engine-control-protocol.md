@@ -177,7 +177,8 @@ Which messages each state accepts (✓ accepted, ✗ `wrong_state`):
 - The engine forwards a message there only when `<name>` is the active preset;
   otherwise it sends the error `inactive_preset`.
 - A preset's controls map to `/mpciml/preset/<name>/<control>`. The plugin interface
-  (#63) keeps its `controls` field provisional until this ADR is accepted.
+  (#63) keeps its `controls` field provisional until preset controls have a reply
+  channel (see clarification 6 and Follow-up work).
 - A preset's messages are versioned by the preset version reported in
   `/mpciml/preset`, not by the protocol version, so a preset can change without a
   new protocol major.
