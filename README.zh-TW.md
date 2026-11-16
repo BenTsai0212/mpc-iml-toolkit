@@ -17,7 +17,9 @@
 
 ## 目前狀態
 
-第一階段（Foundation）初期。目前只有套件骨架與開發環境設定，尚無工具包功能，
+第一階段（Foundation）初期。目前只有依 Wekinator 預設的 OSC sender（`mpc_iml.osc`；
+`/wek/inputs` 送到 6448 埠、`/wek/outputs` 送到 12000 埠，見
+[ADR 0002](docs/adr/0002-recording-and-osc-formats.md)）。MIDI 輸入、錄製與模型尚未實作，
 套件也尚未發布。第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 
 ## 開發
