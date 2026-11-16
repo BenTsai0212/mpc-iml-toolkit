@@ -1,8 +1,8 @@
 # ADR 0004: Engine control protocol
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-16
-- Related: RFC 0002, ADR 0002, #61 (Epic), #62, #63
+- Related: RFC 0002, ADR 0002, #61 (Epic), #62, #63, #64, #69
 
 ## Context
 
@@ -12,8 +12,8 @@ app) only send and receive OSC control messages, so the control protocol is a
 public, versioned interface. ADR 0002 already fixes the data output (`/wek/inputs`
 and `/wek/outputs`) and left Wekinator control messages out of Phase 1.
 
-This ADR records the protocol, version 1.0. It stays `Proposed` until the engine
-implementation confirms it.
+This ADR records the protocol, version 1.0. It stayed `Proposed` until the engine
+implementation (#64, #69) confirmed it.
 
 ## Options
 
@@ -177,7 +177,8 @@ Which messages each state accepts (✓ accepted, ✗ `wrong_state`):
 - The engine forwards a message there only when `<name>` is the active preset;
   otherwise it sends the error `inactive_preset`.
 - A preset's controls map to `/mpciml/preset/<name>/<control>`. The plugin interface
-  (#63) keeps its `controls` field provisional until this ADR is accepted.
+  (#63) keeps its `controls` field provisional until preset controls have a reply
+  channel (see clarification 6 and Follow-up work).
 - A preset's messages are versioned by the preset version reported in
   `/mpciml/preset`, not by the protocol version, so a preset can change without a
   new protocol major.
@@ -196,6 +197,40 @@ problem produces one `/mpciml/error` with a code from this list:
 | `not_found` | Unknown preset or saved example set |
 | `version_mismatch` | `hello` with a different major version |
 | `inactive_preset` | A message to the subtree of a preset that is not active |
+
+### Clarifications from the implementation
+
+The engine (#64, #69) implemented every message, reply, state rule and error code
+above as written. Where this ADR was silent, it behaves as follows; none of these
+changes a message, reply, state rule or error code.
+
+1. `record/start` with no class or targets set: `bad_arguments` ("send
+   /mpciml/class or /mpciml/targets first").
+2. Internal failures (for example a disk error during `examples/save`):
+   `bad_arguments` with the text `internal error: …`. The engine does not crash.
+3. A saved set that cannot be read or does not fit the preset (wrong format,
+   classification mixed with regression): `bad_arguments`. `not_found` is used only
+   when the file is missing.
+4. A preset with `model_factory=None` (Wekinator as the model) cannot `run` in 1.0:
+   `run` needs a trained model, and `train` replies `train/failed`.
+5. `stop` during a retrain in `running` waits for the training to finish before
+   going `idle`, so no training runs in the background in `idle`.
+6. Preset controls: an unknown control under the active preset gets
+   `unknown_message`; a handler that raises gets `bad_arguments`. Preset replies
+   under the subtree are not possible yet, because the provisional `controls` type
+   has no reply channel.
+7. Argument types: integer arguments (the `hello` major version and reply port)
+   also accept a float with a whole-number value, such as `1.0`, because Pure Data
+   sends numbers as floats without a type tag; a float that is not a whole number is
+   `bad_arguments`. `targets` also accepts `i` values.
+8. `stop` in `idle`, `class` and `targets` send no reply. `train` with no examples
+   replies `train/failed` without entering `training`.
+9. `counts` lists every known class in class-number order, including classes with 0
+   examples (a preset's fixed classes, deleted labels).
+10. Saved example sets use the ADR 0002 recording format, in which a pad's velocity
+    cannot return to 0 once set. So a pad not hit at the start of a later example in
+    the same file keeps a velocity from earlier in the file. This only affects
+    features that use the velocity of released pads.
 
 ## Consequences
 
@@ -218,7 +253,11 @@ Costs:
 
 Follow-up work:
 
-- Implement the engine and its replay tests against this protocol (Epic #61), then
-  move this ADR to `Accepted`.
+- Done: the engine and its replay tests implement this protocol (#64, #69), and this
+  ADR is `Accepted`.
+- Open, for a minor protocol version (recorded in a new ADR): an error code for
+  internal failures, instead of `bad_arguments` (clarification 2), and a reply
+  channel for preset controls, so presets can reply under their subtree
+  (clarification 6).
 - Build the reference Pure Data front end on ports 6450/6451.
 - Finalise the `controls` field of the plugin interface (#63).
