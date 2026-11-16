@@ -1,6 +1,6 @@
 [project]
 name = "mpc-iml-toolkit"
-version = "0.0.0"
+version = "0.1.0"
 description = "Base toolkit for interactive machine learning with an Akai MPC Sample and a Mac."
 readme = "README.md"
 requires-python = "==3.12.*"

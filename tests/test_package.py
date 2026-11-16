@@ -4,7 +4,7 @@ import mpc_iml
 
 
 def test_version() -> None:
-    assert mpc_iml.__version__ == "0.0.0"
+    assert mpc_iml.__version__ == "0.1.0"
 
 
 @pytest.mark.hardware

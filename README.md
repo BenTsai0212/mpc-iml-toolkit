@@ -19,7 +19,8 @@ output over OSC to any synthesiser, Max, Pure Data or nn~. See
 
 ## Status
 
-Phase 1 (Foundation), early. To try the whole loop, follow the
+`v0.1.0` is the first release (see the [changelog](CHANGELOG.md)); interfaces may
+still change in 0.x. Phase 1 (Foundation). To try the whole loop, follow the
 [reference example](#reference-example). So far the toolkit has:
 
 - an OSC sender (`mpc_iml.osc`) that follows Wekinator's defaults (`/wek/inputs`
@@ -183,10 +184,9 @@ README. The package name comes from the directory name (`--name` overrides it).
 uv run python -m mpc_iml.new ../my-practice
 ```
 
-No tag exists yet: the current version is `0.0.0` and the pin `v0.0.0` is not
-installable until the first release is tagged. Until then, in the new project, point
-the dependency at a local checkout with `uv add --editable <path to mpc-iml-toolkit>`,
-then `uv sync`.
+In the new project, `uv sync` installs the pinned release. To work against a local
+checkout of the toolkit instead, run `uv add --editable <path to mpc-iml-toolkit>`
+in the new project, then `uv sync`.
 
 ## Development
 

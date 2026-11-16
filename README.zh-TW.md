@@ -17,7 +17,8 @@
 
 ## 目前狀態
 
-第一階段（Foundation）初期。要試跑整個迴圈，請依[參考範例](#參考範例)操作。目前有：
+`v0.1.0` 是第一個版本（見英文的 [changelog](CHANGELOG.md)）；0.x 期間介面仍可能變動。
+第一階段（Foundation）。要試跑整個迴圈，請依[參考範例](#參考範例)操作。目前有：
 
 - 依 Wekinator 預設的 OSC sender（`mpc_iml.osc`；`/wek/inputs` 送到 6448 埠、
   `/wek/outputs` 送到 12000 埠）；
@@ -162,9 +163,8 @@ README。套件名稱取自資料夾名稱（可用 `--name` 指定）。
 uv run python -m mpc_iml.new ../my-practice
 ```
 
-目前還沒有 tag：版本是 `0.0.0`，在第一個版本加上 tag 之前，`v0.0.0` 的固定版本無法安裝。
-在那之前，請在新專案中以 `uv add --editable <mpc-iml-toolkit 的路徑>` 改指向本機的
-checkout，再執行 `uv sync`。
+在新專案中執行 `uv sync` 即可安裝固定的版本。若要改用本機的工具包 checkout，請在新專案中
+執行 `uv add --editable <mpc-iml-toolkit 的路徑>`，再執行 `uv sync`。
 
 ## 開發
 
