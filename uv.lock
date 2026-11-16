@@ -110,7 +110,7 @@ wheels = [
 
 [[package]]
 name = "mpc-iml-toolkit"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "python-osc" },
