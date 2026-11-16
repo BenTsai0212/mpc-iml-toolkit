@@ -14,7 +14,7 @@
 你被指派的 Issue（驗收條件就是完成標準），以及 `docs/rfcs/` 的 RFC 0001（專案章程）與 `docs/adr/README.md` 的 ADR 索引（ADR 0001：技術選型；已定的方向不要「改正」）。
 
 ## 2. 指令
-Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 依序執行下列前五項。各 workflow 工具的參數與說明見 `tools/workflow/README.md`。
+Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu 與 macOS（`ubuntu-latest`、`macos-latest`）上各自依序執行下列前五項。各 workflow 工具的參數與說明見 `tools/workflow/README.md`。
 - workflow 工具測試：`npm test --prefix tools/workflow`
 - 安裝：`uv sync --locked`（改 `pyproject.toml` 的相依套件後執行 `uv lock`，並 commit `uv.lock`）
 - lint 與格式：`uv run ruff check`、`uv run ruff format --check`（修正格式：`uv run ruff format`）
