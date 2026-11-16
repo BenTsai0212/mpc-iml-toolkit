@@ -220,4 +220,5 @@ English.
 
 [MIT](LICENSE). Optional extensions such as RAVE and nn~ have their own licences
 (CC BY-NC 4.0, non-commercial only) and are never bundled with or required by the
-toolkit.
+toolkit. The licences of the runtime dependencies are listed in
+[docs/licenses.md](docs/licenses.md).

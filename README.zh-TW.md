@@ -197,3 +197,4 @@ workflow 文件與 `AGENTS.md` 以繁體中文撰寫；Issue、pull request 與 
 
 [MIT](LICENSE)。RAVE、nn~ 等選用擴充有各自的授權（CC BY-NC 4.0，僅限非商業用途），
 工具包不會內含或要求安裝它們。
+執行時相依套件的授權列在 [docs/licenses.md](docs/licenses.md)（英文）。
