@@ -10,6 +10,12 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Added
 
+- Engine protocol 1.2 (ADR 0006, #66): the reply `/mpciml/layout <targets>
+  <controllers>`, sent after `/mpciml/preset` on `preset/load` and in the full state,
+  tells a front end the active preset's number of target values (0 when not
+  declared) and MIDI controllers (0 without MIDI output). ADR 0006 also records the
+  shared spec for the Pure Data and Max for Live front ends (groups, button names
+  and order, the status line for errors). Front ends for 1.0 and 1.1 keep working.
 - `mpc_iml.examples.pressure_features`: 16 values, per pad, pressure (0-1), without
   velocity or the held flag (#76).
 

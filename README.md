@@ -193,7 +193,8 @@ uses it.
 The engine is a long-running IML loop that a front end (Pure Data, Max, later an
 app) drives with OSC control messages; the protocol is
 [ADR 0004](docs/adr/0004-engine-control-protocol.md), version 1.1 in
-[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md). Start it with a folder for
+[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md) and 1.2 in
+[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md). Start it with a folder for
 its saved example sets, with the MPC connected as in the
 [reference example](#reference-example):
 
@@ -222,7 +223,10 @@ recording); the engine writes nothing outside that folder. Every message gets a
 reply, a state report or an `/mpciml/error`. For a preset with MIDI output,
 `/mpciml/midi/learn <output>` (1 for its first controller), in `idle` or `training`,
 sends a short sweep on that one controller so a DAW can learn it, and answers
-`/mpciml/midi/sent <output> <controller>`. Ctrl-C stops the engine: input and
+`/mpciml/midi/sent <output> <controller>`. With the preset, the engine reports
+`/mpciml/layout <targets> <controllers>`: the preset's number of target values (0 for
+classification) and MIDI controllers (0 without MIDI output), so a front end shows
+the right controls. Ctrl-C stops the engine: input and
 sockets are closed and a training in progress is finished first.
 
 ## Play the pressure preset

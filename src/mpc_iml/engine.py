@@ -8,6 +8,8 @@ declared output, OSC (`OscOutput`) and MIDI control changes (`MidiCcOutput`, on 
 virtual port, or an existing port with `--midi-port`). An output that cannot be
 opened is logged and skipped; the others keep working. `/mpciml/midi/learn` sends
 one MIDI controller on its own so a DAW can learn it (protocol 1.1, ADR 0005).
+`/mpciml/layout` tells a front end the active preset's number of targets and MIDI
+controllers, so it can show the right controls (protocol 1.2, ADR 0006).
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -76,8 +78,8 @@ __all__ = [
     "main",
 ]
 
-PROTOCOL_VERSION = (1, 1)
-"""Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005)."""
+PROTOCOL_VERSION = (1, 2)
+"""Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005; 1.2 in ADR 0006)."""
 
 CONTROL_PORT = 6450
 """Default port the engine listens on for control messages."""
@@ -530,6 +532,7 @@ class Engine:
             self._timeline = []
             self._label, self._targets = None, None
         self._send("preset", self._preset.name, self._preset.version)
+        self._layout()
         self._counts()
         self._report_trained()
 
@@ -606,6 +609,12 @@ class Engine:
             pairs += [label, tally.get(label, 0)]
         self._send("counts", *pairs)
 
+    def _layout(self) -> None:
+        """`/mpciml/layout`: the preset's targets (0 if not declared) and MIDI controllers."""
+        midi = next((o for o in self._preset.outputs if isinstance(o, MidiCcOutput)), None)
+        controllers = len(midi.controllers) if midi is not None else 0
+        self._send("layout", self._preset.targets or 0, controllers)
+
     def _report_trained(self, always: bool = False) -> None:
         trained = self._loop.model is not None
         if always or trained != self._trained:
@@ -615,6 +624,7 @@ class Engine:
     def _full_state(self) -> None:
         self._send("state", self._state)
         self._send("preset", self._preset.name, self._preset.version)
+        self._layout()
         self._counts()
         self._report_trained(always=True)
 

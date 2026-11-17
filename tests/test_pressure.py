@@ -622,6 +622,16 @@ def test_engine_save_and_load_give_the_same_examples(engines: Any) -> None:
 UP = [0, 32, 64, 96, 127]
 
 
+def test_layout_has_eight_targets_and_eight_controllers(engines: Any) -> None:
+    front, _ = engines(None, FakeMidiOut())
+    front.send("/mpciml/hello", 1)
+    assert front.expect("/mpciml/layout") == [8, 8]
+    # Declared, so also when the MIDI port cannot open (ADR 0006).
+    failing, _ = engines(None, FakeMidiOut(fail=True))
+    failing.send("/mpciml/state/get")
+    assert failing.expect("/mpciml/layout") == [8, 8]
+
+
 def test_midi_learn_sends_only_the_chosen_controller(engines: Any) -> None:
     backend = FakeMidiOut()
     front, _ = engines(LoopingReplay(HOLD), backend)

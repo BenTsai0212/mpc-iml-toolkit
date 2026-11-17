@@ -44,3 +44,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | [0003](0003-early-publication-and-cloud-execution.md) | Early publication and cloud execution | Accepted |
 | [0004](0004-engine-control-protocol.md) | Engine control protocol | Accepted |
 | [0005](0005-engine-protocol-1-1-midi-learn.md) | Engine protocol 1.1: MIDI learn | Accepted |
+| [0006](0006-engine-protocol-1-2-layout-and-front-ends.md) | Engine protocol 1.2: preset layout, and the shared front-end spec | Proposed |
