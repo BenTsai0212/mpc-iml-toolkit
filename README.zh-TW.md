@@ -208,7 +208,7 @@ vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開�
 engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 7 組 **Messages** 的狀態列，不只在 Pd 視窗。
 
 `uv run mpc-iml` 的選項：指令後加資料夾名稱改用其他資料夾（`uv run mpc-iml my-data`）；
-`--no-patch` 只啟動 engine，給 Max for Live 裝置（#86）或自己的前端使用；其他選項與 engine
+`--no-patch` 只啟動 engine，給 [Max for Live 裝置](#使用-max-for-live-裝置)或自己的前端使用；其他選項與 engine
 相同（`--preset`、`--replay`、`--midi-port IAC`、各埠號；見[執行 engine](#執行-engine)）。
 
 ## 執行 engine
@@ -337,6 +337,69 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 - 沒有持續施力的快速輕敲幾乎沒有作用。
 
 輸出沒有平滑處理；若演奏時確實有影響，之後再加入。
+
+## 使用 Max for Live 裝置
+
+Max for Live 裝置讓你不離開 Ableton Live 就能錄範例、訓練、執行與對應模型。它和 Pure Data
+前端有相同的 7 組、按鈕名稱與順序（ADR 0006），所以[20 分鐘開始演奏](#20-分鐘開始演奏)的步驟
+同樣適用；只有啟動與安裝不同。這個裝置還沒有在 Live 中確認過（#86）。
+
+需要 Live Suite，或 Live Standard 加上 Max for Live；[參考範例](#參考範例)的設定（第 1～3 步）；
+以及[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 的 Live 設定（MPC Sample 開啟 **Track**，
+`mpc-iml` 開啟 **Remote**）。
+
+這個裝置是 Max MIDI Effect：放在 MPC Sample 的 MIDI 音軌上、樂器前面，pad 的 MIDI 原樣通過。
+它和 Pure Data 前端用相同的埠號（6450、6451 與 12000）以 OSC 與 engine 溝通，所以兩者一次只能
+執行一個：Live set 中有這個裝置時，關閉 `mpc-iml.pd` 與 `pressure.pd`。它只用標準的 Max 物件，
+不需要 external。
+
+### 安裝裝置
+
+repo 中有裝置的原始檔 `src/mpc_iml/patches/mpc-iml.maxpat`（由 `tools/m4l/build_device.py`
+產生的 Max patcher）。在加入現成的 `mpc-iml.amxd` 之前，先用它建立一次裝置：
+
+1. 在 Live 的瀏覽器中，從 Max for Live 把 **Max MIDI Effect** 拖到 MPC Sample 的 MIDI 音軌上、
+   樂器前面。
+2. 按裝置的編輯按鈕，在 Max 中開啟它。全選原有的物件（Cmd-A）並刪除：它們讓 MIDI 通過，
+   而這個裝置自己會做。
+3. 在 Max 開啟 `src/mpc_iml/patches/mpc-iml.maxpat`（File > Open），全選（Cmd-A）、複製
+   （Cmd-C）後關閉，再貼上（Cmd-V）到裝置的視窗。
+4. 在裝置視窗的 Patcher Inspector 開啟 **Open in Presentation**，讓 Live 顯示控制項而不是
+   接線。
+5. 另存為 `mpc-iml.amxd`（File > Save As），例如存在 User Library，再關閉 Max。下次從 User
+   Library 把 `mpc-iml.amxd` 拖到音軌上即可。
+
+### 用裝置演奏
+
+1. 在 `mpc-iml-toolkit` 資料夾只啟動 engine，終端機視窗保持開啟：
+
+   ```bash
+   uv run mpc-iml --no-patch
+   ```
+
+   加上 `--preset pressure` 會以這個 preset 啟動；也可以在裝置中選擇。
+
+2. 開啟 MPC Sample 音軌上有這個裝置的 Live set。裝置載入時會自動連線：第 1 組 **Connect**
+   顯示 protocol 與 engine 版本、preset 與 `state` `idle`。如果一直是 `-`，按 `connect`（例如
+   重新啟動 engine 之後）；`ping` 確認 engine 有回應。從選單選擇 preset。
+
+3. 第 2 組 **Teach** 依 preset 變化。`pressure`：目標值滑桿 `t1`～`t8`。分類 preset（例如
+   `demo`）：`class` 欄位與類別按鈕 `c1`～`c8`。
+
+4. 錄範例、訓練與執行的方式同[20 分鐘開始演奏](#20-分鐘開始演奏)第 3、4 步：第 3 組
+   **Examples** 的 `record` 與 `stop recording`，第 4 組 **Model** 的 `train`、`run` 與
+   `stop`。第 6 組 **Outputs** 以長條顯示模型輸出 `o1`～`o8`（`demo` 顯示預測的類別）。
+
+5. 在狀態為 `idle` 時一次對應一個 CC：在 Live 進入 MIDI Map Mode（Cmd-M），點選輸出 1 要控制
+   的參數，按裝置的 `l1`，再離開 MIDI Map Mode。裝置顯示 `output 1 on CC 20`。對 `l2`～`l8`
+   重複。之後按 `run`，從 MPC Sample 演奏樂器。
+
+6. 第 5 組 **Library** 的 `save` 以 `name` 欄位的名稱（預設 `pressure-examples`）把範例存在
+   engine 的資料夾 `mpc-iml-data`；`load` 載回，`list` 顯示已存的名稱。
+
+engine 的錯誤顯示在第 7 組 **Messages** 的狀態列，不只在 Max 視窗。裝置本身不把輸出對應到
+Live 的參數（沒有 `live.remote~`）：控制參數仍是透過 engine 在 `mpc-iml` 送出的 CC，在其他
+DAW 也一樣。
 
 ## 撰寫 preset
 

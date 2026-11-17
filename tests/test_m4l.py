@@ -8,6 +8,7 @@ are also replayed to a real engine. Loading the device in Live is checked by han
 
 import importlib.util
 import json
+import re
 import threading
 from collections.abc import Iterator
 from importlib.resources import files
@@ -270,3 +271,36 @@ def test_the_engine_accepts_every_message(engine: Front) -> None:
                 assert code != "unknown_message", message
                 assert not (code == "bad_arguments" and text.startswith(SHAPE)), message
         engine.ask("/mpciml/stop")
+
+
+SECTIONS = {
+    "README.md": "## Use the Max for Live device",
+    "README.zh-TW.md": "## 使用 Max for Live 裝置",
+}
+
+
+def section(name: str) -> str:
+    text = (ROOT / name).read_text()
+    start = text.index(SECTIONS[name] + "\n")
+    end = text.index("\n## ", start + 1)
+    return text[start:end]
+
+
+@pytest.mark.parametrize("name", sorted(SECTIONS))
+def test_readme_explains_installing_and_using_the_device(name: str) -> None:
+    text = section(name)
+    assert "src/mpc_iml/patches/mpc-iml.maxpat" in text
+    assert "uv run mpc-iml --no-patch\n" in text
+    for control in ("connect", "record", "stop recording", "train", "run", "l1", "save"):
+        assert f"`{control}`" in text
+    for port in ("6450", "6451", "12000"):
+        assert port in text
+
+
+def test_readme_sections_have_the_same_steps() -> None:
+    texts = [section(name) for name in sorted(SECTIONS)]
+    steps = [re.findall(r"^(\d+)\. ", text, re.M) for text in texts]
+    prose = [re.sub(r"```.*?```", "", text, flags=re.S) for text in texts]
+    commands = [sorted(re.findall(r"`([^`]+)`", text)) for text in prose]
+    assert steps[0] == steps[1]
+    assert commands[0] == commands[1]
