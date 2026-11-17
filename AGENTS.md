@@ -21,6 +21,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 - 型別檢查：`uv run mypy`（strict，檢查 `src/`）
 - 測試：`uv run pytest`（預設略過 `@pytest.mark.hardware`）
 - 硬體測試：`uv run pytest -m hardware`（由人接上 MPC 後執行；agent 與 CI 不執行，對應 Issue 的 `needs-human` 待辦）
+- Max for Live 裝置：`uv run python tools/m4l/build_device.py` 重新產生 `src/mpc_iml/patches/mpc-iml.maxpat`（不要手改該檔；`tests/test_m4l.py` 比對兩者）
 - runner：`node tools/workflow/runner/agent-runner.mjs --dry-run`（試跑）、`--now`（由人執行一件；本 repo 未安裝排程）；見 `tools/workflow/runner/README.md`
 - 讀 Issue 與 PR：`node tools/workflow/read-trusted.mjs --issue N`／`--pr N`（只輸出可信身分的內容；見 `docs/workflow/agent-workflow.md` 第 0 步）
 - PR 描述檢查：`PR_BODY='Closes #1' PR_LABELS='[]' node tools/workflow/check-pr-body.mjs`
@@ -37,6 +38,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 | `pyproject.toml`、`uv.lock`、`.python-version` | 套件設定（套件名 `mpc-iml-toolkit`、MIT）、ruff／mypy／pytest 設定、鎖定的相依套件 |
 | `docs/workflow/` | 憲法與 workflow 手冊（繁體中文） |
 | `docs/rfcs/`、`docs/adr/` | 專案章程與決策紀錄 |
+| `tools/m4l/` | Max for Live 裝置的產生器（`build_device.py`，只用標準函式庫；輸出 `src/mpc_iml/patches/mpc-iml.maxpat`，Max MIDI Effect，控制項依 ADR 0006） |
 | `tools/workflow/` | workflow 工具（Node，無相依套件；說明見該資料夾的 README） |
 | `.claude/settings.json` | 在 `PreToolUse`（Bash）註冊合併與 push 到 main 的 hook（合併一律拒絕；push 到 main 本機確認、雲端拒絕）；`permissions.deny` 移除 GitHub MCP 的合併等工具 |
 | `templates/` | Claude Project 範本與預設不啟用的模組檔案 |
