@@ -429,12 +429,12 @@ to synthesiser parameters:
 
 Suggested mappings for the eight outputs of `pressure`, for any DAW and a typical
 subtractive synthesiser. The ranges are starting points; adjust them by ear. The
-Ableton Live starter set (#104) is a worked example once it exists.
+[Ableton Live starter set](#ableton-live-starter-set) is a worked example.
 
 | Output | CC | What it is for | Suggested target on a typical subtractive synth | Suggested range |
 | --- | --- | --- | --- | --- |
-| `brightness` | 20 | How open or dark the sound is | Filter cutoff | About 200 Hz to 12 kHz |
-| `resonance` | 21 | How sharply the filter rings at the cutoff | Filter resonance | 0 to about 70 % |
+| `brightness` | 20 | How open or dark the sound is | Filter cutoff | About 80 Hz to 16 kHz |
+| `resonance` | 21 | How sharply the filter rings at the cutoff | Filter resonance | 0 to about 85 % |
 | `drive` | 22 | Grit and added harmonics | Saturation or distortion amount | 0 to about 50 % |
 | `space` | 23 | How distant or roomy the sound is | Reverb send or wet | 0 to 60 % |
 | `motion` | 24 | How much the sound moves | LFO depth to pan, filter or amplitude | 0 to about 50 % |
