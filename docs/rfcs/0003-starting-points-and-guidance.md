@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-17
 - Related: RFC 0002, ADR 0004, ADR 0005, ADR 0006, #61, #66, #76, #78, #86
+- Amended: 2026-11-17, the DAW gate no longer needs Max for Live (#106)
 
 ## Summary
 
@@ -26,7 +27,8 @@ one another:
 3. **Starter kits**: a kit is a resting sound plus a module on each of the 16
    pads. Loading a kit generates its examples and trains, so it plays at once.
 4. **DAW starting points**: an Ableton Live set whose Instrument Rack macros carry
-   the output names, and a Max for Live option that drives those macros directly.
+   the output names, already mapped to the outputs, and an optional Max for Live
+   mode that drives those macros directly.
 
 Demonstration stays at the centre: it becomes the way to change and personalise a
 starting point, and recording from nothing remains available.
@@ -114,10 +116,13 @@ Recording from nothing, as today, stays available as an advanced route.
 
 - **Ableton Live starter set**: one MIDI track fed by the MPC Sample, an Instrument
   Rack with a synthesiser and effects, eight macros named after the outputs and
-  each mapped to suitable parameters, and the macros mapped to CC 20-27. It uses
-  only devices built into Live where possible. The author builds it in Live from a
-  checklist (which parameter and range each macro controls); it is not generated.
-- **Max for Live direct control**: the device (#86) gains an option to drive Macro
+  each mapped to suitable parameters, and the macros mapped to CC 20-27. The
+  mappings are stored in the set, so opening it needs no mapping step and no Max
+  for Live. It uses only devices built into Live where possible. The author builds
+  it in Live from a checklist (which parameter and range each macro controls); it
+  is not generated.
+- **Max for Live direct control**: Optional, for Live Suite (Max for Live is
+  included only in Suite): the device (#86) gains an option to drive Macro
   1-8 of the next Instrument Rack on its track from the outputs, with no MIDI
   mapping. Because a controlled macro cannot be moved by hand, the option has an
   on/off switch. This revisits #86's decision to leave `live.remote~` out of the
@@ -154,8 +159,9 @@ Gates:
 
 - A musician without experience of the tool plays from a starter kit within 5
   minutes of `uv run mpc-iml`, and replaces the module on one pad.
-- With the Ableton starter set and the Max for Live device, a musician plays with no
-  MIDI mapping at all.
+- A musician opens the Ableton starter set with the engine running and plays with
+  no MIDI mapping step: the set's macros are already mapped to CC 20-27 from the
+  `mpc-iml` port, and it works in Live editions without Max for Live.
 - Protocol 1.3 and the updated front-end spec are recorded in ADR 0007.
 
 ## Open questions
