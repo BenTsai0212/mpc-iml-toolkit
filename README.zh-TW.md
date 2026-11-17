@@ -203,7 +203,8 @@ vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開�
    在虛擬 port `mpc-iml` 送出 MIDI CC 20-27。
 
 4. 在 DAW 對應 CC：按 `stop`，在狀態為 `idle` 時用 `l1`～`l8` 一次對應一個 CC，做法見
-   [在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)，再按 `run`，從 MPC Sample 演奏合成器。
+   [在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)，再按 `run`，從 MPC Sample 演奏合成器。使用 Ableton
+   Live 12 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應：改開啟它，略過對應步驟。
 
 5. 修改一個 pad：打開第 2 組的 `select_pad`，在 MPC Sample 上敲一個 pad。`pad` 顯示它的編號，
    `module` 顯示它的 module，`amount` 顯示 module 作用的強度。按另一個 module（例如 `wobble`），或
@@ -381,6 +382,52 @@ Ableton Live 起始 set（#104）完成後可作為實際範例。
 - 沒有持續施力的快速輕敲幾乎沒有作用。
 
 輸出沒有平滑處理；若演奏時確實有影響，之後再加入。
+
+## Ableton Live 入門 set
+
+不需對應步驟就能演奏 preset `pressure` 的 Live set（RFC 0003、#104），放在
+[`assets/ableton/`](assets/ableton)：
+
+- `mpc-iml-starter.als`：一條 MIDI 音軌 `mpc-iml`（輸入 All Ins，Monitor Auto），上面是一個
+  Instrument Rack，8 個 macro 以 `pressure` 的輸出命名，已對應到 port `mpc-iml` 的 channel 1
+  CC 20-27；
+- `mpc-iml-starter.adg`：同一個 Instrument Rack 單獨存檔：Drift、Saturator、Auto Pan-Tremolo、
+  Reverb 與 Utility。
+
+需要 Ableton Live 12 的 Standard 或 Suite。只用 Live 內建的裝置，不需 Max for Live，沒有 sample，
+也沒有第三方 plug-in。在 Live 12.4 Standard 建立並演奏過。
+
+1. 先啟動 engine，讓 port `mpc-iml` 存在，終端機視窗保持開啟：
+
+   ```bash
+   uv run mpc-iml
+   ```
+
+2. 在 Live 開啟 `assets/ableton/mpc-iml-starter.als`。
+3. 在 Settings > Tempo & MIDI 的 Input Ports 表格中，為 MPC Sample 開啟 **Track**，為 `mpc-iml`
+   開啟 **Remote**（Track 關閉）。Live 會保留這些設定，只需設定一次。
+4. 在 Pure Data 前端按 preset `pressure`，在第 2 組 **Kit** 載入一個 kit（例如 `filter-play`），
+   等 `trained` 亮起，按 `run`，演奏 MPC Sample。macro 會跟著 pressure 變化。
+
+macro 一覽（macro 0 到 127；channel 1，port `mpc-iml`）：
+
+| Macro | 名稱 | CC | 參數 | 範圍 |
+| --- | --- | --- | --- | --- |
+| 1 | brightness | 20 | Drift low-pass frequency | 80 Hz 到 16 kHz |
+| 2 | resonance | 21 | Drift low-pass resonance | 0 到 0.85 |
+| 3 | drive | 22 | Saturator Drive | 0 dB 到 18 dB |
+| 4 | space | 23 | Reverb Dry/Wet | 0 % 到 60 % |
+| 5 | motion | 24 | Auto Pan-Tremolo LFO Amount | 0 % 到 60 % |
+| 6 | pitch | 25 | Drift Osc 2 Detune | -0.50 到 +0.50（中央為準音，即 kit 的休息值 pitch 0.5） |
+| 7 | texture | 26 | Drift Noise Gain | -inf dB 到 -10 dB |
+| 8 | level | 27 | Utility Output Gain | -24 dB 到 0 dB |
+
+固定設定：Drift 的 filter type II（24 dB）、filter envelope 調變（Freq Mod，Env 2）0 %、Osc 2 鋸齒波；
+Saturator Dry/Wet 100 %；Auto Pan-Tremolo rate 4 Hz；Reverb decay 3.00 s。kit 的休息值仍是暫定，
+休息時的聲音可能會改變。
+
+rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應只存在 `.als` 裡。在其他 set
+中，依[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 對應 macro。
 
 ## 使用 Max for Live 裝置
 

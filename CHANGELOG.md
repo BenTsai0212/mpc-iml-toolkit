@@ -10,6 +10,13 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Added
 
+- The Ableton Live starter set (#104, RFC 0003): `assets/ableton/mpc-iml-starter.als`,
+  one MIDI track with an Instrument Rack of built-in Live 12 devices whose eight
+  macros are named after the `pressure` outputs and stored mapped to CC 20-27 from
+  the port `mpc-iml`, and the rack alone as `assets/ableton/mpc-iml-starter.adg`
+  (without the mappings). Built and played in Live 12 Standard, no Max for Live; the
+  READMEs explain its use ("Ableton Live starter set"). Not yet opened on a clean
+  Live installation.
 - Engine protocol 1.3 (ADR 0007, #100): `/mpciml/kit/list`, `/mpciml/kit/load`,
   `/mpciml/module/list`, `/mpciml/pad/module`, `/mpciml/pad/select/start` and
   `/mpciml/pad/select/stop`; the replies `/mpciml/names`, `/mpciml/kits`,
