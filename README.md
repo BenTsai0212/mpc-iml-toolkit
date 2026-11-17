@@ -425,6 +425,21 @@ to synthesiser parameters:
   Assignment for "<parameter>" (Cmd-L), send its CC, and turn Learn off.
 - DAWs that let you type a CC number for a mapping: enter 20-27 directly.
 
+Suggested mappings for the eight outputs of `pressure`, for any DAW and a typical
+subtractive synthesiser. The ranges are starting points; adjust them by ear. The
+Ableton Live starter set (#104) is a worked example once it exists.
+
+| Output | CC | What it is for | Suggested target on a typical subtractive synth | Suggested range |
+| --- | --- | --- | --- | --- |
+| `brightness` | 20 | How open or dark the sound is | Filter cutoff | About 200 Hz to 12 kHz |
+| `resonance` | 21 | How sharply the filter rings at the cutoff | Filter resonance | 0 to about 70 % |
+| `drive` | 22 | Grit and added harmonics | Saturation or distortion amount | 0 to about 50 % |
+| `space` | 23 | How distant or roomy the sound is | Reverb send or wet | 0 to 60 % |
+| `motion` | 24 | How much the sound moves | LFO depth to pan, filter or amplitude | 0 to about 50 % |
+| `pitch` | 25 | Bending the pitch; the resting value is the middle | Pitch or detune | About -2 to +2 semitones, or ±20 cents of detune |
+| `texture` | 26 | Noise and roughness | Noise level or waveshape | Noise 0 to about 30 %, or the full waveshape range |
+| `level` | 27 | How loud the sound is | Output gain | About -24 dB to 0 dB |
+
 While the model runs, all 8 CCs move together, so MIDI learn would catch whichever
 comes first. Map them one at a time with the `learn` buttons `l1`-`l8` in the patch
 instead, while the engine is not running (`state` shows `idle`):
