@@ -59,6 +59,17 @@ CONTROL = {
 }
 """Control messages and argument types (ADR 0004, ADR 0005); `+` is one or more."""
 
+PROTOCOL_1_3 = {
+    "kit/list",
+    "kit/load",
+    "module/list",
+    "pad/module",
+    "pad/select/start",
+    "pad/select/stop",
+}
+"""Engine messages of protocol 1.3 (ADR 0007) that the device does not send yet: the
+device's Kit group is a follow-up of ADR 0007."""
+
 REPLIES = {
     "/mpciml/version",
     "/mpciml/pong",
@@ -164,7 +175,7 @@ def test_every_message_sent_is_a_control_message() -> None:
                 assert isinstance(value, int if kind == "i" else str), (address, value)
     # Everything the spec's controls need except state/get (the full state comes with hello).
     assert {a for a, _ in messages} == set(CONTROL) - {"/mpciml/state/get"}
-    assert {a.removeprefix("/mpciml/") for a in CONTROL} == set(ALLOWED)
+    assert {a.removeprefix("/mpciml/") for a in CONTROL} == set(ALLOWED) - PROTOCOL_1_3
     assert ("/mpciml/hello", [1, 6451]) in messages
     learn = sorted(args[0] for address, args in messages if address == "/mpciml/midi/learn")
     assert learn == list(range(1, 9))

@@ -10,6 +10,16 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Added
 
+- Engine protocol 1.3 (ADR 0007, #100): `/mpciml/kit/list`, `/mpciml/kit/load`,
+  `/mpciml/module/list`, `/mpciml/pad/module`, `/mpciml/pad/select/start` and
+  `/mpciml/pad/select/stop`; the replies `/mpciml/names`, `/mpciml/kits`,
+  `/mpciml/modules`, `/mpciml/kit`, `/mpciml/pads` and `/mpciml/pad/hit`. The full
+  state is `state`, `preset`, `layout`, `names`, `kit`, `pads`, `counts`,
+  `trained`. `kit/load` and `pad/module` train automatically (refused with
+  `wrong_state` while a retrain runs); `examples/clear` clears the kit;
+  `examples/save` and `examples/load` keep the kit and pad assignments in recording
+  format version 2. Front ends for 1.0 to 1.2 keep working; the Pure Data patch and
+  the Max for Live device do not use the new messages yet.
 - The data layer for kits and modules (ADR 0007, #99), with no engine messages yet:
   `Preset.output_names` (optional; `pressure` names its outputs `brightness`,
   `resonance`, `drive`, `space`, `motion`, `pitch`, `texture`, `level`); module
