@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "bend",
+  "title": "Bend",
+  "preset": "pressure",
+  "description": "Pitch rises with pressure.",
+  "outputs": {"pitch": [[0, 0], [1, 0.4]]}
+}

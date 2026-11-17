@@ -1,0 +1,3 @@
+[mpc_iml.content]
+example-content = mpc_iml_example_content:CONTENT
+ghost-content = mpc_iml_example_content:ghost_content

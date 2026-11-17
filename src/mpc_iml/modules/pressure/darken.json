@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "darken",
+  "title": "Darken",
+  "preset": "pressure",
+  "description": "Brightness falls with pressure.",
+  "outputs": {"brightness": [[0, 0], [1, -0.6]]}
+}

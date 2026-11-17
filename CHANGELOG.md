@@ -10,6 +10,21 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Added
 
+- The data layer for kits and modules (ADR 0007, #99), with no engine messages yet:
+  `Preset.output_names` (optional; `pressure` names its outputs `brightness`,
+  `resonance`, `drive`, `space`, `motion`, `pitch`, `texture`, `level`); module
+  and kit JSON files with loaders and validation (`mpc_iml.content`), the built-in
+  module `none`, 9 modules and the kits `filter-play` (default), `texture-lab` and
+  `ambient-space` for `pressure` (resting values provisional until a hardware
+  playtest); the entry point group `mpc_iml.content` for content from other
+  packages; example generation (`mpc_iml.generation`: 4 takes per pad, a rest
+  take, additive combined takes, per-pad amount, clamping, replacing one pad's
+  takes). Fitting the built-in model on a full kit (3,400 frames) took about 0.8 s
+  on a 4-core cloud runner.
+- Recording `format_version` 2 (ADR 0007): `example_start` may carry `module`,
+  `pad` and `amount`, the header `kit` and `combine`. The toolkit writes version 2
+  only for files with generated takes and reads versions 1 and 2; version 1 files
+  are unchanged.
 - Engine protocol 1.2 (ADR 0006, #66): the reply `/mpciml/layout <targets>
   <controllers>`, sent after `/mpciml/preset` on `preset/load` and in the full state,
   tells a front end the active preset's number of target values (0 when not

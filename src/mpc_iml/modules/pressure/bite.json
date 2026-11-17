@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "bite",
+  "title": "Bite",
+  "preset": "pressure",
+  "description": "Brightness and resonance rise with pressure.",
+  "outputs": {"brightness": [[0, 0], [1, 0.5]], "resonance": [[0, 0], [1, 0.5]]}
+}

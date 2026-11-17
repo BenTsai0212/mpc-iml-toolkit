@@ -1,0 +1,10 @@
+{
+  "format": "mpc-iml-kit",
+  "format_version": 1,
+  "name": "shimmer-pads",
+  "title": "Shimmer pads",
+  "preset": "pressure",
+  "combine": "none",
+  "rest": {"brightness": 0.5, "resonance": 0.5, "drive": 0.5, "space": 0.5, "motion": 0.5, "pitch": 0.5, "texture": 0.1, "level": 0.5},
+  "pads": ["shimmer", {"module": "bite", "amount": 0.5}, "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"]
+}

@@ -18,9 +18,14 @@ package (ADR 0006). It registers like any external preset, in `pyproject.toml`:
 
     [project.entry-points."mpc_iml.presets"]
     pressure = "mpc_iml.pressure:PRESET"
+
+Its outputs are named (`OUTPUT_NAMES`, ADR 0007), and its modules and kits are in
+`mpc_iml/modules/pressure/` and `mpc_iml/kits/pressure/`, registered as `CONTENT`
+in the entry point group `mpc_iml.content`.
 """
 
 from mpc_iml import __version__
+from mpc_iml.content import Content
 from mpc_iml.examples import pressure_features
 from mpc_iml.presets import MidiCcOutput, OscOutput, Preset
 from mpc_iml.sklearn_backend import Regressor
@@ -32,6 +37,18 @@ CONTROLLERS = tuple(range(20, 20 + TARGETS))
 """MIDI CC 20-27: undefined in the MIDI spec, so they do not collide with
 modulation, volume, pan or sustain in a DAW synthesiser."""
 
+OUTPUT_NAMES = (
+    "brightness",
+    "resonance",
+    "drive",
+    "space",
+    "motion",
+    "pitch",
+    "texture",
+    "level",
+)
+"""The names of outputs 1-8 (CC 20-27), ADR 0007."""
+
 PRESET = Preset(
     name="pressure",
     version=__version__,
@@ -41,5 +58,9 @@ PRESET = Preset(
     targets=TARGETS,
     outputs=(OscOutput(), MidiCcOutput(controllers=CONTROLLERS, channel=1, port_name="mpc-iml")),
     patch="mpc_iml:patches/mpc-iml.pd",
+    output_names=OUTPUT_NAMES,
 )
 """Scenario 1 as the built-in preset `pressure`."""
+
+CONTENT = Content(preset="pressure", root="mpc_iml")
+"""The built-in modules and kits for `pressure` (ADR 0007)."""

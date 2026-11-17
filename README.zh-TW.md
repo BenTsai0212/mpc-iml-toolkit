@@ -71,7 +71,10 @@
 
   不經過迴圈時，`mpc_iml.frames.realtime_frames` 產生相同的即時 frame。
 
-格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)。套件尚未發布。
+格式見 [ADR 0002](docs/adr/0002-recording-and-osc-formats.md)；含有由 module 產生之
+take 的錄音是 `format_version` 2
+（[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)），
+沒有的仍是第 1 版。套件尚未發布。
 第一個版本（`v0.1.0`）之前，介面可能隨時變動。
 
 ## 參考範例
@@ -447,6 +450,32 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。
+
+### 輸出名稱、module 與 kit
+
+regression preset 可以用 `output_names` 為輸出命名（每個 target 一個，小寫字母、數字與
+連字號）。只有命名了輸出的 preset 才有 module 與 kit
+（[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)）：
+**module** 描述按壓一個 pad 時哪些輸出如何變化，**kit** 是一個靜止時的聲音加上 16 個
+pad 各自的 module。`pressure` 的輸出名稱是 `brightness`、`resonance`、`drive`、
+`space`、`motion`、`pitch`、`texture`、`level`（CC 20-27），內建 9 個 module 與
+`filter-play`（預設）、`texture-lab`、`ambient-space` 三個 kit
+（`src/mpc_iml/modules/pressure/`、`src/mpc_iml/kits/pressure/`；靜止值在硬體試玩前是
+暫定的）。
+
+其他套件也能為不是自己定義的 preset 新增 module 與 kit：把 JSON 檔放在
+`<root>/modules/<preset>/<name>.json` 與 `<root>/kits/<preset>/<name>.json`，並登記一個
+`Content`：
+
+```toml
+[project.entry-points."mpc_iml.content"]
+my-content = "my_package:CONTENT"
+```
+
+其中 `CONTENT = Content(preset="pressure", root="my_package:content")`。
+`mpc_iml.content.load_library(preset)` 列出它們，
+`mpc_iml.generation.GeneratedSet.from_kit(library, "filter-play")` 產生 kit 的訓練範例；
+範例套件見 `tests/plugins/mpc_iml_example_content/`。
 
 ## 建立練習 repo
 

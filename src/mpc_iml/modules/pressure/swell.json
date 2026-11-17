@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "swell",
+  "title": "Swell",
+  "preset": "pressure",
+  "description": "Level and space rise with pressure.",
+  "outputs": {"level": [[0, 0], [1, 0.4]], "space": [[0, 0], [1, 0.5]]}
+}

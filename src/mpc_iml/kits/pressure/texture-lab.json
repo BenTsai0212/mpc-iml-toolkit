@@ -1,0 +1,11 @@
+{
+  "format": "mpc-iml-kit",
+  "format_version": 1,
+  "name": "texture-lab",
+  "title": "Texture lab",
+  "preset": "pressure",
+  "description": "Shape the grain: drive, texture and motion as you press.",
+  "combine": "add",
+  "rest": {"brightness": 0.4, "resonance": 0.2, "drive": 0.3, "space": 0.2, "motion": 0.1, "pitch": 0.5, "texture": 0.2, "level": 0.6},
+  "pads": ["grain", "grain", "grain", "grain", "push", "push", "push", "push", "wobble", "wobble", "wobble", "wobble", "bite", "bite", "darken", "none"]
+}
