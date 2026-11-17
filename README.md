@@ -222,10 +222,10 @@ toolkit with `uv sync`, the MPC Sample connected and set up), and
 
 3. Record a few examples (group 3 **Examples**). For each one: set `t1`-`t8` (0-1)
    to the sound you want, hold the gesture on the pads, click `record`, keep
-   holding for about two seconds, and click `stop_recording`. Start with rest (no
-   pads, targets for silence), then pad 1 held lightly and pad 1 held firmly, each
-   with its own targets. The counts show how many examples you have; `clear`
-   starts again.
+   holding for about two seconds, and click `stop_recording`. Record four examples
+   in this order: rest (no pad touched, targets set to silence), the lightest touch
+   on pad 1 (targets close to rest), a light press, and a hard press, each with its
+   own targets. The counts show how many examples you have; `clear` starts again.
 
 4. In group 4 **Model**, click `train`. When `trained` is on, click `run` and play:
    the sliders `o1`-`o8` follow the model, and the engine sends MIDI CC 20-27 on

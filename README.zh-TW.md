@@ -192,8 +192,9 @@ vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開�
    `pressure-examples`。
 
 3. 錄幾個範例（第 3 組 **Examples**）。每個範例：把 `t1`～`t8`（0-1）設成想要的聲音，在 pad
-   上保持手勢，按 `record`，持續約兩秒，按 `stop_recording`。先錄休息（不碰 pad，目標值設成
-   無聲），再錄輕按 pad 1 與重按 pad 1，各自設定目標值。counts 顯示範例數量；`clear` 重新開始。
+   上保持手勢，按 `record`，持續約兩秒，按 `stop_recording`。依序錄四個範例：休息（不碰 pad，
+   目標值設成無聲）、pad 1 的最輕觸碰（目標值接近休息）、輕按、重按，各自設定目標值。counts
+   顯示範例數量；`clear` 重新開始。
 
 4. 在第 4 組 **Model** 按 `train`。`trained` 亮起後按 `run` 並演奏：滑桿 `o1`～`o8` 跟著模型
    變化，engine 在虛擬 port `mpc-iml` 送出 MIDI CC 20-27。按 `stop` 結束執行。
