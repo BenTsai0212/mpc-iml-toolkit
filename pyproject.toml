@@ -18,6 +18,9 @@ dependencies = [
     "scikit-learn>=1.5",
 ]
 
+[project.scripts]
+mpc-iml = "mpc_iml.launch:main"
+
 [project.entry-points."mpc_iml.presets"]
 demo = "mpc_iml.demo:PRESET"
 pressure = "mpc_iml.pressure:PRESET"

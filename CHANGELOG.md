@@ -22,6 +22,14 @@ Until 1.0, interfaces may still change between 0.x releases.
   covers every control of ADR 0004 and ADR 0005 that a musician needs, and shows
   engine errors on a status line in the patch. Pd vanilla 0.54, no externals; not
   yet checked in Pure Data or on hardware.
+- The launch command `uv run mpc-iml` (#66, `mpc_iml.launch`): starts the engine
+  with the data folder `./mpc-iml-data` and opens `patches/mpc-iml.pd` with the
+  system's default app for `.pd` files (it prints the path when it cannot).
+  `--no-patch` starts only the engine, for the Max for Live device or another front
+  end; the other options are the engine's. The READMEs have a step-by-step
+  walkthrough for musicians, "Play in 20 minutes", not yet timed on hardware.
+- `mpc_iml.engine.run` and `add_engine_options`, so other commands can start the
+  engine with its options.
 - `mpc_iml.examples.pressure_features`: 16 values, per pad, pressure (0-1), without
   velocity or the held flag (#76).
 

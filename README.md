@@ -188,6 +188,65 @@ pad, pressure, 0-1) leaves out velocity and the held flag, so a press adds nothi
 until the MPC reports pressure and the input rises from 0. The preset `pressure`
 uses it.
 
+## Play in 20 minutes
+
+The path for musicians: one command starts the engine and opens the Pure Data front
+end, and everything after that is clicks in the patch. This walkthrough uses the
+preset `pressure` (pad pressure to 8 synthesis parameters, details in
+[Play the pressure preset](#play-the-pressure-preset)); the front end works the same
+way with every preset (ADR 0006). The 20 minutes are counted from `uv sync`.
+
+Before you start: steps 1-3 of the [reference example](#reference-example) (uv, the
+toolkit with `uv sync`, the MPC Sample connected and set up), and
+[Pure Data](https://puredata.info) vanilla 0.54 or later, from its website or with
+`brew install --cask pd`. Open Pure Data once after installing it, so macOS opens
+`.pd` files with it.
+
+1. In the `mpc-iml-toolkit` folder, start everything with one command and leave
+   the terminal window open:
+
+   ```bash
+   uv run mpc-iml
+   ```
+
+   The engine starts with its data folder `mpc-iml-data` and opens the front end
+   `src/mpc_iml/patches/mpc-iml.pd` in Pure Data. If the patch does not open, the
+   command prints its path: open that file from Pure Data (File > Open). Ctrl-C in
+   the terminal stops the engine.
+
+2. The patch connects by itself: in group 1 **Connect**, the version and `state`
+   `idle` appear, and the installed presets are listed as buttons. If they stay
+   empty, click `connect`. Click the preset button `pressure`. Group 2 **Teach**
+   now shows the target sliders `t1`-`t8`, group 6 **Outputs** the learn buttons
+   `l1`-`l8`, and group 5 **Library** the name `pressure-examples`.
+
+3. Record a few examples (group 3 **Examples**). For each one: set `t1`-`t8` (0-1)
+   to the sound you want, hold the gesture on the pads, click `record`, keep
+   holding for about two seconds, and click `stop_recording`. Record four examples
+   in this order: rest (no pad touched, targets set to silence), the lightest touch
+   on pad 1 (targets close to rest), a light press, and a hard press, each with its
+   own targets. The counts show how many examples you have; `clear` starts again.
+
+4. In group 4 **Model**, click `train`. When `trained` is on, click `run` and play:
+   the sliders `o1`-`o8` follow the model, and the engine sends MIDI CC 20-27 on
+   the virtual port `mpc-iml`. Click `stop` to end running.
+
+5. Map the CCs in your DAW one at a time with `l1`-`l8` while the state is `idle`,
+   as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), then click `run`
+   again and play the synthesiser from the MPC Sample.
+
+6. Click `save` in group 5 **Library** to keep the examples in
+   `mpc-iml-data/pressure-examples.jsonl`; next time, `load` brings them back.
+
+Errors from the engine (for example a button clicked in the wrong state) appear on
+the status line in group 7 **Messages**, not only in the Pd window.
+
+Options of `uv run mpc-iml`: a folder name after the command uses another data
+folder (`uv run mpc-iml my-data`); `--no-patch` starts only the engine, for the Max
+for Live device (#86) or your own front end; the other options are those of the
+engine (`--preset`, `--replay`, `--midi-port IAC`, the ports; see
+[Run the engine](#run-the-engine)).
+
 ## Run the engine
 
 The engine is a long-running IML loop that a front end (Pure Data, Max, later an
@@ -234,9 +293,10 @@ The reference front end for every preset is the Pure Data patch
 Start the engine, then open the patch: it connects on open (click `connect` after
 restarting the engine), lists the installed presets as buttons, and adapts to the
 loaded one: class buttons for `demo`, target sliders `t1`-`t8` and learn buttons
-`l1`-`l8` for `pressure`. Errors from the engine appear on its status line. It has
-not been timed on hardware yet, so the steps below still use `patches/pressure.pd`
-(#66).
+`l1`-`l8` for `pressure`. Errors from the engine appear on its status line.
+`uv run mpc-iml` starts the engine and opens this patch in one step
+([Play in 20 minutes](#play-in-20-minutes)). The patch has not been timed on hardware
+yet, so the steps below still use the hardware-checked `patches/pressure.pd` (#66).
 
 ## Play the pressure preset
 
