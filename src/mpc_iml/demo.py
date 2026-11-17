@@ -81,8 +81,9 @@ PRESET = Preset(
     model_factory=Classifier,
     classes=CLASSES,
     outputs=(OscOutput(),),
+    patch="mpc_iml:patches/mpc-iml.pd",
 )
-"""The reference example as the built-in preset `demo`; it has no patch yet."""
+"""The reference example as the built-in preset `demo`, with the general front end."""
 
 
 def _collect(source: ClockedSource, events: list[Event], until: float) -> None:

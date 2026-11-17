@@ -13,8 +13,10 @@ parameters at once (one-to-many regression):
 
 Record with `/mpciml/targets` and eight values, then `record/start` and
 `record/stop`; train and run with the core messages. The preset has no preset
-controls; its Pure Data front end is `patches/pressure.pd` in this package. It
-registers like any external preset, in `pyproject.toml`:
+controls; its Pure Data front end is the general `patches/mpc-iml.pd` in this
+package (ADR 0006). `patches/pressure.pd`, its first front end, stays as a fallback
+until the general patch has been timed on hardware (#66). It registers like any
+external preset, in `pyproject.toml`:
 
     [project.entry-points."mpc_iml.presets"]
     pressure = "mpc_iml.pressure:PRESET"
@@ -40,6 +42,6 @@ PRESET = Preset(
     model_factory=Regressor,
     targets=TARGETS,
     outputs=(OscOutput(), MidiCcOutput(controllers=CONTROLLERS, channel=1, port_name="mpc-iml")),
-    patch="mpc_iml:patches/pressure.pd",
+    patch="mpc_iml:patches/mpc-iml.pd",
 )
 """Scenario 1 as the built-in preset `pressure`."""

@@ -199,6 +199,12 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 個數（沒有 MIDI 輸出為 0），讓前端顯示對應的控制項。按 Ctrl-C 停止 engine：關閉輸入與 socket，
 進行中的訓練會先完成。
 
+適用所有 preset 的參考前端是 Pure Data patch `src/mpc_iml/patches/mpc-iml.pd`（vanilla 0.54
+以上，不需外掛；ADR 0006）。先啟動 engine 再開啟 patch：開啟時會自動連線（重新啟動 engine 後按
+`connect`），把已安裝的 preset 列成按鈕，並依載入的 preset 調整：`demo` 顯示類別按鈕，
+`pressure` 顯示目標滑桿 `t1`～`t8` 與 learn 按鈕 `l1`～`l8`。engine 的錯誤顯示在 patch 的狀態列。
+它尚未在硬體上計時，因此下面的步驟仍使用 `patches/pressure.pd`（#66）。
+
 ## 演奏 preset pressure
 
 內建的 preset `pressure`（`src/mpc_iml/pressure.py`，[RFC 0002](docs/rfcs/0002-platform-positioning.md)
