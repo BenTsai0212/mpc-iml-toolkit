@@ -170,10 +170,11 @@ velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值
 
 ## 20 分鐘開始演奏
 
-給音樂家的路線：一個指令啟動 engine 並開啟 Pure Data 前端，之後都在 patch 上點按。以下使用
-preset `pressure`（pad 的 pressure 對應到 8 個合成參數，細節見
-[演奏 preset pressure](#演奏-preset-pressure)）；前端對每個 preset 的操作方式相同（ADR 0006）。
-20 分鐘從 `uv sync` 開始計算。
+給音樂家的路線：一個指令啟動 engine 並開啟 Pure Data 前端，之後都在 patch 上點按。從一個已經能演奏的
+kit 開始（RFC 0003、ADR 0007），逐個 pad 修改，再在上面加上自己的示範。以下使用 preset `pressure`
+（pad 的 pressure 對應到 8 個合成參數，細節見[演奏 preset pressure](#演奏-preset-pressure)）；前端對每個
+preset 的操作方式相同（ADR 0006），沒有 kit 的 preset 的第 2 組 **Kit** 顯示為不可用。20 分鐘從
+`uv sync` 開始計算。
 
 開始之前：完成[參考範例](#參考範例)的第 1～3 步（uv、以 `uv sync` 安裝工具包、接好並設定
 MPC Sample），並從官網或以 `brew install --cask pd` 安裝 [Pure Data](https://puredata.info)
@@ -190,25 +191,39 @@ vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開�
    開啟該檔（File > Open）。在終端機按 Ctrl-C 停止 engine。
 
 2. patch 會自動連線：第 1 組 **Connect** 顯示版本與 `state` `idle`，已安裝的 preset 列成按鈕。
-   一直是空的時按 `connect`。按 preset 按鈕 `pressure`。第 2 組 **Teach** 這時顯示目標滑桿
-   `t1`～`t8`，第 6 組 **Outputs** 顯示 learn 按鈕 `l1`～`l8`，第 5 組 **Library** 顯示名稱
+   一直是空的時按 `connect`。按 preset 按鈕 `pressure`。第 2 組 **Kit** 這時列出 kit（`filter-play`
+   在最前面）與 module，第 3 組 **Teach** 顯示以輸出名稱（`brightness`～`level`）標示的目標滑桿，
+   第 7 組 **Outputs** 顯示同樣名稱的輸出與 learn 按鈕 `l1`～`l8`，第 6 組 **Library** 顯示名稱
    `pressure-examples`。
 
-3. 錄幾個範例（第 3 組 **Examples**）。每個範例：把 `t1`～`t8`（0-1）設成想要的聲音，在 pad
-   上保持手勢，按 `record`，持續約兩秒，按 `stop_recording`。依序錄四個範例：休息（不碰 pad，
-   目標值設成無聲）、pad 1 的最輕觸碰（目標值接近休息）、輕按、重按，各自設定目標值。counts
-   顯示範例數量；`clear` 重新開始。
+3. 從 kit 開始：在第 2 組 **Kit** 按 `filter-play`。engine 以 kit 產生的範例取代現有範例並訓練：
+   `kit` 顯示 `filter-play`，狀態變成 `training` 再回到 `idle`，第 5 組 **Model** 的 `trained` 亮起。
+   按 `run` 並演奏：pad 1～4 變亮，pad 5～8 加上 bite（brightness 與 resonance），pad 9～12 變暗，
+   pad 13～14 產生 wobble，pad 15 彎曲音高，pad 16 不改變聲音。第 7 組的輸出跟著模型變化，engine
+   在虛擬 port `mpc-iml` 送出 MIDI CC 20-27。
 
-4. 在第 4 組 **Model** 按 `train`。`trained` 亮起後按 `run` 並演奏：滑桿 `o1`～`o8` 跟著模型
-   變化，engine 在虛擬 port `mpc-iml` 送出 MIDI CC 20-27。按 `stop` 結束執行。
-
-5. 在狀態為 `idle` 時，用 `l1`～`l8` 在 DAW 一次對應一個 CC，做法見
+4. 在 DAW 對應 CC：按 `stop`，在狀態為 `idle` 時用 `l1`～`l8` 一次對應一個 CC，做法見
    [在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)，再按 `run`，從 MPC Sample 演奏合成器。
 
-6. 在第 5 組 **Library** 按 `save`，把範例存在 `mpc-iml-data/pressure-examples.jsonl`；下次按
-   `load` 載回。
+5. 修改一個 pad：打開第 2 組的 `select_pad`，在 MPC Sample 上敲一個 pad。`pad` 顯示它的編號，
+   `module` 顯示它的 module，`amount` 顯示 module 作用的強度。按另一個 module（例如 `wobble`），或
+   拖動 `amount` 後放開：engine 只取代這個 pad 產生的範例並重新訓練，原本在執行時會繼續執行。也可以
+   在 `pad` 輸入 pad 編號（1-16），不必敲 pad。重新訓練還在進行時再修改，狀態列會顯示錯誤；等重新
+   訓練結束即可。改完後關掉 `select_pad`（按 `record` 也會關掉）。
 
-engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 7 組 **Messages** 的狀態列，不只在 Pd 視窗。
+6. 在上面加上示範：按 `stop`，把第 3 組的目標滑桿設成某個手勢想要的聲音，在 pad 上保持手勢，按第 4 組
+   **Examples** 的 `record`，持續約兩秒，按 `stop_recording`。按 `train`，再按 `run`。示範與該 pad 的
+   module 一起訓練：短的示範只稍微改變 module 的聲音，2～3 秒的示範會蓋過它。
+
+7. 在第 6 組 **Library** 按 `save`，把範例連同 kit 與各 pad 的 module 存在
+   `mpc-iml-data/pressure-examples.jsonl`；下次按 `load` 載回。
+
+engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 8 組 **Messages** 的狀態列，不只在 Pd 視窗。
+
+**從零開始錄音**（進階路線）：不用 kit，按第 4 組 **Examples** 的 `clear`（kit 也一併清除），所有範例
+都自己錄。每個範例：把目標滑桿（0-1）設成想要的聲音，在 pad 上保持手勢，按 `record`，持續約兩秒，按
+`stop_recording`。依序錄四個範例：休息（不碰 pad，目標值設成無聲）、pad 1 的最輕觸碰（目標值接近
+休息）、輕按、重按，各自設定目標值。counts 顯示範例數量。然後按 `train`，`trained` 亮起後按 `run`。
 
 `uv run mpc-iml` 的選項：指令後加資料夾名稱改用其他資料夾（`uv run mpc-iml my-data`）；
 `--no-patch` 只啟動 engine，給 [Max for Live 裝置](#使用-max-for-live-裝置)或自己的前端使用；其他選項與 engine
@@ -295,10 +310,11 @@ pad（1～16），保留錄下的示範並重新訓練（兩者都在 `idle`，�
 
 2. 這個指令會在 Pure Data 開啟前端 `src/mpc_iml/patches/mpc-iml.pd`（沒有開啟時，從 File > Open
    開啟它印出的路徑）。patch 會自動連線：第 1 組 **Connect** 顯示版本與 `state` `idle`；載入
-   `pressure` 後，第 2 組 **Teach** 顯示目標滑桿 `t1`-`t8`，第 6 組 **Outputs** 顯示 learn 按鈕
-   `l1`-`l8`。若在 patch 之後才重新啟動 engine，按 `connect`。
+   `pressure` 後，第 2 組 **Kit** 列出 kit 與 module，第 3 組 **Teach** 顯示標示為 `brightness`～`level`
+   的目標滑桿，第 7 組 **Outputs** 顯示 learn 按鈕 `l1`-`l8`。若在 patch 之後才重新啟動 engine，按
+   `connect`。要從 kit 開始而不錄音，照[20 分鐘開始演奏](#20-分鐘開始演奏)第 3～5 步。
 
-3. 錄幾個範例（第 3 組 **Examples**）。每個範例：把 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的
+3. 錄幾個範例（第 4 組 **Examples**）。每個範例：把 8 個目標滑桿（0-1）設成想要的
    聲音，在 pad 上保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按
    `stop_recording`。先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，
    各自設定目標值。多個 pad 與其他力道的做法相同。若要讓輕觸的一端連續，另外錄一個能保持的
@@ -306,9 +322,9 @@ pad（1～16），保留錄下的示範並重新訓練（兩者都在 `idle`，�
    休息附近。要重新開始（例如錄音順序錯了）時按 `clear`：刪除 engine 中所有範例，已存的檔案
    不受影響。在 `idle` 與 `running` 都可以使用，範例數會顯示新的數量。
 
-4. 按 `train`（第 4 組 **Model**）。狀態變成 `training` 再回到 `idle`，`trained` 亮起。按
-   `run` 並演奏：第 6 組的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。
-   `save` 與 `load`（第 5 組 **Library**）把範例存在 `mpc-iml-data/pressure-examples.jsonl`。
+4. 按 `train`（第 5 組 **Model**）。狀態變成 `training` 再回到 `idle`，`trained` 亮起。按
+   `run` 並演奏：第 7 組的輸出滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。
+   `save` 與 `load`（第 6 組 **Library**）把範例存在 `mpc-iml-data/pressure-examples.jsonl`。
 
 patch 在 12000 埠接收 `/wek/outputs` 來顯示，而一個埠只能由一個程式接收。若要以 OSC 驅動
 Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該埠（patch 的輸出滑桿此時
@@ -354,9 +370,10 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 
 ## 使用 Max for Live 裝置
 
-Max for Live 裝置讓你不離開 Ableton Live 就能錄範例、訓練、執行與對應模型。它和 Pure Data
-前端有相同的 7 組、按鈕名稱與順序（ADR 0006），所以[20 分鐘開始演奏](#20-分鐘開始演奏)的步驟
-同樣適用；只有啟動與安裝不同。這個裝置還沒有在 Live 中確認過（#86）。
+Max for Live 裝置讓你不離開 Ableton Live 就能錄範例、訓練、執行與對應模型。它有 ADR 0006 的
+7 組，按鈕名稱與順序和 Pure Data 前端相同，但還沒有 ADR 0007 的第 2 組 **Kit**，所以 patch 的第
+3～8 組是裝置的第 2～7 組，[20 分鐘開始演奏](#20-分鐘開始演奏)的錄音路線同樣適用；只有啟動與安裝
+不同。這個裝置還沒有在 Live 中確認過（#86）。
 
 需要 Live Suite，或 Live Standard 加上 Max for Live；[參考範例](#參考範例)的設定（第 1～3 步）；
 以及[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 的 Live 設定（MPC Sample 開啟 **Track**，
@@ -400,7 +417,7 @@ repo 中有裝置的原始檔 `src/mpc_iml/patches/mpc-iml.maxpat`（由 `tools/
 3. 第 2 組 **Teach** 依 preset 變化。`pressure`：目標值滑桿 `t1`～`t8`。分類 preset（例如
    `demo`）：`class` 欄位與類別按鈕 `c1`～`c8`。
 
-4. 錄範例、訓練與執行的方式同[20 分鐘開始演奏](#20-分鐘開始演奏)第 3、4 步：第 3 組
+4. 錄範例、訓練與執行的方式同[20 分鐘開始演奏](#20-分鐘開始演奏)的「從零開始錄音」：第 3 組
    **Examples** 的 `record` 與 `stop recording`，第 4 組 **Model** 的 `train`、`run` 與
    `stop`。第 6 組 **Outputs** 以長條顯示模型輸出 `o1`～`o8`（`demo` 顯示預測的類別）。
 
