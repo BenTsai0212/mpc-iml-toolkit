@@ -250,7 +250,6 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 `connect`），把已安裝的 preset 列成按鈕，並依載入的 preset 調整：`demo` 顯示類別按鈕，
 `pressure` 顯示目標滑桿 `t1`～`t8` 與 learn 按鈕 `l1`～`l8`。engine 的錯誤顯示在 patch 的狀態列。
 `uv run mpc-iml` 一步啟動 engine 並開啟這個 patch（[20 分鐘開始演奏](#20-分鐘開始演奏)）。
-patch 尚未在硬體上計時，因此下面的步驟仍使用在硬體上確認過的 `patches/pressure.pd`（#66）。
 
 ## 演奏 preset pressure
 
@@ -268,10 +267,10 @@ patch 尚未在硬體上計時，因此下面的步驟仍使用在硬體上確�
 需要[參考範例](#參考範例)的準備（第 1～3 步），以及前端用的
 [Pure Data](https://puredata.info)（vanilla 0.54 或更新版本）。
 
-1. 以這個 preset 啟動 engine，視窗保持開啟：
+1. 以這個 preset 啟動 engine 與前端，終端機視窗保持開啟：
 
    ```bash
-   uv run python -m mpc_iml.engine my-data --preset pressure
+   uv run mpc-iml --preset pressure
    ```
 
    在 macOS 上，`mpc-iml` 這個 port 會出現在每個 MIDI app 的輸入中。若要改用 IAC bus，
@@ -279,22 +278,22 @@ patch 尚未在硬體上計時，因此下面的步驟仍使用在硬體上確�
    勾選 Device is online），
    並加上 `--midi-port IAC`。MIDI port 無法開啟時，engine 會說明原因並繼續送 OSC。
 
-2. 在 Pure Data 開啟前端 `src/mpc_iml/patches/pressure.pd`。它會向 engine 送 `hello` 並載入
-   preset；狀態欄顯示 `idle`，Pd 視窗印出每個回覆（`mpc-iml: …`）。若在 patch 之後才啟動
-   engine，再按一次 `hello`。patch 分成三欄：左欄是連線與錄音；中欄是存檔、`train`／`run`／
-   `stop` 與 MIDI learn；右欄是 engine 狀態與模型輸出。
+2. 這個指令會在 Pure Data 開啟前端 `src/mpc_iml/patches/mpc-iml.pd`（沒有開啟時，從 File > Open
+   開啟它印出的路徑）。patch 會自動連線：第 1 組 **Connect** 顯示版本與 `state` `idle`；載入
+   `pressure` 後，第 2 組 **Teach** 顯示目標滑桿 `t1`-`t8`，第 6 組 **Outputs** 顯示 learn 按鈕
+   `l1`-`l8`。若在 patch 之後才重新啟動 engine，按 `connect`。
 
-3. 錄幾個範例。每個範例：把左邊 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的聲音，在 pad 上
-   保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按 `stop_recording`。
-   先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，各自設定目標值。
-   多個 pad 與其他力道的做法相同。若要讓輕觸的一端連續，另外錄一個能保持的最輕觸碰（手指
-   放在 pad 1 上幾乎不施力），目標值接近休息，讓模型把最輕的 pressure 對應到休息附近。
-   要重新開始（例如錄音順序錯了）時按 `clear`：刪除 engine 中所有範例，已存的檔案不受影響。
-   在 `idle` 與 `running` 都可以使用，Pd 視窗會印出新的數量。
+3. 錄幾個範例（第 3 組 **Examples**）。每個範例：把 8 個目標滑桿 `t1`-`t8`（0-1）設成想要的
+   聲音，在 pad 上保持手勢，按 `record`（先送出目標值，再開始錄音），持續約兩秒，按
+   `stop_recording`。先錄休息（不碰 pad，目標值設成無聲），再錄例如輕按 pad 1 與重按 pad 1，
+   各自設定目標值。多個 pad 與其他力道的做法相同。若要讓輕觸的一端連續，另外錄一個能保持的
+   最輕觸碰（手指放在 pad 1 上幾乎不施力），目標值接近休息，讓模型把最輕的 pressure 對應到
+   休息附近。要重新開始（例如錄音順序錯了）時按 `clear`：刪除 engine 中所有範例，已存的檔案
+   不受影響。在 `idle` 與 `running` 都可以使用，範例數會顯示新的數量。
 
-4. 按 `train`。狀態變成 `training` 再回到 `idle`，`trained` 顯示 1。按 `run` 並演奏：右邊
-   的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。`save` 與 `load`
-   把範例存在 `my-data/pressure-examples.jsonl`。
+4. 按 `train`（第 4 組 **Model**）。狀態變成 `training` 再回到 `idle`，`trained` 亮起。按
+   `run` 並演奏：第 6 組的 `o1`-`o8` 滑桿跟著模型變化，MIDI CC 也跟著送出。`stop` 結束執行。
+   `save` 與 `load`（第 5 組 **Library**）把範例存在 `mpc-iml-data/pressure-examples.jsonl`。
 
 patch 在 12000 埠接收 `/wek/outputs` 來顯示，而一個埠只能由一個程式接收。若要以 OSC 驅動
 Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該埠（patch 的輸出滑桿此時
@@ -315,7 +314,7 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 - 可以直接輸入 CC 編號的 DAW：直接輸入 20-27。
 
 模型執行時 8 個 CC 會一起變化，MIDI learn 會抓到最先送來的那一個。請改在 engine 沒有執行時
-（狀態框顯示 `idle`），用 patch 的 learn 按鈕 `l1`-`l8` 一次對應一個：
+（`state` 顯示 `idle`），用 patch 的 learn 按鈕 `l1`-`l8` 一次對應一個：
 
 1. 在 DAW 為輸出 1 要控制的參數開始 MIDI learn。
 2. 按 patch 的 `l1`。engine 只送 CC 20，從 0 掃到 127，DAW 就學到它。再按一次會從 127 掃回 0，
@@ -350,7 +349,7 @@ Max for Live 裝置讓你不離開 Ableton Live 就能錄範例、訓練、執�
 
 這個裝置是 Max MIDI Effect：放在 MPC Sample 的 MIDI 音軌上、樂器前面，pad 的 MIDI 原樣通過。
 它和 Pure Data 前端用相同的埠號（6450、6451 與 12000）以 OSC 與 engine 溝通，所以兩者一次只能
-執行一個：Live set 中有這個裝置時，關閉 `mpc-iml.pd` 與 `pressure.pd`。它只用標準的 Max 物件，
+執行一個：Live set 中有這個裝置時，關閉 `mpc-iml.pd`。它只用標準的 Max 物件，
 不需要 external。
 
 ### 安裝裝置

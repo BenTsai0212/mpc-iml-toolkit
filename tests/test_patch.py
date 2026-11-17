@@ -127,8 +127,9 @@ def test_both_built_in_presets_use_the_patch() -> None:
         assert preset.patch == "mpc_iml:patches/mpc-iml.pd"
         path = preset.patch_path()
         assert path is not None and path.is_file()
-    # The hardware-checked pressure patch stays until the 20-minute gate passes (#66).
-    assert files("mpc_iml").joinpath("patches/pressure.pd").is_file()
+    # It names no preset: the presets come from the engine (ADR 0006).
+    text = files("mpc_iml").joinpath("patches/mpc-iml.pd").read_text()
+    assert "demo" not in text and "pressure" not in text
 
 
 def test_only_vanilla_objects() -> None:

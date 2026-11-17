@@ -141,7 +141,7 @@ contain a space (Pure Data), the space becomes `_` (`stop_recording`).
 - Both front ends adapt to any preset from the engine, without a preset table: class
   buttons for `demo`, 8 sliders and 8 learn buttons for `pressure`, the right number
   for presets from other packages that declare `targets`.
-- Front ends written for 1.0 or 1.1, such as `patches/pressure.pd`, keep working:
+- Front ends written for 1.0 or 1.1 keep working:
   the major version is unchanged, and they ignore or print the new reply.
 - A preset that leaves its task to the examples (`targets` not declared) is shown
   with the classification controls even when its examples are regression.
