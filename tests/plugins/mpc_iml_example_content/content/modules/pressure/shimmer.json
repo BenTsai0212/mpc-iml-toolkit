@@ -1,0 +1,8 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "shimmer",
+  "preset": "pressure",
+  "description": "Texture up, then back down at full pressure.",
+  "outputs": {"texture": [[0, 0], [0.5, 0.8], [1, 0.2]]}
+}

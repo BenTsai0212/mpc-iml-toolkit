@@ -60,11 +60,25 @@ class RawMidiEvent:
 
 @dataclass(frozen=True)
 class ExampleStart:
-    """Start of an example: a `label` for classification or `targets` for regression."""
+    """Start of an example: a `label` for classification or `targets` for regression.
+
+    `module`, `pad` and `amount` mark a take generated from a module (ADR 0007,
+    recording format version 2): a single-pad take has a module id, a pad 1-16 and
+    an amount; the rest take has `"none"`, 0 and 0; a combined take has a pair of
+    each. All three are `None` for a recorded demonstration.
+    """
 
     t: float
     label: str | None = None
     targets: tuple[float, ...] | None = None
+    module: str | tuple[str, str] | None = None
+    pad: int | tuple[int, int] | None = None
+    amount: float | tuple[float, float] | None = None
+
+    @property
+    def generated(self) -> bool:
+        """Whether this take was generated from a module (not recorded)."""
+        return self.module is not None
 
 
 @dataclass(frozen=True)

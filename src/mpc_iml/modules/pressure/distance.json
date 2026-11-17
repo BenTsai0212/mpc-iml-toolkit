@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "distance",
+  "title": "Distance",
+  "preset": "pressure",
+  "description": "More space and a little less brightness with pressure.",
+  "outputs": {"space": [[0, 0], [1, 0.6]], "brightness": [[0, 0], [1, -0.2]]}
+}

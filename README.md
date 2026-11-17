@@ -79,7 +79,10 @@ still change in 0.x. Phase 1 (Foundation). To try the whole loop, follow the
 
   `mpc_iml.frames.realtime_frames` gives the same real-time frames without the loop.
 
-Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md). The package
+Formats are in [ADR 0002](docs/adr/0002-recording-and-osc-formats.md); a recording
+with takes generated from modules is `format_version` 2
+([ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)),
+and recordings without them are still version 1. The package
 is not published. Interfaces
 will change without notice until the first release (`v0.1.0`).
 
@@ -536,6 +539,33 @@ Its type may change.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.
+
+### Named outputs, modules and kits
+
+A regression preset may name its outputs with `output_names` (one per target, lower
+case letters, digits and hyphens). Only presets with names get modules and kits
+([ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)):
+a **module** moves some named outputs as a pad is pressed, and a **kit** is a
+resting sound plus a module on each of the 16 pads. `pressure` names its outputs
+`brightness`, `resonance`, `drive`, `space`, `motion`, `pitch`, `texture` and
+`level` (CC 20-27), and comes with 9 modules and the kits `filter-play` (default),
+`texture-lab` and `ambient-space` (`src/mpc_iml/modules/pressure/`,
+`src/mpc_iml/kits/pressure/`; resting values are provisional until a hardware
+playtest).
+
+Another package adds modules and kits, also to a preset it does not define, by
+putting JSON files in `<root>/modules/<preset>/<name>.json` and
+`<root>/kits/<preset>/<name>.json` and registering a `Content`:
+
+```toml
+[project.entry-points."mpc_iml.content"]
+my-content = "my_package:CONTENT"
+```
+
+where `CONTENT = Content(preset="pressure", root="my_package:content")`.
+`mpc_iml.content.load_library(preset)` lists them, and
+`mpc_iml.generation.GeneratedSet.from_kit(library, "filter-play")` generates a
+kit's training examples; `tests/plugins/mpc_iml_example_content/` is an example.
 
 ## Start a practice repository
 

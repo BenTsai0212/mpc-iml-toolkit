@@ -131,6 +131,9 @@ class Preset:
     - `targets`: for regression presets, the number of model outputs; the engine
       rejects `/mpciml/targets` with another count and `/mpciml/class`. `None`
       leaves the task to the examples.
+    - `output_names`: optional names of the `targets` outputs, in output order
+      (ADR 0007): lower case letters, digits and hyphens, unique. Kits and modules
+      (`mpc_iml.content`) need them; a preset without them lists none.
     - `outputs`: where predictions go. `build_loop` sends to the first `OscOutput`;
       the engine sends to every declared output (`mpc_iml.engine`).
     - `patch`: the front-end patch as `"<package>:<path inside the package>"`.
@@ -150,6 +153,7 @@ class Preset:
     outputs: tuple[Output, ...] = (OscOutput(),)
     controls: Mapping[str, ControlHandler] = field(default_factory=dict)
     patch: str | None = None
+    output_names: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not _NAME.fullmatch(self.name):
@@ -171,6 +175,19 @@ class Preset:
                 raise PresetError(
                     f"{len(output.controllers)} MIDI controllers for {self.targets} targets"
                 )
+        if self.output_names is not None:
+            if self.targets is None or len(self.output_names) != self.targets:
+                raise PresetError(
+                    f"{len(self.output_names)} output names for {self.targets} targets"
+                )
+            for output_name in self.output_names:
+                if not _NAME.fullmatch(output_name):
+                    raise PresetError(
+                        "output names must be lower case letters, digits and hyphens: "
+                        f"{output_name!r}"
+                    )
+            if len(set(self.output_names)) != len(self.output_names):
+                raise PresetError(f"output names must be unique: {self.output_names}")
         if self.patch is not None and ":" not in self.patch:
             raise PresetError(f"patch must be '<package>:<path>': {self.patch!r}")
 

@@ -1,0 +1,9 @@
+{
+  "format": "mpc-iml-module",
+  "format_version": 1,
+  "name": "wobble",
+  "title": "Wobble",
+  "preset": "pressure",
+  "description": "Motion rises with pressure.",
+  "outputs": {"motion": [[0, 0], [1, 0.7]]}
+}
