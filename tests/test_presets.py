@@ -74,7 +74,7 @@ def test_demo_is_registered_as_a_built_in_preset() -> None:
     assert preset is PRESET
     assert preset.features is played_features
     assert preset.classes == CLASSES
-    assert preset.patch_path() is None
+    assert preset.patch == "mpc_iml:patches/mpc-iml.pd"
 
 
 @pytest.mark.usefixtures("external")

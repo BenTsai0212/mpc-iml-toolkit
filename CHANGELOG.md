@@ -16,11 +16,20 @@ Until 1.0, interfaces may still change between 0.x releases.
   declared) and MIDI controllers (0 without MIDI output). ADR 0006 also records the
   shared spec for the Pure Data and Max for Live front ends (groups, button names
   and order, the status line for errors). Front ends for 1.0 and 1.1 keep working.
+- The general Pure Data front end `patches/mpc-iml.pd` (#66, ADR 0006) for every
+  preset: it connects on open, lists the installed presets as buttons, shows class
+  buttons or as many target sliders and learn buttons as `/mpciml/layout` reports,
+  covers every control of ADR 0004 and ADR 0005 that a musician needs, and shows
+  engine errors on a status line in the patch. Pd vanilla 0.54, no externals; not
+  yet checked in Pure Data or on hardware.
 - `mpc_iml.examples.pressure_features`: 16 values, per pad, pressure (0-1), without
   velocity or the held flag (#76).
 
 ### Changed
 
+- The presets `demo` and `pressure` name `patches/mpc-iml.pd` as their front end
+  (#66). `patches/pressure.pd` is unchanged and stays as the hardware-checked
+  fallback until the general patch is timed on hardware.
 - The preset `pressure` uses `pressure_features` instead of `played_features`
   (#76): a press rises from 0 with pressure, a very light hold that retriggers on
   the MPC Sample no longer drops to rest, and strike velocity has no effect. Its

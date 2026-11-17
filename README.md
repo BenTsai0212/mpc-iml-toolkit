@@ -229,6 +229,15 @@ classification) and MIDI controllers (0 without MIDI output), so a front end sho
 the right controls. Ctrl-C stops the engine: input and
 sockets are closed and a training in progress is finished first.
 
+The reference front end for every preset is the Pure Data patch
+`src/mpc_iml/patches/mpc-iml.pd` (vanilla 0.54 or later, no externals; ADR 0006).
+Start the engine, then open the patch: it connects on open (click `connect` after
+restarting the engine), lists the installed presets as buttons, and adapts to the
+loaded one: class buttons for `demo`, target sliders `t1`-`t8` and learn buttons
+`l1`-`l8` for `pressure`. Errors from the engine appear on its status line. It has
+not been timed on hardware yet, so the steps below still use `patches/pressure.pd`
+(#66).
+
 ## Play the pressure preset
 
 The built-in preset `pressure` (`src/mpc_iml/pressure.py`, scenario 1 of
