@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-17
 - Related: RFC 0001, RFC 0002, RFC 0003, ADR 0002, ADR 0004, #96
+- Amended: 2026-11-17, experiment B is taught with pads instead of knobs (#116)
 
 ## Summary
 
@@ -86,16 +87,22 @@ right without changing them.
 
 ### Experiment B: live learning (medium initiative)
 
-- The MPC Sample's knobs act as the teacher: while the musician plays the pads and
-  turns knobs, each moment becomes an example (pad features as inputs, knob values
-  as targets).
+- One hand teaches and the other plays. A group of **teacher pads** (for example
+  pads 13-16) drive outputs directly with their pressure, like faders, and are not
+  inputs to the model. The other pads are played as usual. The MPC Sample's knobs,
+  encoder and fader cannot be the teacher: on firmware 1.3.0 they send nothing over
+  USB MIDI (RFC 0001, ADR 0002).
+- While a teacher pad is held, each moment becomes an example: the features of the
+  played pads as inputs, and the outputs as the teacher pads set them as targets.
 - The model retrains in the background every few seconds on a rolling window, so it
   keeps up with the musician and gradually forgets older behaviour.
-- When the musician stops turning the knobs, the model takes over: the pads now
-  move the outputs the way the musician was just moving the knobs.
-- Controls: window length (how quickly it forgets); freeze (stop learning and keep
-  the current model); save the window as an example set (ADR 0002 format).
-- Builds on the existing recording and training; no new dependency expected.
+- When the musician releases the teacher pads, the model takes over: the played
+  pads now move the outputs the way the teacher hand was just moving them.
+- Controls: which pads teach and which outputs each one drives; window length (how
+  quickly it forgets); freeze (stop learning and keep the current model); save the
+  window as an example set (ADR 0002 format).
+- Everything runs on the MPC Sample alone and builds on the existing recording and
+  training; no new dependency expected.
 
 ### Experiment C: response (high initiative)
 
@@ -154,8 +161,9 @@ been made (build it, postpone it or drop it).
 - Experiment A: what "wandering" means precisely (random walk, moving between
   examples, following the shape of the last gesture), and how the hand-back avoids
   jumps.
-- Experiment B: which knobs the MPC Sample sends and how they reach the engine;
-  window length and retraining interval; whether pads without knob movement add
+- Experiment B: how many teacher pads, and how they drive 8 outputs (one output
+  each, or one pad moving several outputs along a direction the musician chooses);
+  window length and retraining interval; whether moments without a teacher pad add
   examples.
 - Experiment C: which model; how the musician's playing constrains it; how
   turn-taking works (call and response, or playing together).
