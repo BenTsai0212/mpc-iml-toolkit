@@ -1,8 +1,9 @@
 # ADR 0006: Engine protocol 1.2, preset layout, and the shared front-end spec
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-16
 - Related: ADR 0004, ADR 0005, RFC 0002, #66, #86, #61 (Epic)
+- Accepted: 2026-11-17, implemented in protocol 1.2 and mpc-iml.pd; Phase 2.5 gate passed in #66 (#122)
 
 ## Context
 
