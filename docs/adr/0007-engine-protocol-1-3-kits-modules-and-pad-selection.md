@@ -1,8 +1,9 @@
 # ADR 0007: Engine protocol 1.3, kits, modules and pad selection
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-17
 - Related: RFC 0003, ADR 0002, ADR 0004, ADR 0005, ADR 0006, #97, #96 (Epic), #86
+- Accepted: 2026-11-17, implemented in #105, #108 and #111 (#121)
 
 ## Context
 
