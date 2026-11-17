@@ -422,8 +422,9 @@ def test_kit_and_module_buttons_are_labelled_from_the_replies() -> None:
 def test_the_group_is_inactive_without_kits() -> None:
     kit = canvas("kit")
     (kits,) = find(kit, "r mpciml-kits")
-    (length,) = find(kit, "list length")
-    assert reaches(kit, kits, "list length")
+    (fanout,) = find(kit, "t l l l")
+    assert kit.sources(fanout) and reaches(kit, kits, "t l l l")
+    (length,) = (i for i in find(kit, "list length") if kit.sources(i) == [fanout])
     (sel,) = kit.sinks(length)
     assert kit.boxes[sel].text == "sel 0"
     colours = {}
@@ -499,3 +500,62 @@ def test_a_module_or_a_resting_amount_sends_pad_module() -> None:
     assert reaches(kit, amount, "delay 300") and reaches(kit, delay, "pack f s f")
     (choice,) = find(kit, "t b s")
     assert reaches(kit, choice, "pack f s f")
+
+
+def gate_for(kit: Canvas, module: str) -> int | None:
+    """What reaches the right inlet of the amount's `spigot` for a pad's module.
+
+    Follows the boxes between the pad's module (`t s s s`) and the `spigot`,
+    evaluating the few vanilla objects that are allowed there.
+    """
+    (spigot,) = find(kit, "spigot")
+    (fanout,) = find(kit, "t s s s")
+    gates = []
+
+    def run(box: int, value: str | int | list[str] | None) -> None:
+        if box == spigot:
+            gates.append(value)
+            return
+        text = kit.boxes[box].text
+        if text == "sel -":
+            outlet, value = (0, None) if value == "-" else (1, value)
+        elif text == "list fromsymbol":
+            outlet, value = 0, list(str(value))
+        elif text == "list length":
+            outlet, value = 0, len(value) if isinstance(value, list) else 1
+        elif text == "clip 0 1":
+            outlet, value = 0, min(max(int(str(value)), 0), 1)
+        elif kit.boxes[box].kind == "msg" and text == "0":
+            outlet, value = 0, 0
+        else:
+            raise AssertionError(f"unexpected box on the gate: {text}")
+        for sink in kit.sinks(box, outlet):
+            run(sink, value)
+
+    for sink in kit.sinks(fanout, 1):
+        run(sink, module)
+    assert len(gates) <= 1
+    return gates[0] if gates else None
+
+
+def test_amount_sends_nothing_for_a_pad_without_a_module() -> None:
+    kit = canvas("kit")
+    (spigot,) = find(kit, "spigot")
+    (delay,) = find(kit, "delay 300")
+    (choice,) = find(kit, "t b s")
+    (bang,) = find(kit, "t b b b")
+    assert kit.sinks(delay) == [spigot] and kit.sinks(spigot) == [bang]
+    assert kit.sinks(choice, 0) == [bang], "a module button is not gated"
+    # The spigot starts closed (no /mpciml/pads yet) and follows the pad's module:
+    # `""` from /mpciml/pads and the `-` placeholder close it, a module opens it.
+    assert kit.boxes[spigot].args == ["spigot"]
+    assert gate_for(kit, "") == 0
+    assert gate_for(kit, "-") == 0
+    assert gate_for(kit, "brighten") == 1
+    # The selected pad's module reaches the gate on a new pad and on every pads reply.
+    (fanout,) = find(kit, "t s s s")
+    (unpack,) = find(kit, "unpack s f")
+    assert kit.sinks(unpack, 0) == [fanout]
+    (expr,) = find(kit, "expr 2*($f1-1)")
+    (pads,) = find(kit, "r mpciml-pads")
+    assert reaches(kit, expr, "spigot") and reaches(kit, pads, "spigot")
