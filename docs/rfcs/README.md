@@ -40,3 +40,4 @@
 | --- | --- | --- |
 | [0001](0001-project-charter.md) | Project charter | Accepted |
 | [0002](0002-platform-positioning.md) | Platform positioning | Accepted |
+| [0003](0003-starting-points-and-guidance.md) | Starting points and guidance | Accepted |
