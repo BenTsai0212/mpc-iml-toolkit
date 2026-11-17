@@ -237,7 +237,9 @@ toolkit with `uv sync`, the MPC Sample connected and set up), and
 
 4. Map the CCs in your DAW: click `stop`, map them one at a time with `l1`-`l8`
    while the state is `idle`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw),
-   then click `run` again and play the synthesiser from the MPC Sample.
+   then click `run` again and play the synthesiser from the MPC Sample. With
+   Ableton Live 12, the [Ableton Live starter set](#ableton-live-starter-set) has
+   the mappings already: open it instead and skip the mapping.
 
 5. Change a pad: turn on `select_pad` in group 2 and hit a pad on the MPC Sample.
    `pad` shows its number, `module` its module, and `amount` how strongly the module
@@ -427,12 +429,12 @@ to synthesiser parameters:
 
 Suggested mappings for the eight outputs of `pressure`, for any DAW and a typical
 subtractive synthesiser. The ranges are starting points; adjust them by ear. The
-Ableton Live starter set (#104) is a worked example once it exists.
+[Ableton Live starter set](#ableton-live-starter-set) is a worked example.
 
 | Output | CC | What it is for | Suggested target on a typical subtractive synth | Suggested range |
 | --- | --- | --- | --- | --- |
-| `brightness` | 20 | How open or dark the sound is | Filter cutoff | About 200 Hz to 12 kHz |
-| `resonance` | 21 | How sharply the filter rings at the cutoff | Filter resonance | 0 to about 70 % |
+| `brightness` | 20 | How open or dark the sound is | Filter cutoff | About 80 Hz to 16 kHz |
+| `resonance` | 21 | How sharply the filter rings at the cutoff | Filter resonance | 0 to about 85 % |
 | `drive` | 22 | Grit and added harmonics | Saturation or distortion amount | 0 to about 50 % |
 | `space` | 23 | How distant or roomy the sound is | Reverb send or wet | 0 to 60 % |
 | `motion` | 24 | How much the sound moves | LFO depth to pan, filter or amplitude | 0 to about 50 % |
@@ -467,6 +469,58 @@ What you get at the light end (#76):
 - A quick tap without sustained pressure barely registers.
 
 The outputs are not smoothed; smoothing may follow if playing shows it matters.
+
+## Ableton Live starter set
+
+A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),
+in [`assets/ableton/`](assets/ableton):
+
+- `mpc-iml-starter.als`: one MIDI track `mpc-iml` (input All Ins, Monitor Auto)
+  with an Instrument Rack whose eight macros are named after the `pressure`
+  outputs and already mapped to CC 20-27 on channel 1 from the port `mpc-iml`;
+- `mpc-iml-starter.adg`: the same Instrument Rack on its own: Drift, Saturator,
+  Auto Pan-Tremolo, Reverb and Utility.
+
+It needs Ableton Live 12, Standard or Suite. It uses only devices built into Live,
+with no Max for Live, no samples and no third-party plug-ins. It was built and
+played in Live 12.4 Standard.
+
+1. Start the engine first, so the port `mpc-iml` exists, and leave the terminal
+   window open:
+
+   ```bash
+   uv run mpc-iml
+   ```
+
+2. Open `assets/ableton/mpc-iml-starter.als` in Live.
+3. In Settings > Tempo & MIDI, in the Input Ports table, turn on **Track** for the
+   MPC Sample, and turn on **Remote** (Track off) for `mpc-iml`. Live keeps these
+   settings, so this is needed only once.
+4. In the Pure Data front end, click the preset `pressure`, load a kit in group 2
+   **Kit** (for example `filter-play`), wait for `trained`, click `run` and play the
+   MPC Sample. The macros follow the pressure.
+
+The macros (macro 0 to 127; channel 1, port `mpc-iml`):
+
+| Macro | Name | CC | Parameter | Range |
+| --- | --- | --- | --- | --- |
+| 1 | brightness | 20 | Drift low-pass frequency | 80 Hz to 16 kHz |
+| 2 | resonance | 21 | Drift low-pass resonance | 0 to 0.85 |
+| 3 | drive | 22 | Saturator Drive | 0 dB to 18 dB |
+| 4 | space | 23 | Reverb Dry/Wet | 0 % to 60 % |
+| 5 | motion | 24 | Auto Pan-Tremolo LFO Amount | 0 % to 60 % |
+| 6 | pitch | 25 | Drift Osc 2 Detune | -0.50 to +0.50 (centre in tune, the kits' resting pitch 0.5) |
+| 7 | texture | 26 | Drift Noise Gain | -inf dB to -10 dB |
+| 8 | level | 27 | Utility Output Gain | -24 dB to 0 dB |
+
+Fixed settings: Drift filter type II (24 dB), filter envelope modulation (Freq
+Mod, Env 2) 0 %, Osc 2 saw; Saturator Dry/Wet 100 %; Auto Pan-Tremolo rate 4 Hz;
+Reverb decay 3.00 s. The kits' resting values are still provisional, so the sound
+at rest may change.
+
+The rack `mpc-iml-starter.adg` can be dragged into another set, but it does not
+carry the CC mappings: they are stored only in the `.als`. In another set, map the
+macros as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw).
 
 ## Use the Max for Live device
 
