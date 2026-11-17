@@ -165,6 +165,51 @@ velocity，放開時為 0，接著是 pressure），而不是預設的 49 個值
 它不含 velocity 與按住旗標，所以按下 pad 後，在 MPC 回報 pressure 之前輸入不變，輸入從 0
 開始上升。preset `pressure` 使用它。
 
+## 20 分鐘開始演奏
+
+給音樂家的路線：一個指令啟動 engine 並開啟 Pure Data 前端，之後都在 patch 上點按。以下使用
+preset `pressure`（pad 的 pressure 對應到 8 個合成參數，細節見
+[演奏 preset pressure](#演奏-preset-pressure)）；前端對每個 preset 的操作方式相同（ADR 0006）。
+20 分鐘從 `uv sync` 開始計算。
+
+開始之前：完成[參考範例](#參考範例)的第 1～3 步（uv、以 `uv sync` 安裝工具包、接好並設定
+MPC Sample），並從官網或以 `brew install --cask pd` 安裝 [Pure Data](https://puredata.info)
+vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開啟 `.pd` 檔。
+
+1. 在 `mpc-iml-toolkit` 資料夾以一個指令啟動全部，終端機視窗保持開啟：
+
+   ```bash
+   uv run mpc-iml
+   ```
+
+   engine 以資料夾 `mpc-iml-data` 啟動，並在 Pure Data 開啟前端
+   `src/mpc_iml/patches/mpc-iml.pd`。patch 沒有開啟時，指令會印出它的路徑：從 Pure Data
+   開啟該檔（File > Open）。在終端機按 Ctrl-C 停止 engine。
+
+2. patch 會自動連線：第 1 組 **Connect** 顯示版本與 `state` `idle`，已安裝的 preset 列成按鈕。
+   一直是空的時按 `connect`。按 preset 按鈕 `pressure`。第 2 組 **Teach** 這時顯示目標滑桿
+   `t1`～`t8`，第 6 組 **Outputs** 顯示 learn 按鈕 `l1`～`l8`，第 5 組 **Library** 顯示名稱
+   `pressure-examples`。
+
+3. 錄幾個範例（第 3 組 **Examples**）。每個範例：把 `t1`～`t8`（0-1）設成想要的聲音，在 pad
+   上保持手勢，按 `record`，持續約兩秒，按 `stop_recording`。先錄休息（不碰 pad，目標值設成
+   無聲），再錄輕按 pad 1 與重按 pad 1，各自設定目標值。counts 顯示範例數量；`clear` 重新開始。
+
+4. 在第 4 組 **Model** 按 `train`。`trained` 亮起後按 `run` 並演奏：滑桿 `o1`～`o8` 跟著模型
+   變化，engine 在虛擬 port `mpc-iml` 送出 MIDI CC 20-27。按 `stop` 結束執行。
+
+5. 在狀態為 `idle` 時，用 `l1`～`l8` 在 DAW 一次對應一個 CC，做法見
+   [在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)，再按 `run`，從 MPC Sample 演奏合成器。
+
+6. 在第 5 組 **Library** 按 `save`，把範例存在 `mpc-iml-data/pressure-examples.jsonl`；下次按
+   `load` 載回。
+
+engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 7 組 **Messages** 的狀態列，不只在 Pd 視窗。
+
+`uv run mpc-iml` 的選項：指令後加資料夾名稱改用其他資料夾（`uv run mpc-iml my-data`）；
+`--no-patch` 只啟動 engine，給 Max for Live 裝置（#86）或自己的前端使用；其他選項與 engine
+相同（`--preset`、`--replay`、`--midi-port IAC`、各埠號；見[執行 engine](#執行-engine)）。
+
 ## 執行 engine
 
 engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
@@ -203,7 +248,8 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 以上，不需外掛；ADR 0006）。先啟動 engine 再開啟 patch：開啟時會自動連線（重新啟動 engine 後按
 `connect`），把已安裝的 preset 列成按鈕，並依載入的 preset 調整：`demo` 顯示類別按鈕，
 `pressure` 顯示目標滑桿 `t1`～`t8` 與 learn 按鈕 `l1`～`l8`。engine 的錯誤顯示在 patch 的狀態列。
-它尚未在硬體上計時，因此下面的步驟仍使用 `patches/pressure.pd`（#66）。
+`uv run mpc-iml` 一步啟動 engine 並開啟這個 patch（[20 分鐘開始演奏](#20-分鐘開始演奏)）。
+patch 尚未在硬體上計時，因此下面的步驟仍使用在硬體上確認過的 `patches/pressure.pd`（#66）。
 
 ## 演奏 preset pressure
 

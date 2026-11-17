@@ -75,7 +75,9 @@ __all__ = [
     "REPLY_PORT",
     "ControlError",
     "Engine",
+    "add_engine_options",
     "main",
+    "run",
 ]
 
 PROTOCOL_VERSION = (1, 2)
@@ -798,12 +800,8 @@ def _drop_unmatched_ends(events: list[Event]) -> list[Event]:
     return kept
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="python -m mpc_iml.engine",
-        description="The IML engine, controlled over OSC (ADR 0004; see the README).",
-    )
-    parser.add_argument("data", help="folder for saved example sets (created if missing)")
+def add_engine_options(parser: argparse.ArgumentParser) -> None:
+    """Add the engine's options (all but the data folder) to `parser`."""
     parser.add_argument("--preset", default="demo", help="preset to start with (default demo)")
     parser.add_argument("--replay", help="read gestures from this recording instead of the MPC")
     parser.add_argument("--port", default=DEFAULT_PORT_MATCH, help="MIDI input port name contains")
@@ -817,12 +815,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="send MIDI CCs to the existing output port whose name contains this (e.g. IAC)"
         " instead of the virtual port",
     )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m mpc_iml.engine",
+        description="The IML engine, controlled over OSC (ADR 0004; see the README).",
+    )
+    parser.add_argument("data", help="folder for saved example sets (created if missing)")
+    add_engine_options(parser)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the engine until Ctrl-C."""
-    args = build_parser().parse_args(argv)
+    return run(build_parser().parse_args(argv))
+
+
+def run(args: argparse.Namespace, on_started: Callable[["Engine"], None] | None = None) -> int:
+    """Run the engine from parsed options until Ctrl-C.
+
+    `on_started` is called once the engine listens, for example to open a front end
+    that says `hello` as soon as it opens.
+    """
     source: LiveSource | ReplaySource
     if args.replay:
         source = ReplaySource(args.replay, realtime=True)
@@ -857,6 +872,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"preset {args.preset!r}, data in {args.data}. Ctrl-C stops."
     )
     try:
+        if on_started is not None:
+            on_started(engine)
         engine.serve_forever()
     except KeyboardInterrupt:
         pass

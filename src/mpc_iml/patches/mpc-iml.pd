@@ -1,5 +1,5 @@
 #N canvas 40 40 1100 820 12;
-#X text 20 10 mpc-iml-toolkit front end for every preset (ADR 0006). Start the engine first: python -m mpc_iml.engine <folder>. It connects on open. Click connect after starting the engine. Pd vanilla 0.54 or later \, no externals. \, f 120;
+#X text 20 10 mpc-iml-toolkit front end for every preset (ADR 0006). Start it with uv run mpc-iml \, or start the engine first (python -m mpc_iml.engine <folder>). It connects on open. Click connect after starting the engine. Pd vanilla 0.54 or later \, no externals. \, f 120;
 #X text 20 60 1 Connect;
 #X obj 20 85 bng 25 250 50 0 mpciml-connect empty connect 30 12 0 12 #fcfcfc #000000 #000000;
 #X obj 130 85 bng 25 250 50 0 mpciml-ping empty ping 30 12 0 12 #fcfcfc #000000 #000000;
