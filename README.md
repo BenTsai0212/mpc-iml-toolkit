@@ -194,10 +194,12 @@ uses it.
 ## Play in 20 minutes
 
 The path for musicians: one command starts the engine and opens the Pure Data front
-end, and everything after that is clicks in the patch. This walkthrough uses the
-preset `pressure` (pad pressure to 8 synthesis parameters, details in
-[Play the pressure preset](#play-the-pressure-preset)); the front end works the same
-way with every preset (ADR 0006). The 20 minutes are counted from `uv sync`.
+end, and everything after that is clicks in the patch. You start from a kit that
+already plays (RFC 0003, ADR 0007), change it pad by pad, and add your own
+demonstrations on top. This walkthrough uses the preset `pressure` (pad pressure to
+8 synthesis parameters, details in [Play the pressure preset](#play-the-pressure-preset));
+the front end works the same way with every preset (ADR 0006), and group 2 **Kit**
+is inactive for presets without kits. The 20 minutes are counted from `uv sync`.
 
 Before you start: steps 1-3 of the [reference example](#reference-example) (uv, the
 toolkit with `uv sync`, the MPC Sample connected and set up), and
@@ -219,30 +221,55 @@ toolkit with `uv sync`, the MPC Sample connected and set up), and
 
 2. The patch connects by itself: in group 1 **Connect**, the version and `state`
    `idle` appear, and the installed presets are listed as buttons. If they stay
-   empty, click `connect`. Click the preset button `pressure`. Group 2 **Teach**
-   now shows the target sliders `t1`-`t8`, group 6 **Outputs** the learn buttons
-   `l1`-`l8`, and group 5 **Library** the name `pressure-examples`.
+   empty, click `connect`. Click the preset button `pressure`. Group 2 **Kit** now
+   lists the kits (`filter-play` first) and the modules, group 3 **Teach** shows the
+   target sliders labelled with the output names (`brightness` to `level`), group 7
+   **Outputs** the outputs with the same names and the learn buttons `l1`-`l8`, and
+   group 6 **Library** the name `pressure-examples`.
 
-3. Record a few examples (group 3 **Examples**). For each one: set `t1`-`t8` (0-1)
-   to the sound you want, hold the gesture on the pads, click `record`, keep
-   holding for about two seconds, and click `stop_recording`. Record four examples
-   in this order: rest (no pad touched, targets set to silence), the lightest touch
-   on pad 1 (targets close to rest), a light press, and a hard press, each with its
-   own targets. The counts show how many examples you have; `clear` starts again.
+3. Start from a kit: in group 2 **Kit**, click `filter-play`. The engine replaces
+   the examples with the kit's generated examples and trains: `kit` shows
+   `filter-play`, the state goes to `training` and back to `idle`, and `trained`
+   turns on in group 5 **Model**. Click `run` and play: pads 1-4 brighten, pads 5-8
+   add bite (brightness and resonance), pads 9-12 darken, pads 13-14 wobble, pad 15
+   bends the pitch and pad 16 changes nothing. The outputs in group 7 follow the
+   model, and the engine sends MIDI CC 20-27 on the virtual port `mpc-iml`.
 
-4. In group 4 **Model**, click `train`. When `trained` is on, click `run` and play:
-   the sliders `o1`-`o8` follow the model, and the engine sends MIDI CC 20-27 on
-   the virtual port `mpc-iml`. Click `stop` to end running.
+4. Map the CCs in your DAW: click `stop`, map them one at a time with `l1`-`l8`
+   while the state is `idle`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw),
+   then click `run` again and play the synthesiser from the MPC Sample.
 
-5. Map the CCs in your DAW one at a time with `l1`-`l8` while the state is `idle`,
-   as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), then click `run`
-   again and play the synthesiser from the MPC Sample.
+5. Change a pad: turn on `select_pad` in group 2 and hit a pad on the MPC Sample.
+   `pad` shows its number, `module` its module, and `amount` how strongly the module
+   acts. Click another module (for example `wobble`), or move `amount` and let go:
+   the engine replaces only that pad's generated examples and retrains, and keeps
+   running if it was. You can also type a pad number (1-16) into `pad` instead of
+   hitting it. A change while a retrain is still in progress gets an error on the
+   status line; wait for the retrain to finish. Turn `select_pad` off when you are
+   done (`record` turns it off too).
 
-6. Click `save` in group 5 **Library** to keep the examples in
-   `mpc-iml-data/pressure-examples.jsonl`; next time, `load` brings them back.
+6. Add demonstrations on top: click `stop`, set the target sliders in group 3 to
+   the sound you want for a gesture, hold the gesture on the pads, click `record`
+   in group 4 **Examples**, keep holding for about two seconds, and click
+   `stop_recording`. Click `train`, then `run`. A demonstration trains together
+   with the pad's module: a short one nudges the module's sound, one of 2-3 seconds
+   outweighs it.
+
+7. Click `save` in group 6 **Library** to keep the examples, with the kit and the
+   pads' modules, in `mpc-iml-data/pressure-examples.jsonl`; next time, `load`
+   brings them back.
 
 Errors from the engine (for example a button clicked in the wrong state) appear on
-the status line in group 7 **Messages**, not only in the Pd window.
+the status line in group 8 **Messages**, not only in the Pd window.
+
+**Recording from nothing** (the advanced route): instead of a kit, click `clear`
+in group 4 **Examples** (it also clears the kit) and record every example
+yourself. For each one: set the target sliders (0-1) to the sound you want, hold
+the gesture on the pads, click `record`, keep holding for about two seconds, and
+click `stop_recording`. Record four examples in this order: rest (no pad touched,
+targets set to silence), the lightest touch on pad 1 (targets close to rest), a
+light press, and a hard press, each with its own targets. The counts show how many
+examples you have. Then click `train`, and `run` when `trained` is on.
 
 Options of `uv run mpc-iml`: a folder name after the command uses another data
 folder (`uv run mpc-iml my-data`); `--no-patch` starts only the engine, for the
@@ -350,12 +377,14 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
 2. The command opens the front end `src/mpc_iml/patches/mpc-iml.pd` in Pure Data
    (if it does not, open the path it prints with File > Open). The patch connects
    by itself: group 1 **Connect** shows the version and `state` `idle`, and with
-   `pressure` loaded, group 2 **Teach** shows the target sliders `t1`-`t8` and
-   group 6 **Outputs** the learn buttons `l1`-`l8`. Click `connect` if you
-   restarted the engine after the patch.
+   `pressure` loaded, group 2 **Kit** lists the kits and modules, group 3 **Teach**
+   shows the target sliders labelled `brightness` to `level`, and group 7
+   **Outputs** the learn buttons `l1`-`l8`. Click `connect` if you restarted the
+   engine after the patch. To start from a kit instead of recording, follow
+   steps 3-5 of [Play in 20 minutes](#play-in-20-minutes).
 
-3. Record a few examples (group 3 **Examples**). For each one: set the 8 target
-   sliders `t1`-`t8` (0-1) to the sound you want, hold the gesture on the pads,
+3. Record a few examples (group 4 **Examples**). For each one: set the 8 target
+   sliders (0-1) to the sound you want, hold the gesture on the pads,
    click `record` (it sends the targets, then starts recording), keep holding for
    about two seconds, and click `stop_recording`. Start with rest (no pads, targets
    for silence), then for example pad 1 held lightly and pad 1 held firmly, each
@@ -367,10 +396,10 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
    examples in the engine, and saved files are not touched. It works in `idle` and
    `running`, and the counts show the new numbers.
 
-4. Click `train` (group 4 **Model**). The state goes to `training`, then back to
-   `idle`, and `trained` turns on. Click `run` and play: the sliders `o1`-`o8` in
-   group 6 follow the model, and the MIDI CCs follow them. `stop` ends running.
-   `save` and `load` (group 5 **Library**) keep the examples in
+4. Click `train` (group 5 **Model**). The state goes to `training`, then back to
+   `idle`, and `trained` turns on. Click `run` and play: the output sliders in
+   group 7 follow the model, and the MIDI CCs follow them. `stop` ends running.
+   `save` and `load` (group 6 **Library**) keep the examples in
    `mpc-iml-data/pressure-examples.jsonl`.
 
 The patch shows `/wek/outputs` by listening on port 12000, and only one program can
@@ -427,10 +456,11 @@ The outputs are not smoothed; smoothing may follow if playing shows it matters.
 ## Use the Max for Live device
 
 The Max for Live device lets you record, train, run and map the model without
-leaving Ableton Live. It has the same 7 groups, button names and order as the Pure
-Data front end (ADR 0006), so the [Play in 20 minutes](#play-in-20-minutes) steps
-apply to it; only the start and the install differ. The device has not been checked
-in Live yet (#86).
+leaving Ableton Live. It has the 7 groups of ADR 0006 with the button names and
+order of the Pure Data front end, but not yet group 2 **Kit** of ADR 0007, so the
+patch's groups 3-8 are the device's groups 2-7, and the recording route of
+[Play in 20 minutes](#play-in-20-minutes) applies to it; only the start and the
+install differ. The device has not been checked in Live yet (#86).
 
 You need Live Suite, or Live Standard with Max for Live, the setup of the
 [reference example](#reference-example) (steps 1-3), and the Live settings of
@@ -483,7 +513,7 @@ is added, build the device from it once:
    `t1`-`t8`. For a classification preset such as `demo`: the `class` field and the
    class buttons `c1`-`c8`.
 
-4. Record, train and run as in steps 3 and 4 of
+4. Record, train and run as in "Recording from nothing" of
    [Play in 20 minutes](#play-in-20-minutes), with `record` and `stop recording` in
    group 3 **Examples** and `train`, `run` and `stop` in group 4 **Model**. Group 6
    **Outputs** shows the model's outputs `o1`-`o8` as bars (for `demo`, the
