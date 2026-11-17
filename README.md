@@ -255,8 +255,9 @@ ports; see [Run the engine](#run-the-engine)).
 The engine is a long-running IML loop that a front end (Pure Data, Max, later an
 app) drives with OSC control messages; the protocol is
 [ADR 0004](docs/adr/0004-engine-control-protocol.md), version 1.1 in
-[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md) and 1.2 in
-[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md). Start it with a folder for
+[ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md), 1.2 in
+[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md) and 1.3 in
+[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md). Start it with a folder for
 its saved example sets, with the MPC connected as in the
 [reference example](#reference-example):
 
@@ -290,6 +291,21 @@ sends a short sweep on that one controller so a DAW can learn it, and answers
 classification) and MIDI controllers (0 without MIDI output), so a front end shows
 the right controls. Ctrl-C stops the engine: input and
 sockets are closed and a training in progress is finished first.
+
+Protocol 1.3 adds kits for presets with named outputs (`pressure`; see
+[Named outputs, modules and kits](#named-outputs-modules-and-kits)). The full state
+and `preset/load` also send `/mpciml/names` (the output names), `/mpciml/kit` (the
+kit the set started from, or `""`) and `/mpciml/pads` (16 pairs of module and
+amount). `/mpciml/kit/list` and `/mpciml/module/list` answer `/mpciml/kits` and
+`/mpciml/modules`. `/mpciml/kit/load filter-play` replaces the example set with the
+kit's generated takes and trains; `/mpciml/pad/module <pad> <module> [amount]`
+changes one pad (1-16), keeps recorded demonstrations and trains again (both in
+`idle`, or in `running` when no retrain is in progress). Between
+`/mpciml/pad/select/start` and `/mpciml/pad/select/stop` (or `record/start` or
+`preset/load`) each pad hit on the MPC is reported as `/mpciml/pad/hit <pad>`.
+`examples/clear` also clears the kit; `examples/save` writes a set with generated
+takes as recording format version 2, and `examples/load` restores its kit and pad
+assignments.
 
 The reference front end for every preset is the Pure Data patch
 `src/mpc_iml/patches/mpc-iml.pd` (vanilla 0.54 or later, no externals; ADR 0006).
@@ -551,7 +567,8 @@ resting sound plus a module on each of the 16 pads. `pressure` names its outputs
 `level` (CC 20-27), and comes with 9 modules and the kits `filter-play` (default),
 `texture-lab` and `ambient-space` (`src/mpc_iml/modules/pressure/`,
 `src/mpc_iml/kits/pressure/`; resting values are provisional until a hardware
-playtest).
+playtest). The engine loads a kit with `/mpciml/kit/load` and changes a pad with
+`/mpciml/pad/module` ([Run the engine](#run-the-engine)).
 
 Another package adds modules and kits, also to a preset it does not define, by
 putting JSON files in `<root>/modules/<preset>/<name>.json` and

@@ -10,6 +10,10 @@ opened is logged and skipped; the others keep working. `/mpciml/midi/learn` send
 one MIDI controller on its own so a DAW can learn it (protocol 1.1, ADR 0005).
 `/mpciml/layout` tells a front end the active preset's number of targets and MIDI
 controllers, so it can show the right controls (protocol 1.2, ADR 0006).
+Protocol 1.3 (ADR 0007) adds kits and modules for presets with named outputs:
+`kit/load` replaces the example set with a kit's generated takes, `pad/module`
+changes one pad's module, both followed by automatic training, and
+`pad/select/start` reports pad hits so a front end can select a pad on the MPC.
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -20,7 +24,9 @@ the frames between `record/start` and `record/stop` as examples with the current
 class or targets. The example set is also kept as one recording (ADR 0002 format)
 for `examples/save`: each recorded frame is written as the MIDI events that give its
 pad state, one frame interval apart, so loading the file gives the same examples,
-also when the real-time frame loop dropped late frames during a take (#73).
+also when the real-time frame loop dropped late frames during a take (#73). Takes
+generated from a kit are kept apart (`GeneratedSet`) and written after the recorded
+ones, as recording format version 2.
 
 Threads: control messages are handled one at a time on the server thread; frames
 are handled on the input thread; training runs on its own thread. A lock keeps them
@@ -44,6 +50,7 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 from pythonosc.udp_client import UDPClient
 
 from mpc_iml import __version__
+from mpc_iml.content import ContentError, Library, UnknownContentError, load_library
 from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, MidiKind
 from mpc_iml.examples import ExampleError, ExampleSet
 from mpc_iml.frames import (
@@ -53,8 +60,10 @@ from mpc_iml.frames import (
     PadState,
     bank_pad_to_note,
     frames,
+    note_to_bank_pad,
     realtime_frames,
 )
+from mpc_iml.generation import GeneratedSet, split_generated, with_generated
 from mpc_iml.loop import FanOut, IMLLoop, ValuesSender
 from mpc_iml.midi_out import MidiCcSender, MidiOutputBackend, RtMidiOutBackend
 from mpc_iml.osc import DEFAULT_HOST, INPUTS_ADDRESS, INPUTS_PORT, OscSender
@@ -80,8 +89,9 @@ __all__ = [
     "run",
 ]
 
-PROTOCOL_VERSION = (1, 2)
-"""Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005; 1.2 in ADR 0006)."""
+PROTOCOL_VERSION = (1, 3)
+"""Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005; 1.2 in ADR 0006;
+1.3 in ADR 0007)."""
 
 CONTROL_PORT = 6450
 """Default port the engine listens on for control messages."""
@@ -114,8 +124,15 @@ ALLOWED: Mapping[str, frozenset[str]] = {
     "stop": frozenset({IDLE, RECORDING, RUNNING}),
     "preset/load": frozenset({IDLE}),
     "midi/learn": frozenset({IDLE, TRAINING}),
+    "kit/list": _ALL,
+    "module/list": _ALL,
+    "kit/load": frozenset({IDLE, RUNNING}),
+    "pad/module": frozenset({IDLE, RUNNING}),
+    "pad/select/start": _EDIT,
+    "pad/select/stop": _EDIT,
 }
-"""The states in which each control message is accepted (ADR 0004, States; ADR 0005)."""
+"""The states in which each control message is accepted (ADR 0004, States; ADR 0005;
+ADR 0007). `kit/load` and `pad/module` are also refused while a retrain runs."""
 
 LEARN_SWEEP = (0, 32, 64, 96, 127)
 """The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
@@ -154,6 +171,15 @@ def _int(value: Any) -> int:
     if isinstance(value, float) and value.is_integer():
         return int(value)
     raise ControlError("bad_arguments", f"expected an int, got {value!r}")
+
+
+def _float(value: Any) -> float:
+    """A finite number argument (OSC int32 or float)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ControlError("bad_arguments", f"expected a number, got {value!r}")
+    if not math.isfinite(value):
+        raise ControlError("bad_arguments", f"expected a finite number, got {value!r}")
+    return float(value)
 
 
 def _name(args: Sequence[Any]) -> str:
@@ -256,6 +282,9 @@ class Engine:
         self._serving = False
         self._midi: list[MidiCcSender] = []
         self._midi_outputs: list[MidiCcOutput] = []
+        self._generated: GeneratedSet | None = None
+        self._library: Library | None = None
+        self._selecting = False
         try:
             found = self._find(preset)
         except ControlError as error:
@@ -282,6 +311,12 @@ class Engine:
             "preset/list": self._preset_list,
             "preset/load": self._preset_load,
             "midi/learn": self._midi_learn,
+            "kit/list": self._kit_list,
+            "kit/load": self._kit_load,
+            "module/list": self._module_list,
+            "pad/module": self._pad_module,
+            "pad/select/start": self._select_start,
+            "pad/select/stop": self._select_stop,
         }
 
     # Life cycle
@@ -400,6 +435,7 @@ class Engine:
             raise ControlError("bad_arguments", "send /mpciml/class or /mpciml/targets first")
         self._check_task(self._label, self._targets)
         self._take = []
+        self._selecting = False
         self._set_state(RECORDING)
 
     def _record_stop(self, args: list[Any]) -> None:
@@ -409,6 +445,8 @@ class Engine:
             self._examples.add(frame, self._label, self._targets)
         if take:
             self._append_take(take)
+            if self._generated is not None:
+                self._rebuild_examples()
         self._set_state(IDLE)
         self._counts()
 
@@ -446,6 +484,8 @@ class Engine:
         _check_count(args, 0, 0)
         self._examples.clear()
         self._timeline = []
+        self._generated = None
+        self._kit_and_pads()
         self._counts()
 
     def _save(self, args: list[Any]) -> None:
@@ -453,7 +493,9 @@ class Engine:
         path = self.data_dir / f"{name}.jsonl"
         partial = self.data_dir / f".{name}.jsonl.partial"
         header = Header(settings={"preset": self._preset.name})
-        write_recording(partial, header, self._timeline)
+        if self._generated is not None:
+            header = self._generated.header(header)
+        write_recording(partial, header, with_generated(self._timeline, self._generated))
         os.replace(partial, path)
 
     def _load(self, args: list[Any]) -> None:
@@ -463,9 +505,10 @@ class Engine:
             raise ControlError("not_found", f"no saved example set named {name!r}")
         examples = self._preset.example_set()
         try:
-            events = read_recording(path).events
-            examples.add_events(events, self._rate)
-        except ValueError as error:
+            recording = read_recording(path)
+            recorded, generated = split_generated(recording, self._rate)
+            examples.add_events(recording.events, self._rate)
+        except (ValueError, ContentError) as error:
             raise ControlError("bad_arguments", f"cannot load {name!r}: {error}") from error
         if examples.examples:
             first = examples.examples[0]
@@ -475,7 +518,9 @@ class Engine:
                 raise ControlError("bad_arguments", f"cannot load {name!r}: {error}") from error
         self._examples = examples
         self._loop.examples = examples
-        self._timeline = list(events)
+        self._timeline = recorded
+        self._generated = generated
+        self._kit_and_pads()
         self._counts()
 
     def _list(self, args: list[Any]) -> None:
@@ -485,8 +530,24 @@ class Engine:
 
     def _train(self, args: list[Any]) -> None:
         _check_count(args, 0, 0)
-        if self._train_thread is not None and self._train_thread.is_alive():
-            raise ControlError("wrong_state", f"a retrain is already in progress ({self._state})")
+        self._check_not_training()
+        self._start_training()
+
+    def _check_not_training(self) -> None:
+        """Refuse while a retrain runs; wait for a training thread that is finishing.
+
+        In `idle` a training thread can still be alive for a moment after it set the
+        state back to `idle`; it no longer needs the lock, so joining it is quick.
+        """
+        thread = self._train_thread
+        if thread is None or not thread.is_alive():
+            return
+        if self._state == IDLE:
+            thread.join()
+            return
+        raise ControlError("wrong_state", f"a retrain is already in progress ({self._state})")
+
+    def _start_training(self) -> None:
         if not self._loop.backend_on:
             self._send("train/failed", "the model backend is off; Wekinator is the model")
             return
@@ -532,9 +593,14 @@ class Engine:
             self._examples = preset.example_set()
             self._loop = self._build_loop(preset, self._examples)
             self._timeline = []
+            self._generated = None
+            self._library = None
             self._label, self._targets = None, None
+        self._selecting = False
         self._send("preset", self._preset.name, self._preset.version)
         self._layout()
+        self._names()
+        self._kit_and_pads()
         self._counts()
         self._report_trained()
 
@@ -555,6 +621,80 @@ class Engine:
             for value in reversed(LEARN_SWEEP) if down else LEARN_SWEEP:
                 sender.send_controller(index, value)
         self._send("midi/sent", output, senders[0].output.controllers[index])
+
+    def _kit_list(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._send("kits", *self._content().kit_names())
+
+    def _module_list(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._send("modules", *self._content().module_ids())
+
+    def _kit_load(self, args: list[Any]) -> None:
+        name = _name(args)
+        self._need_output_names()
+        self._check_not_training()
+        library = self._content()
+        if name not in library.kits:
+            other = self._kit_preset(name)
+            if other is not None:
+                raise ControlError(
+                    "bad_arguments",
+                    f"kit {name!r} is for preset {other!r}, not {library.preset.name!r}",
+                )
+            raise ControlError("not_found", f"unknown kit {name!r} for {library.preset.name!r}")
+        try:
+            generated = GeneratedSet.from_kit(library, name)
+        except UnknownContentError as error:
+            raise ControlError("not_found", str(error)) from error
+        except ContentError as error:
+            raise ControlError("bad_arguments", str(error)) from error
+        self._timeline = []
+        self._generated = generated
+        self._rebuild_examples()
+        self._kit_and_pads()
+        self._counts()
+        self._start_training()
+
+    def _pad_module(self, args: list[Any]) -> None:
+        _check_count(args, 2, 3)
+        pad = _int(args[0])
+        module = args[1]
+        if not isinstance(module, str):
+            raise ControlError("bad_arguments", f"expected a module id, got {module!r}")
+        amount = _float(args[2]) if len(args) == 3 else 1.0
+        self._need_output_names()
+        if not 1 <= pad <= PADS:
+            raise ControlError("bad_arguments", f"pad must be 1-{PADS}, got {pad}")
+        if not 0.0 <= amount <= 1.0:
+            raise ControlError("bad_arguments", f"amount must be 0-1, got {amount}")
+        self._check_not_training()
+        library = self._content()
+        if module not in library.modules:
+            raise ControlError(
+                "not_found", f"unknown module {module!r} for {library.preset.name!r}"
+            )
+        if self._generated is None or self._generated.rest is None:
+            raise ControlError("bad_arguments", "no resting values: load a kit first")
+        try:
+            generated = self._generated.assign(library, pad, module, amount)
+        except UnknownContentError as error:
+            raise ControlError("not_found", str(error)) from error
+        except ContentError as error:
+            raise ControlError("bad_arguments", str(error)) from error
+        self._generated = generated
+        self._rebuild_examples()
+        self._pads()
+        self._counts()
+        self._start_training()
+
+    def _select_start(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._selecting = True
+
+    def _select_stop(self, args: list[Any]) -> None:
+        _check_count(args, 0, 0)
+        self._selecting = False
 
     def _preset_message(self, rest: str, args: list[Any]) -> None:
         name, _, control = rest.partition("/")
@@ -617,6 +757,27 @@ class Engine:
         controllers = len(midi.controllers) if midi is not None else 0
         self._send("layout", self._preset.targets or 0, controllers)
 
+    def _names(self) -> None:
+        """`/mpciml/names`: the preset's output names (none when it has none)."""
+        self._send("names", *(self._preset.output_names or ()))
+
+    def _kit_and_pads(self) -> None:
+        """`/mpciml/kit` (the kit the set started from, or `""`), then `/mpciml/pads`."""
+        kit = self._generated.kit if self._generated is not None else None
+        self._send("kit", kit or "")
+        self._pads()
+
+    def _pads(self) -> None:
+        """`/mpciml/pads`: 16 × (module, amount); `""` and 1 for a pad without takes."""
+        if self._generated is not None:
+            assignments = self._generated.assignments()
+        else:
+            assignments = [("", 1.0)] * PADS
+        values: list[int | float | str] = []
+        for module, amount in assignments:
+            values += [module, float(amount)]
+        self._send("pads", *values)
+
     def _report_trained(self, always: bool = False) -> None:
         trained = self._loop.model is not None
         if always or trained != self._trained:
@@ -627,6 +788,8 @@ class Engine:
         self._send("state", self._state)
         self._send("preset", self._preset.name, self._preset.version)
         self._layout()
+        self._names()
+        self._kit_and_pads()
         self._counts()
         self._report_trained(always=True)
 
@@ -641,6 +804,44 @@ class Engine:
             known = ", ".join(sorted(presets)) or "none"
             raise ControlError("not_found", f"unknown preset {name!r}; available: {known}")
         return presets[name]
+
+    def _content(self) -> Library:
+        """The active preset's kits and modules, read once per preset."""
+        if self._library is None:
+            try:
+                self._library = load_library(self._preset)
+            except ContentError as error:
+                raise ControlError("not_found", str(error)) from error
+        return self._library
+
+    def _need_output_names(self) -> None:
+        if self._preset.output_names is None:
+            raise ControlError(
+                "bad_arguments", f"preset {self._preset.name!r} has no named outputs, so no kits"
+            )
+
+    def _kit_preset(self, name: str) -> str | None:
+        """The other installed preset that has a kit `name`, if any."""
+        try:
+            presets = self._presets()
+        except PresetError:
+            return None
+        for preset in presets.values():
+            if preset.name == self._preset.name or preset.output_names is None:
+                continue
+            try:
+                if name in load_library(preset).kits:
+                    return preset.name
+            except ContentError:
+                continue
+        return None
+
+    def _rebuild_examples(self) -> None:
+        """Rebuild the example set from the recorded timeline and the generated takes."""
+        examples = self._preset.example_set()
+        examples.add_events(with_generated(self._timeline, self._generated, self._rate), self._rate)
+        self._examples = examples
+        self._loop.examples = examples
 
     def _check_preset_task(self, label: str | None, targets: tuple[float, ...] | None) -> None:
         """Reject a class or targets that the preset's declared `targets` rule out."""
@@ -767,12 +968,29 @@ class Engine:
     def _frames(self) -> Iterator[Frame]:
         source = self._source
         if isinstance(source, ClockedSource) and source.realtime:
-            yield from realtime_frames(source, self._rate, stop=self._closing.is_set)
+            tapped = _Tap(source, self._on_event)
+            yield from realtime_frames(tapped, self._rate, stop=self._closing.is_set)
         elif isinstance(source, Iterable):
-            for frame in frames(source, self._rate):
+            for frame in frames(self._tap(source), self._rate):
                 if self._closing.is_set():
                     return
                 yield frame
+
+    def _tap(self, events: Iterable[Event]) -> Iterator[Event]:
+        for event in events:
+            self._on_event(event)
+            yield event
+
+    def _on_event(self, event: Event) -> None:
+        """Report a pad hit (`/mpciml/pad/hit`, pads 1-16, any bank) while selecting."""
+        if (
+            self._selecting
+            and isinstance(event, MidiEvent)
+            and event.kind == "note_on"
+            and event.value > 0
+            and event.note is not None
+        ):
+            self._send("pad/hit", note_to_bank_pad(event.note)[1] + 1)
 
     def _on_frame(self, frame: Frame) -> None:
         with self._lock:
@@ -783,6 +1001,36 @@ class Engine:
                     self._loop.step(frame)
                 except Exception as error:
                     self._log(f"run step failed: {error!r}")
+
+
+class _Tap:
+    """A `ClockedSource` that passes every polled event to `on_event` first."""
+
+    def __init__(self, source: ClockedSource, on_event: Callable[[Event], None]) -> None:
+        self._source = source
+        self._on_event = on_event
+
+    @property
+    def realtime(self) -> bool:
+        return self._source.realtime
+
+    def start(self) -> None:
+        self._source.start()
+
+    def now(self) -> float:
+        return self._source.now()
+
+    def poll(self) -> Event | None:
+        event = self._source.poll()
+        if event is not None:
+            self._on_event(event)
+        return event
+
+    def sleep(self, seconds: float) -> None:
+        self._source.sleep(seconds)
+
+    def done(self) -> bool:
+        return self._source.done()
 
 
 def _drop_unmatched_ends(events: list[Event]) -> list[Event]:

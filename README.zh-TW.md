@@ -219,7 +219,8 @@ engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 7 組 **M
 engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
 協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)，1.1 版見
 [ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)，1.2 版見
-[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md)。依[參考範例](#參考範例)接好
+[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md)，1.3 版見
+[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)。依[參考範例](#參考範例)接好
 MPC 後，指定一個存放範例集的資料夾來啟動：
 
 ```bash
@@ -247,6 +248,17 @@ uv run python -m mpc_iml.engine my-data --replay tests/fixtures/recordings/hold-
 `/mpciml/layout <targets> <controllers>`：preset 的目標值個數（分類為 0）與 MIDI controller
 個數（沒有 MIDI 輸出為 0），讓前端顯示對應的控制項。按 Ctrl-C 停止 engine：關閉輸入與 socket，
 進行中的訓練會先完成。
+
+1.3 版為有輸出名稱的 preset（`pressure`；見[輸出名稱、module 與 kit](#輸出名稱module-與-kit)）
+加上 kit。完整狀態與 `preset/load` 另外送出 `/mpciml/names`（輸出名稱）、`/mpciml/kit`（範例集
+起始的 kit，沒有時為 `""`）與 `/mpciml/pads`（16 組 module 與 amount）。`/mpciml/kit/list` 與
+`/mpciml/module/list` 回覆 `/mpciml/kits` 與 `/mpciml/modules`。`/mpciml/kit/load filter-play`
+以 kit 產生的 take 取代整個範例集並訓練；`/mpciml/pad/module <pad> <module> [amount]` 改變一個
+pad（1～16），保留錄下的示範並重新訓練（兩者都在 `idle`，或沒有進行中的重新訓練時在 `running`）。
+在 `/mpciml/pad/select/start` 與 `/mpciml/pad/select/stop`（或 `record/start`、`preset/load`）
+之間，MPC 上每次敲擊 pad 都會回報 `/mpciml/pad/hit <pad>`。`examples/clear` 也會清除 kit；
+`examples/save` 把含產生 take 的範例集寫成錄音格式第 2 版，`examples/load` 會還原 kit 與各 pad
+的 module。
 
 適用所有 preset 的參考前端是 Pure Data patch `src/mpc_iml/patches/mpc-iml.pd`（vanilla 0.54
 以上，不需外掛；ADR 0006）。先啟動 engine 再開啟 patch：開啟時會自動連線（重新啟動 engine 後按
@@ -461,7 +473,8 @@ pad 各自的 module。`pressure` 的輸出名稱是 `brightness`、`resonance`�
 `space`、`motion`、`pitch`、`texture`、`level`（CC 20-27），內建 9 個 module 與
 `filter-play`（預設）、`texture-lab`、`ambient-space` 三個 kit
 （`src/mpc_iml/modules/pressure/`、`src/mpc_iml/kits/pressure/`；靜止值在硬體試玩前是
-暫定的）。
+暫定的）。engine 以 `/mpciml/kit/load` 載入 kit，以 `/mpciml/pad/module` 改變一個 pad
+（[執行 engine](#執行-engine)）。
 
 其他套件也能為不是自己定義的 preset 新增 module 與 kit：把 JSON 檔放在
 `<root>/modules/<preset>/<name>.json` 與 `<root>/kits/<preset>/<name>.json`，並登記一個
