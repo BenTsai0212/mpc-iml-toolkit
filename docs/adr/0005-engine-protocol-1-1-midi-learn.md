@@ -70,7 +70,7 @@ The state table of ADR 0004 gains one row:
 
 ## Consequences
 
-- A musician maps all 8 CCs of `pressure` with 8 buttons in `patches/pressure.pd`
+- A musician maps all 8 CCs of `pressure` with 8 buttons in its Pure Data front end
   (`l1`-`l8`), one at a time, without training anything.
 - Front ends written for 1.0 keep working: the major version is unchanged.
 - Tests use a fake MIDI backend to check that only the chosen CC is sent; mapping in

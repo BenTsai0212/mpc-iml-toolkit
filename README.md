@@ -295,8 +295,7 @@ restarting the engine), lists the installed presets as buttons, and adapts to th
 loaded one: class buttons for `demo`, target sliders `t1`-`t8` and learn buttons
 `l1`-`l8` for `pressure`. Errors from the engine appear on its status line.
 `uv run mpc-iml` starts the engine and opens this patch in one step
-([Play in 20 minutes](#play-in-20-minutes)). The patch has not been timed on hardware
-yet, so the steps below still use the hardware-checked `patches/pressure.pd` (#66).
+([Play in 20 minutes](#play-in-20-minutes)).
 
 ## Play the pressure preset
 
@@ -317,10 +316,11 @@ While running it sends:
 You need the setup of the [reference example](#reference-example) (steps 1-3) and
 [Pure Data](https://puredata.info) (vanilla 0.54 or later) for the front end.
 
-1. Start the engine with the preset and leave the window open:
+1. Start the engine with the preset and the front end, and leave the terminal window
+   open:
 
    ```bash
-   uv run python -m mpc_iml.engine my-data --preset pressure
+   uv run mpc-iml --preset pressure
    ```
 
    On macOS the port `mpc-iml` now appears in every MIDI app as an input. To use
@@ -328,30 +328,31 @@ You need the setup of the [reference example](#reference-example) (steps 1-3) an
    double-click IAC Driver, tick "Device is online") and add `--midi-port IAC`. If
    the MIDI port cannot be opened, the engine says so and keeps sending OSC.
 
-2. Open the front end `src/mpc_iml/patches/pressure.pd` in Pure Data. It says
-   `hello` to the engine and loads the preset; the state box shows `idle` and the
-   Pd window prints every reply (`mpc-iml: …`). Click `hello` again if you
-   started the engine after the patch. The patch has three columns: connection and
-   recording on the left; saved sets, `train`/`run`/`stop` and MIDI learn in the
-   middle; engine state and model outputs on the right.
+2. The command opens the front end `src/mpc_iml/patches/mpc-iml.pd` in Pure Data
+   (if it does not, open the path it prints with File > Open). The patch connects
+   by itself: group 1 **Connect** shows the version and `state` `idle`, and with
+   `pressure` loaded, group 2 **Teach** shows the target sliders `t1`-`t8` and
+   group 6 **Outputs** the learn buttons `l1`-`l8`. Click `connect` if you
+   restarted the engine after the patch.
 
-3. Record a few examples. For each one: set the 8 target sliders `t1`-`t8` on the
-   left (0-1) to the sound you want, hold the gesture on the pads, click `record`
-   (it sends the targets, then starts recording), keep holding for about two
-   seconds, and click `stop_recording`. Start with rest (no pads, targets for
-   silence), then for example pad 1 held lightly and pad 1 held firmly, each with
-   its own targets. Several pads and other pressures work the same way. For a
+3. Record a few examples (group 3 **Examples**). For each one: set the 8 target
+   sliders `t1`-`t8` (0-1) to the sound you want, hold the gesture on the pads,
+   click `record` (it sends the targets, then starts recording), keep holding for
+   about two seconds, and click `stop_recording`. Start with rest (no pads, targets
+   for silence), then for example pad 1 held lightly and pad 1 held firmly, each
+   with its own targets. Several pads and other pressures work the same way. For a
    continuous light end, also record the lightest touch you can hold (pad 1 resting
    on the pad, barely pressed) with targets close to rest, so the model maps the
    lightest pressure near rest rather than far from it. To start again (for
    example after recording in the wrong order), click `clear`: it deletes all
    examples in the engine, and saved files are not touched. It works in `idle` and
-   `running`, and the Pd window prints the new counts.
+   `running`, and the counts show the new numbers.
 
-4. Click `train`. The state goes to `training`, then back to `idle`, and `trained`
-   shows 1. Click `run` and play: the sliders `o1`-`o8` on the right follow the
-   model, and the MIDI CCs follow them. `stop` ends running. `save` and `load`
-   keep the examples in `my-data/pressure-examples.jsonl`.
+4. Click `train` (group 4 **Model**). The state goes to `training`, then back to
+   `idle`, and `trained` turns on. Click `run` and play: the sliders `o1`-`o8` in
+   group 6 follow the model, and the MIDI CCs follow them. `stop` ends running.
+   `save` and `load` (group 5 **Library**) keep the examples in
+   `mpc-iml-data/pressure-examples.jsonl`.
 
 The patch shows `/wek/outputs` by listening on port 12000, and only one program can
 listen on a port. To drive a Pd synth with OSC instead, start the engine with
@@ -378,7 +379,7 @@ to synthesiser parameters:
 
 While the model runs, all 8 CCs move together, so MIDI learn would catch whichever
 comes first. Map them one at a time with the `learn` buttons `l1`-`l8` in the patch
-instead, while the engine is not running (the state box shows `idle`):
+instead, while the engine is not running (`state` shows `idle`):
 
 1. In the DAW, start MIDI learn for the parameter that output 1 should control.
 2. Click `l1` in the patch. The engine sends only CC 20, sweeping 0 to 127; the DAW
@@ -420,7 +421,7 @@ Sample, **Remote** on for `mpc-iml`).
 The device is a Max MIDI Effect: it goes on the MPC Sample's MIDI track in front of
 the instrument and passes the pads' MIDI through unchanged. It talks to the engine
 over OSC on the same ports as the Pure Data front end (6450, 6451 and 12000), so
-only one of the two can run at a time: close `mpc-iml.pd` and `pressure.pd` while the
+only one of the two can run at a time: close `mpc-iml.pd` while the
 device is in your Live set. It uses standard Max objects only, no externals.
 
 ### Install the device

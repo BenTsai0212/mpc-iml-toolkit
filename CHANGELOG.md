@@ -41,14 +41,21 @@ Until 1.0, interfaces may still change between 0.x releases.
 ### Changed
 
 - The presets `demo` and `pressure` name `patches/mpc-iml.pd` as their front end
-  (#66). `patches/pressure.pd` is unchanged and stays as the hardware-checked
-  fallback until the general patch is timed on hardware.
+  (#66).
 - The preset `pressure` uses `pressure_features` instead of `played_features`
   (#76): a press rises from 0 with pressure, a very light hold that retriggers on
   the MPC Sample no longer drops to rest, and strike velocity has no effect. Its
   model input goes from 32 to 16 values, so retrain existing models; saved example
   files load unchanged. `played_features`, the preset `demo`, `/wek/inputs` and
   ADR 0002 do not change.
+
+### Removed
+
+- `patches/pressure.pd`, the first front end of the preset `pressure` (#92). It was
+  kept as the hardware-checked fallback until `patches/mpc-iml.pd` passed the
+  20-minute walkthrough on hardware (#66); use `uv run mpc-iml --preset pressure`
+  and `patches/mpc-iml.pd`, which has the same controls (`t1`-`t8`, `record`,
+  `stop_recording`, `train`, `run`, `stop`, `clear`, `save`, `load`, `l1`-`l8`).
 
 ## [0.1.0] - 2026-11-16
 

@@ -11,12 +11,10 @@ import time
 from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from importlib.metadata import entry_points
-from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 import pytest
-from pd import overlaps, parse
 from test_engine import (
     DROPS,
     HOLD,
@@ -132,61 +130,6 @@ def test_registered_through_the_entry_point_group_only() -> None:
 def test_preset_targets_are_checked(kwargs: dict[str, Any], message: str) -> None:
     with pytest.raises(PresetError, match=message):
         Preset(name="x", version="1", **kwargs)
-
-
-# The front-end patch
-
-
-def test_the_patch_is_inside_the_package() -> None:
-    """The first front end of `pressure`, kept until the general patch is timed (#66)."""
-    patch = files("mpc_iml").joinpath("patches/pressure.pd")
-    assert patch.is_file()
-    lines = [line.rstrip(";") for line in patch.read_text().splitlines()]
-    assert lines[0].startswith("#N canvas")
-    boxes = [line for line in lines[1:] if not line.startswith("#X connect")]
-    for line in lines:
-        if line.startswith("#X connect"):
-            source, _, sink, _ = (int(n) for n in line.split()[2:])
-            assert source < len(boxes) and sink < len(boxes)
-    # It drives the engine with core messages only (ADR 0004) and shows the outputs.
-    for box in [
-        "netsend -u -b",
-        "netreceive -u -b 6451",
-        "netreceive -u -b 12000",
-        "connect 127.0.0.1 6450",
-        "oscformat mpciml hello",
-        "oscformat mpciml preset load",
-        "oscformat mpciml targets",
-        "pack 0 0 0 0 0 0 0 0",
-        "oscformat mpciml record start",
-        "oscformat mpciml record stop",
-        "oscformat mpciml train",
-        "oscformat mpciml run",
-        "oscformat mpciml stop",
-        "unpack f f f f f f f f",
-        "oscformat mpciml midi learn",
-        "oscformat mpciml examples clear",
-    ]:
-        assert any(line.endswith(box) for line in boxes), box
-    # Learn buttons l1-l8 send /mpciml/midi/learn 1-8 (ADR 0005).
-    learn = next(i for i, b in enumerate(boxes) if b.endswith("oscformat mpciml midi learn"))
-    edges = {
-        tuple(int(n) for n in line.split()[2:]) for line in lines if line.startswith("#X connect")
-    }
-    sent = {boxes[s].split()[-1] for s, _, d, _ in edges if d == learn}
-    assert sent == {str(n) for n in range(1, 9)}
-    for n in range(1, 9):
-        button = next(i for i, b in enumerate(boxes) if f" l{n} " in b and " bng " in b)
-        message = next(d for s, _, d, _ in edges if s == button)
-        assert boxes[message].startswith("#X msg") and boxes[message].endswith(f" {n}")
-    assert "mpciml preset pressure" not in patch.read_text()
-    # The clear button sends /mpciml/examples/clear (ADR 0004), with a comment.
-    clear = next(i for i, b in enumerate(boxes) if " bng " in b and " clear " in b)
-    sink = next(d for s, _, d, _ in edges if s == clear)
-    assert boxes[sink].endswith("oscformat mpciml examples clear")
-    assert any(b.startswith("#X text") and "clear deletes all examples" in b for b in boxes)
-    # No two boxes, comments or GUI objects overlap (#82).
-    assert overlaps(parse(patch.read_text())) == []
 
 
 # Training and playing on replays
