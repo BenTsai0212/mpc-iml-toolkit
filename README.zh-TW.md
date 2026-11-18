@@ -230,6 +230,8 @@ engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 8 組 **M
 `--no-patch` 只啟動 engine，給 [Max for Live 裝置](#使用-max-for-live-裝置)或自己的前端使用；其他選項與 engine
 相同（`--preset`、`--replay`、`--midi-port IAC`、各埠號；見[執行 engine](#執行-engine)）。
 
+演奏時遇到問題，見[疑難排解](#疑難排解)。
+
 ## 執行 engine
 
 engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後是 app）以 OSC 控制訊息驅動；
@@ -428,6 +430,20 @@ Saturator Dry/Wet 100 %；Auto Pan-Tremolo rate 4 Hz；Reverb decay 3.00 s。kit
 
 rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應只存在 `.als` 裡。在其他 set
 中，依[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 對應 macro。
+
+## 疑難排解
+
+演奏時遇到問題，先檢查下列事項。engine 的錯誤顯示在 patch 第 8 組 **Messages** 的狀態列。
+
+| 症狀 | 要檢查的事 |
+| --- | --- |
+| 沒有聲音 | DAW 音軌的 MIDI 輸入是 MPC Sample（或 All Ins），不是 `mpc-iml`：這個 port 只送 CC，不送音符。音軌的 Monitor 是 In 或 Auto。MPC Sample 的 **MIDI Port** 設為 **USB**、**Pad MIDI Out** 設為 **Always**（[參考範例](#參考範例)第 3 步）。 |
+| 有聲音，但參數或 macro 不動 | engine 正在執行，前端的 `state` 顯示 `running`（按 `run`）。在 Live 中，Settings > Tempo & MIDI 已為 `mpc-iml` 開啟 **Remote**。DAW 比 engine 先開啟時，port `mpc-iml` 當時還不存在：啟動 engine 後重新開啟 DAW（或在 DAW 的 MIDI 設定中把這個 port 關掉再開啟）。 |
+| 對應遺失或錯誤 | 按 `stop` 讓 `state` 顯示 `idle`，再用 `l1`-`l8` 一次對應一個 CC，做法見[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)。使用 Live 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應。 |
+| patch 沒有反應 | 按 `connect`。仍沒有反應時，關閉 patch，在終端機按 Ctrl-C 停止 engine，再執行一次 `uv run mpc-iml`。 |
+| engine 停止了，或 MPC Sample 沒有反應 | 重新插上 USB 線，以 Ctrl-C 停止 `uv run mpc-iml` 再重新啟動，然後按 preset（例如 `pressure`），載入 kit，再按 `run`。 |
+| 修改 module 或 `amount` 後狀態列顯示 `wrong_state` | 重新訓練正在進行；稍等一下再試。 |
+| 輕輕按住或快速輕敲時聲音幾乎不變 | 見[演奏 preset pressure](#演奏-preset-pressure) 中[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 最後的輕觸一端說明（#76）。 |
 
 ## 使用 Max for Live 裝置
 
