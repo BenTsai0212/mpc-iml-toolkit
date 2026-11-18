@@ -26,7 +26,7 @@ class Box:
     y: int
     args: list[str]
     width: int | None = None
-    """The fixed width in characters (`, f N`), or `None`."""
+    """The fixed width in characters (Pd's suffix `, f N`), or `None`."""
 
     @property
     def text(self) -> str:
@@ -67,6 +67,22 @@ def records(text: str) -> list[list[str]]:
     return [part.split() for part in parts if part.strip()]
 
 
+def box_width(args: list[str]) -> tuple[list[str], int | None]:
+    """The box words without Pd's width suffix `, f N`, and the width (#125).
+
+    The comma of the suffix is not escaped and may stick to the word before it
+    (`-, f 30`). An escaped `\\, f N` is box content, not a width.
+    """
+    if len(args) < 3 or args[-2] != "f" or not args[-1].isdigit():
+        return args, None
+    before, width = args[-3], int(args[-1])
+    if before == ",":
+        return args[:-3], width
+    if before.endswith(",") and not before.endswith("\\,"):
+        return [*args[:-3], before[:-1]], width
+    return args, None
+
+
 def parse(text: str) -> Canvas:
     """The main canvas of a patch, with its subpatches as `children`."""
     stack: list[Canvas] = []
@@ -91,9 +107,7 @@ def parse(text: str) -> Canvas:
             kind = "obj"
         if kind in ("coords", "declare"):
             continue
-        args, width = words[4:], None
-        if len(args) >= 3 and args[-3] == "\\," and args[-2] == "f":
-            args, width = args[:-3], int(args[-1])
+        args, width = box_width(words[4:])
         stack[-1].boxes.append(Box(kind, int(words[2]), int(words[3]), args, width))
     assert root is not None and len(stack) == 1, "unbalanced canvases"
     for canvas in root.walk():
