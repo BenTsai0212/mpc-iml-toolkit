@@ -279,6 +279,8 @@ folder (`uv run mpc-iml my-data`); `--no-patch` starts only the engine, for the
 options are those of the engine (`--preset`, `--replay`, `--midi-port IAC`, the
 ports; see [Run the engine](#run-the-engine)).
 
+If something does not work while you play, see [Troubleshooting](#troubleshooting).
+
 ## Run the engine
 
 The engine is a long-running IML loop that a front end (Pure Data, Max, later an
@@ -521,6 +523,21 @@ at rest may change.
 The rack `mpc-iml-starter.adg` can be dragged into another set, but it does not
 carry the CC mappings: they are stored only in the `.als`. In another set, map the
 macros as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw).
+
+## Troubleshooting
+
+What to check first when something does not work while you play. Errors from the
+engine appear on the status line in group 8 **Messages** of the patch.
+
+| Symptom | What to check |
+| --- | --- |
+| No sound | The DAW track's MIDI input is the MPC Sample (or All Ins), not `mpc-iml`: that port sends only CCs, no notes. The track's Monitor is In or Auto. On the MPC Sample, **MIDI Port** is **USB** and **Pad MIDI Out** is **Always** (step 3 of the [reference example](#reference-example)). |
+| Sound, but the parameters or macros do not move | The engine is running and the front end's `state` shows `running` (click `run`). In Live, `mpc-iml` has **Remote** on in Settings > Tempo & MIDI. If the DAW was opened before the engine, the port `mpc-iml` did not exist yet: after starting the engine, restart the DAW (or turn the port off and on again in its MIDI settings). |
+| Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
+| The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
+| The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
+| `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
+| A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
 
 ## Use the Max for Live device
 
