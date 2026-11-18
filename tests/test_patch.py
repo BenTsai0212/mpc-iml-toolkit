@@ -559,3 +559,48 @@ def test_amount_sends_nothing_for_a_pad_without_a_module() -> None:
     (expr,) = find(kit, "expr 2*($f1-1)")
     (pads,) = find(kit, "r mpciml-pads")
     assert reaches(kit, expr, "spigot") and reaches(kit, pads, "spigot")
+
+
+ROOT = Path(__file__).parents[1]
+SHIPPED = sorted([*ROOT.joinpath("src").rglob("*.pd"), *ROOT.joinpath("examples").rglob("*.pd")])
+"""Every Pure Data patch under `src/` and `examples/` (#125)."""
+
+
+def messages(box: Box) -> list[list[str]]:
+    """The messages a message box sends, receiver names left out (#125).
+
+    `\\,` separates messages; after `\\;` the first word names the receiver, and
+    the messages after it go to that receiver.
+    """
+    sent: list[list[str]] = []
+    words: list[str] = []
+    named = False
+    for word in [*box.args, "\\,"]:
+        if word in ("\\,", "\\;"):
+            sent.append(words[1:] if named else words)
+            words, named = [], word == "\\;"
+        else:
+            words.append(word)
+    return [m for m in sent if m]
+
+
+def test_messages_of_a_message_box() -> None:
+    args = ["1", "\\,", "f", "2", "\\;", "to", "label", "\\$1", "\\,", "f", "3"]
+    assert messages(Box("msg", 0, 0, args)) == [["1"], ["f", "2"], ["label", "\\$1"], ["f", "3"]]
+
+
+@pytest.mark.parametrize("path", SHIPPED, ids=lambda p: str(p.relative_to(ROOT)))
+def test_box_widths_are_not_escaped(path: Path) -> None:
+    text = path.read_text()
+    escaped = re.findall(r"^#X (?:obj|msg|text) .*\\, f \d+;", text, re.MULTILINE)
+    assert not escaped, "Pd's width suffix is `, f N`; `\\, f N` is box content"
+    for canvas in parse(text).walk():
+        for box in canvas.boxes:
+            if box.kind == "msg":
+                assert all(m[0] != "f" for m in messages(box)), box.text
+
+
+def test_box_widths_are_read() -> None:
+    (comment, *_) = patch().boxes
+    assert comment.kind == "text" and comment.width == 120
+    assert comment.text.endswith("no externals.")
