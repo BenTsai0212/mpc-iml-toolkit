@@ -23,7 +23,7 @@ mpc-iml = "mpc_iml.launch:main"
 
 [project.entry-points."mpc_iml.presets"]
 demo = "mpc_iml.demo:PRESET"
-pressure = "mpc_iml.pressure:PRESET"
+pressure = "mpc_iml.pressure:make_preset"
 
 [project.entry-points."mpc_iml.content"]
 pressure-content = "mpc_iml.pressure:CONTENT"

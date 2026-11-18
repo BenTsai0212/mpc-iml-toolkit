@@ -27,6 +27,7 @@ from test_engine import (
 )
 from test_fixtures import frame_at, load, midi, retriggers
 
+from mpc_iml.drift import DriftModels
 from mpc_iml.engine import Engine
 from mpc_iml.examples import (
     ExampleSet,
@@ -107,13 +108,15 @@ def preset() -> Preset:
 
 def test_registered_through_the_entry_point_group_only() -> None:
     entry = {e.name: e for e in entry_points(group=PRESET_GROUP)}["pressure"]
-    assert entry.value == "mpc_iml.pressure:PRESET"
+    assert entry.value == "mpc_iml.pressure:make_preset"
     found = preset()
     assert found.name == "pressure"
     assert found.targets == 8
     assert found.features is pressure_features
-    assert found.model_factory is Regressor
-    assert found.controls == {}
+    # A `DriftModels` around the `Regressor`; drift is off by default (#114, `test_drift.py`).
+    assert isinstance(found.model_factory, DriftModels)
+    assert found.model_factory.inner is Regressor
+    assert not found.model_factory.state.on
     osc, midi = found.outputs
     assert osc == OscOutput()
     assert midi == MidiCcOutput(controllers=tuple(range(20, 28)), channel=1, port_name="mpc-iml")
