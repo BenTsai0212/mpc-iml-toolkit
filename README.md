@@ -470,6 +470,39 @@ What you get at the light end (#76):
 
 The outputs are not smoothed; smoothing may follow if playing shows it matters.
 
+### Drift (experiment A)
+
+Drift is the first experiment of RFC 0004 (#114), a mode of `pressure` that is off
+by default. While a pad is held the outputs follow the model as usual. When every
+pad has been released for 300 ms, the outputs do not fall back to rest: they glide
+slowly between points taken from your examples (the kit's rest and modules and your
+own takes), starting from where you let go. The next press hands control back to
+the model with a 150 ms crossfade, so nothing jumps.
+
+The controls are preset messages to the engine's control port (6450). The Pure Data
+patch has no group for them yet, so send them from any OSC client:
+
+| Message | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `/mpciml/preset/pressure/drift/on` | 0 or 1 | 0 | Master switch; 0 is exactly today's behaviour |
+| `/mpciml/preset/pressure/drift/range` | 0-1 | 0.5 | 0 stays where you let go; 1 reaches your example targets |
+| `/mpciml/preset/pressure/drift/speed` | 0-1 | 0.3 | One glide takes about 20 s at 0 and 2 s at 1 (±30 %) |
+| `/mpciml/preset/pressure/drift/pad` | 0-16 | 16 | The pad that switches between instrument and drift; 0 for none |
+
+- With `drift/on 1`, pad 16 (any bank) switches between **instrument** (no drift on
+  release, as today) and **drift**; turning drift on starts in instrument. Pad 16 is
+  then only a switch: it makes no sound, even if the kit gives it a module. Press it
+  **firmly**: the switch reacts to the pad's pressure, and a quick flick may send
+  none. After a press, the pad must rest for 300 ms before the next press counts,
+  so a light hold that retriggers does not switch twice. Nothing shows which of the
+  two you are in; listen after releasing.
+- With `drift/pad 0`, pad 16 plays like the others and drift is active whenever
+  `drift/on` is 1.
+- The engine does not reply with the drift settings. They go back to the defaults
+  when `pressure` is loaded from another preset or the engine starts, so send them
+  again after `/mpciml/preset pressure`. Bad values get `/mpciml/error bad_arguments`.
+- Turning `drift/on` off returns to the model at once, without a crossfade.
+
 ## Ableton Live starter set
 
 A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),
