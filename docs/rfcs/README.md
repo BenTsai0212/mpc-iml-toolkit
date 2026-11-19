@@ -42,3 +42,4 @@
 | [0002](0002-platform-positioning.md) | Platform positioning | Accepted |
 | [0003](0003-starting-points-and-guidance.md) | Starting points and guidance | Accepted |
 | [0004](0004-improvisation-and-ai-initiative.md) | Improvisation and AI initiative | Accepted |
+| [0005](0005-drum-led-ensemble.md) | Drum-led ensemble | Proposed |

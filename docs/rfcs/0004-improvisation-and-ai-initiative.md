@@ -4,6 +4,7 @@
 - Date: 2026-11-17
 - Related: RFC 0001, RFC 0002, RFC 0003, ADR 0002, ADR 0004, #96
 - Amended: 2026-11-17, experiment B is taught with pads instead of knobs (#116)
+- Amended: 2026-11-19, experiment C is replaced by RFC 0005 (drum-led ensemble)
 
 ## Summary
 
@@ -105,6 +106,9 @@ right without changing them.
   training; no new dependency expected.
 
 ### Experiment C: response (high initiative)
+
+> Replaced by [RFC 0005](0005-drum-led-ensemble.md) (drum-led ensemble); the text
+> below is kept as it was accepted.
 
 - The AI answers the musician's phrases with MIDI notes of its own, sent to the same
   virtual port, using a low-latency generative MIDI model.
