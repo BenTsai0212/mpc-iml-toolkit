@@ -138,7 +138,7 @@ New module `mpc_iml.clock` (standard library only):
 ### Scheduling
 
 - `Scheduler` in `mpc_iml.clock`: `at(bar, step, messages)`,
-  `at_next_bar(n=1, step=0, messages)` (the next boundary where `bar % n == 0`) and
+  `at_next_bar(messages, n=1, step=0)` (the next boundary where `bar % n == 0`) and
   `note(bar, step, note, velocity, length_steps, channel)` (Note On and its Note
   Off). Each returns a handle for `cancel()`. Messages are raw MIDI bytes.
 - Dispatch happens in the clock callback: every message due on a tick is sent when

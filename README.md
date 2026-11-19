@@ -379,7 +379,9 @@ first tick). Pad input, recording, training and running never wait for the clock
 To check that notes from the engine land on the beat, send `/mpciml/clock/test 1`:
 from the next bar, the engine plays note 72 on beat 1 and note 60 on the other beats
 (one 16th long) on the `mpc-iml` MIDI output. Arm a MIDI track on input `mpc-iml`
-with any instrument to hear it; `/mpciml/clock/test 0` stops it. Stop in the DAW
+with any instrument to hear it; `/mpciml/clock/test 0` stops it. In the Pure Data
+front end, group 8 **Messages** shows the clock line (status, BPM, bar and beat), and
+the `test` toggle next to it sends `/mpciml/clock/test`. Stop in the DAW
 ends sounding notes, and the pattern starts again on the next bar after Play or
 Continue. If the notes sound late, `--clock-lead-ms 10` sends scheduled notes 10 ms
 early (or use Live's MIDI Clock Sync Delay).

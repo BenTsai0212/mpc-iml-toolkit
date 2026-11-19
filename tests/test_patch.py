@@ -1,9 +1,9 @@
 """The general Pure Data front end `patches/mpc-iml.pd` (#66, ADR 0006).
 
 Pure Data is not run here: the patch is parsed and checked against the protocol
-tables of ADR 0004 to ADR 0007 and the shared front-end spec (ADR 0006, updated by
-ADR 0007 with group 2 Kit, #101). Opening it in Pure Data is a manual task (#66,
-#101).
+tables of ADR 0004 to ADR 0008 and the shared front-end spec (ADR 0006, updated by
+ADR 0007 with group 2 Kit, #101, and by ADR 0008 with the clock display, #130).
+Opening it in Pure Data is a manual task (#66, #101, #130).
 """
 
 import dataclasses
@@ -35,10 +35,10 @@ def patch() -> Canvas:
 
 
 def protocol() -> tuple[dict[str, str], set[str]]:
-    """Control messages (address -> arguments) and replies of ADR 0004 to 0007."""
+    """Control messages (address -> arguments) and replies of ADR 0004 to 0008."""
     messages: dict[str, str] = {}
     replies: set[str] = set()
-    for name in ("0004", "0005", "0006", "0007"):
+    for name in ("0004", "0005", "0006", "0007", "0008"):
         (adr,) = ADR.glob(f"{name}-*.md")
         table = None
         for line in adr.read_text().splitlines():
@@ -180,6 +180,9 @@ def test_every_control_message_is_in_the_protocol_with_its_arguments() -> None:
             assert found == {"1 6451"}, "protocol major 1, replies to the patch's port 6451"
         elif address == "/mpciml/midi/learn":
             assert found == {str(n) for n in range(1, 9)}
+        elif address == "/mpciml/clock/test":
+            assert arguments == "`i` 0 or 1"
+            assert found == {"r mpciml-clock-test"}, "straight from the toggle: 0 or 1"
         elif arguments == "none":
             assert all(s in bangs or s.startswith("t b") for s in found), (address, found)
         elif address == "/mpciml/pad/module":
@@ -189,7 +192,7 @@ def test_every_control_message_is_in_the_protocol_with_its_arguments() -> None:
             assert found <= {"symbol", "list store", "t s s s"}, (address, found)
         else:
             assert arguments.startswith("`f`") and found == {"list split 8"}, (address, found)
-    # Everything a musician needs from ADR 0004 to 0007, as listed in ADR 0006 and 0007.
+    # Everything a musician needs from ADR 0004 to 0008, as listed in ADR 0006 to 0008.
     needed = set(messages) - {"/mpciml/state/get"}
     assert set(sources) == needed
 
@@ -327,6 +330,7 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
         5: ["train", "run", "stop", "trained", "train-done"],
         6: ["name-entry", "save", "load", "list"],
         7: [*(f"o{k}-gui" for k in range(1, 9)), *(f"l{k}" for k in range(1, 9))],
+        8: ["clock-test"],
     }
     for number, names in expected.items():
         for name in names:
@@ -358,6 +362,35 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
     assert xs == sorted(xs)
     (status,) = find(main, "r mpciml-status-set")
     assert main.boxes[status].y > max(h.y for h in headings)
+
+
+# The clock display in group 8 Messages (ADR 0008, #130)
+
+
+def test_the_clock_reply_is_shown_with_a_test_toggle() -> None:
+    main, views, controls = patch(), canvas("views"), canvas("controls")
+    # /mpciml/clock <status> <bpm> <bar> <beat> becomes one line of text.
+    (clock,) = find(views, "r mpciml-clock")
+    (to_list,) = views.sinks(clock)
+    assert views.boxes[to_list].text == "list", "the status symbol arrives as a selector"
+    (show,) = views.sinks(to_list)
+    assert views.boxes[show].text == "set clock $1 $2 BPM bar $3 beat $4"
+    (send,) = views.sinks(show)
+    assert views.boxes[send].text == "s mpciml-clock-set"
+    (r,) = find(main, "r mpciml-clock-set")
+    (line,) = main.sinks(r)
+    (status,) = find(main, "r mpciml-status-set")
+    (status_line,) = main.sinks(status)
+    assert main.boxes[line].kind == "msg" and main.boxes[line].y == main.boxes[status_line].y
+    assert main.boxes[line].x > box_rect(main.boxes[status_line])[2], "right of the status"
+    # The toggle sends 0 or 1, which the engine accepts as an int (ADR 0004).
+    toggle = main_gui()["clock-test"]
+    assert toggle.cls == "tgl" and toggle.args[5] == "test"
+    assert gui_names(toggle) == ("mpciml-clock-test", "empty")
+    assert toggle.args[13:] == ["0", "1"], "off when the patch opens, 1 when on"
+    (test,) = find(controls, "r mpciml-clock-test")
+    (fmt,) = controls.sinks(test)
+    assert controls.boxes[fmt].text == "oscformat mpciml clock test"
 
 
 # Group 2 Kit and output names (ADR 0007, #101)

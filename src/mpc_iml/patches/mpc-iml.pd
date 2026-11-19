@@ -1,5 +1,5 @@
 #N canvas 40 40 1370 820 12;
-#X text 20 10 mpc-iml-toolkit front end for every preset (ADR 0006 \, group 2 Kit from ADR 0007). Start it with uv run mpc-iml \, or start the engine first (python -m mpc_iml.engine <folder>). It connects on open. Click connect after starting the engine. Pd vanilla 0.54 or later \, no externals., f 120;
+#X text 20 10 mpc-iml-toolkit front end for every preset (ADR 0006 \, group 2 Kit from ADR 0007 \, clock from ADR 0008). Start it with uv run mpc-iml \, or start the engine first (python -m mpc_iml.engine <folder>). It connects on open. Click connect after starting the engine. Pd vanilla 0.54 or later \, no externals., f 120;
 #X text 20 60 1 Connect;
 #X obj 20 85 bng 25 250 50 0 mpciml-connect empty connect 30 12 0 12 #fcfcfc #000000 #000000;
 #X obj 130 85 bng 25 250 50 0 mpciml-ping empty ping 30 12 0 12 #fcfcfc #000000 #000000;
@@ -69,7 +69,7 @@
 #X obj 20 230 oscparse;
 #X obj 20 260 list trim;
 #X obj 20 290 route mpciml;
-#X obj 20 320 route version pong state preset layout counts trained train error presets examples midi names kits modules kit pads pad;
+#X obj 20 320 route version pong state preset layout counts trained train error presets examples midi names kits modules kit pads pad clock;
 #X obj 20 380 s mpciml-version;
 #X obj 180 380 s mpciml-pong;
 #X obj 340 380 s mpciml-state;
@@ -135,6 +135,8 @@
 #X connect 10 16 37 0;
 #X connect 10 17 38 0;
 #X connect 38 0 39 0;
+#X obj 340 510 s mpciml-clock;
+#X connect 10 18 40 0;
 #X restore 1140 325 pd osc;
 #N canvas 80 80 1240 900 controls 0;
 #X text 20 10 Buttons and fields of the main window -> control messages (ADR 0004 \, 0005 \, 0006). The buttons send to [r mpciml-<name>] \; every [oscformat] goes to [s mpciml-out]., f 120;
@@ -436,6 +438,11 @@
 #X connect 153 0 154 0;
 #X connect 3 0 155 0;
 #X connect 155 0 156 0;
+#X obj 900 1050 r mpciml-clock-test;
+#X obj 900 1080 oscformat mpciml clock test;
+#X obj 900 1110 s mpciml-out;
+#X connect 157 0 158 0;
+#X connect 158 0 159 0;
 #X restore 1140 355 pd controls;
 #N canvas 100 100 1240 900 views 0;
 #X text 20 10 Replies -> what the main window shows: labels \, active and inactive controls (/mpciml/layout) \, outputs and the status line (ADR 0006)., f 120;
@@ -728,6 +735,13 @@
 #X connect 135 0 136 0;
 #X connect 137 0 138 0;
 #X connect 138 0 139 0;
+#X obj 800 1620 r mpciml-clock;
+#X obj 800 1650 list;
+#X msg 800 1680 set clock \$1 \$2 BPM bar \$3 beat \$4;
+#X obj 800 1710 s mpciml-clock-set;
+#X connect 140 0 141 0;
+#X connect 141 0 142 0;
+#X connect 142 0 143 0;
 #X restore 1140 385 pd views;
 #X text 20 460 6 Library;
 #X text 20 488 name;
@@ -1043,3 +1057,8 @@
 #X connect 69 0 70 0;
 #X connect 92 0 93 0;
 #X connect 95 0 96 0;
+#X text 830 690 clock (start with --clock);
+#X obj 830 710 r mpciml-clock-set;
+#X msg 830 738 clock off, f 44;
+#X obj 1160 740 tgl 18 0 mpciml-clock-test empty test 22 9 0 12 #fcfcfc #000000 #000000 0 1;
+#X connect 128 0 129 0;
