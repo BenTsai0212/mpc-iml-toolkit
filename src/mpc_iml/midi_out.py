@@ -9,7 +9,8 @@ it sends instead to the first existing output port whose name contains that text
 
 A controller is only sent when its 0-127 value changes, so a steady prediction at
 100 frames/s does not flood the port. `send_controller` sends one controller on its
-own, for MIDI learn in a DAW (`/mpciml/midi/learn`, ADR 0005).
+own, for MIDI learn in a DAW (`/mpciml/midi/learn`, ADR 0005). `send_message` sends
+any raw message, for notes the clock scheduler plays (ADR 0008).
 
 `RtMidiOutBackend` wraps `python-rtmidi`; tests pass a fake `MidiOutputBackend`.
 """
@@ -134,6 +135,15 @@ class MidiCcSender:
             raise RuntimeError("the MIDI output is not open")
         self._backend.send(bytes([0xB0 | (self.output.channel - 1), controller, value]))
         self._last[controller] = value
+
+    def send_message(self, message: bytes) -> None:
+        """Send one raw MIDI message as it is (for example a Note On), on the same port.
+
+        Control changes sent this way are not recorded as last values.
+        """
+        if self._backend is None:
+            raise RuntimeError("the MIDI output is not open")
+        self._backend.send(bytes(message))
 
     def last_value(self, index: int) -> int | None:
         """The last value sent on controller `index` (0-based), or `None`."""

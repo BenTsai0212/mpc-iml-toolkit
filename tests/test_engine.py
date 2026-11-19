@@ -583,6 +583,7 @@ ARGS: dict[str, list[Any]] = {
     "midi/learn": [1],
     "kit/load": ["filter-play"],
     "pad/module": [1, "bite"],
+    "clock/test": [0],
 }
 
 TABLE = {
@@ -610,8 +611,10 @@ TABLE = {
     "pad/module": "✓✗✗✓",
     "pad/select/start": "✓✗✓✓",
     "pad/select/stop": "✓✗✓✓",
+    "clock/test": "✓✓✓✓",
 }
-"""ADR 0004's state table with ADR 0005's `midi/learn` and ADR 0007's kit messages;
+"""ADR 0004's state table with ADR 0005's `midi/learn`, ADR 0007's kit messages and
+ADR 0008's `clock/test`;
 columns idle, recording, training, running. `test_engine_kits.py` checks the kit
 messages again with a preset that has kits."""
 

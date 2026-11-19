@@ -14,11 +14,12 @@ import pytest
 import test_engine
 from test_engine import TIMEOUT, Front
 
-from mpc_iml.clock import TICKS_PER_BEAT, ClockAccess, GridHit
+from mpc_iml.clock import TEST_NOTES, TICKS_PER_BEAT, ClockAccess, GridHit
 from mpc_iml.demo import PRESET as DEMO
 from mpc_iml.engine import Engine, build_parser
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.presets import Preset
+from mpc_iml.pressure import PRESET as PRESSURE
 from mpc_iml.sources import CLOCK_PORT_NAME, PortNotFoundError
 
 receivers = test_engine.receivers
@@ -219,6 +220,104 @@ def test_a_failing_hook_is_logged_and_the_preset_loads(start: Any) -> None:
     assert any("broken" in line for line in lines)
 
 
+# Scheduled notes and the test pattern
+
+
+class FakeMidiOut:
+    """A `MidiOutputBackend` that keeps what is sent; `made` lists every instance."""
+
+    made: list["FakeMidiOut"] = []
+
+    def __init__(self) -> None:
+        self.opened: str | None = None
+        self.sent: list[bytes] = []
+        FakeMidiOut.made.append(self)
+
+    def port_names(self) -> list[str]:
+        return []
+
+    def open(self, index: int) -> None:
+        raise AssertionError("no existing port is used")
+
+    def open_virtual(self, name: str) -> None:
+        self.opened = name
+
+    def send(self, message: bytes) -> None:
+        self.sent.append(message)
+
+    def close(self) -> None:
+        pass
+
+
+def notes(port: FakeMidiOut) -> list[bytes]:
+    return [m for m in port.sent if m[0] & 0xF0 in (0x80, 0x90)]
+
+
+class _Off:
+    """Equal to the error message of `clock/test` without `--clock`."""
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, str) and "clock sync is off" in other
+
+
+ANY_OFF = _Off()
+
+
+def test_clock_test_needs_clock_sync(start: Any) -> None:
+    front = start()
+    replies = front.ask("/mpciml/clock/test", 1)
+    assert replies == [("/mpciml/error", ["bad_arguments", "/mpciml/clock/test", ANY_OFF])]
+
+
+def test_clock_test_plays_beats_from_the_next_bar_on_its_own_port(start: Any) -> None:
+    FakeMidiOut.made = []
+    front = clocked(start, midi_backend=FakeMidiOut)
+    assert front.error("/mpciml/clock/test", 2)[0] == "bad_arguments"
+    clock = daw()
+    clock.send(START)
+    for _ in range(10):
+        clock.send(TICK)
+    assert FakeMidiOut.made == []
+    front.ask("/mpciml/clock/test", 1)
+    bar = 4 * TICKS_PER_BEAT
+    for _ in range(10, bar + 3 * TICKS_PER_BEAT + 7):
+        clock.send(TICK)
+    (port,) = FakeMidiOut.made
+    accent, other = TEST_NOTES
+    assert port.opened == "mpc-iml"
+    assert notes(port) == [
+        bytes([0x90, accent, 100]),
+        bytes([0x80, accent, 0]),
+        *[bytes([s, other, v]) for _ in range(3) for s, v in ((0x90, 100), (0x80, 0))],
+    ]
+    for _ in range(bar + 3 * TICKS_PER_BEAT + 7, 2 * bar + 2):
+        clock.send(TICK)
+    front.ask("/mpciml/clock/test", 0)
+    assert notes(port)[-1] == bytes([0x80, accent, 0])
+    count = len(port.sent)
+    for _ in range(2 * 4 * TICKS_PER_BEAT):
+        clock.send(TICK)
+    assert len(port.sent) == count
+
+
+def test_notes_share_the_presets_midi_port_and_end_on_stop(start: Any) -> None:
+    FakeMidiOut.made = []
+    scheduled: list[ClockAccess] = []
+    pressure = dataclasses.replace(PRESSURE, clock=scheduled.append)
+    clocked(
+        start, preset="pressure", presets=lambda: {"pressure": pressure}, midi_backend=FakeMidiOut
+    )
+    (port,) = FakeMidiOut.made
+    (access,) = scheduled
+    assert access.scheduler is not None
+    access.scheduler.note(0, 0, 36, length_steps=16)
+    clock = daw()
+    clock.send(START)
+    clock.send(TICK)
+    clock.send(STOP)
+    assert notes(port) == [bytes([0x90, 36, 100]), bytes([0x80, 36, 0])]
+
+
 # Command line
 
 
@@ -227,6 +326,10 @@ def test_clock_options() -> None:
     assert (args.clock, args.clock_port, args.beats_per_bar) == (False, None, 4)
     args = build_parser().parse_args(["data", "--clock-port", "IAC", "--beats-per-bar", "3"])
     assert (args.clock_port, args.beats_per_bar) == ("IAC", 3)
+    assert args.clock_lead_ms == 0.0
+    assert build_parser().parse_args(["data", "--clock-lead-ms", "12.5"]).clock_lead_ms == 12.5
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["data", "--clock-lead-ms", "-1"])
 
 
 def test_beats_per_bar_must_be_positive() -> None:

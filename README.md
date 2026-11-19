@@ -376,6 +376,14 @@ while the DAW plays, and at the end of the full state. The status is `off` witho
 `lost` when no tick has arrived for 0.5 s; bar and beat count from 1 (0 before the
 first tick). Pad input, recording, training and running never wait for the clock.
 
+To check that notes from the engine land on the beat, send `/mpciml/clock/test 1`:
+from the next bar, the engine plays note 72 on beat 1 and note 60 on the other beats
+(one 16th long) on the `mpc-iml` MIDI output. Arm a MIDI track on input `mpc-iml`
+with any instrument to hear it; `/mpciml/clock/test 0` stops it. Stop in the DAW
+ends sounding notes, and the pattern starts again on the next bar after Play or
+Continue. If the notes sound late, `--clock-lead-ms 10` sends scheduled notes 10 ms
+early (or use Live's MIDI Clock Sync Delay).
+
 ## Play the pressure preset
 
 The built-in preset `pressure` (`src/mpc_iml/pressure.py`, scenario 1 of
@@ -735,6 +743,9 @@ Its type may change.
 `mpc_iml.clock.ClockAccess` each time it loads the preset with `--clock`. It reads
 `state()` and `position(t)`, and `on_hit(callback)` receives each pad hit placed on
 the grid as a `GridHit` (bar, 16th step and offset from the step) while the DAW plays.
+`scheduler` (a `mpc_iml.clock.Scheduler`) sends notes and other MIDI messages on the
+`mpc-iml` port at a bar and step: `note(bar, step, note, velocity, length_steps)`,
+`at(bar, step, messages)` and `at_next_bar(messages, n)`; `cancel(handle)` drops one.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.

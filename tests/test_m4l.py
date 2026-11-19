@@ -175,7 +175,9 @@ def test_every_message_sent_is_a_control_message() -> None:
                 assert isinstance(value, int if kind == "i" else str), (address, value)
     # Everything the spec's controls need except state/get (the full state comes with hello).
     assert {a for a, _ in messages} == set(CONTROL) - {"/mpciml/state/get"}
-    assert {a.removeprefix("/mpciml/") for a in CONTROL} == set(ALLOWED) - PROTOCOL_1_3
+    assert {a.removeprefix("/mpciml/") for a in CONTROL} == set(ALLOWED) - PROTOCOL_1_3 - {
+        "clock/test"  # protocol 1.4 (ADR 0008): the device is unchanged
+    }
     assert ("/mpciml/hello", [1, 6451]) in messages
     learn = sorted(args[0] for address, args in messages if address == "/mpciml/midi/learn")
     assert learn == list(range(1, 9))
