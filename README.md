@@ -287,8 +287,9 @@ The engine is a long-running IML loop that a front end (Pure Data, Max, later an
 app) drives with OSC control messages; the protocol is
 [ADR 0004](docs/adr/0004-engine-control-protocol.md), version 1.1 in
 [ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md), 1.2 in
-[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md) and 1.3 in
-[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md). Start it with a folder for
+[ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md), 1.3 in
+[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md) and 1.4 in
+[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md). Start it with a folder for
 its saved example sets, with the MPC connected as in the
 [reference example](#reference-example):
 
@@ -346,6 +347,34 @@ loaded one: class buttons for `demo`, target sliders `t1`-`t8` and learn buttons
 `l1`-`l8` for `pressure`. Errors from the engine appear on its status line.
 `uv run mpc-iml` starts the engine and opens this patch in one step
 ([Play in 20 minutes](#play-in-20-minutes)).
+
+### Sync to the DAW's tempo (MIDI clock)
+
+Protocol 1.4 lets the engine follow the tempo, bar and beat of a DAW that sends MIDI
+clock (ADR 0008). Sync is off unless you start the engine with `--clock`:
+
+```bash
+uv run mpc-iml --clock
+```
+
+The engine then opens a virtual MIDI input called `mpc-iml clock`, which the DAW
+lists as an output. Start the engine before the DAW, or turn the port off and on
+again in the DAW's MIDI settings.
+
+- **Live** (any edition): in Settings > Link, Tempo & MIDI > MIDI Ports, turn on
+  **Sync** for the output `mpc-iml clock`, and set MIDI Clock Type to **Song** so
+  that Live sends the song position.
+- **Logic**: in File > Project Settings > Synchronization > MIDI, turn on Transmit
+  MIDI Clock to `mpc-iml clock`, with Song Position Pointer.
+
+`--clock-port IAC` reads clock from an existing input port whose name contains the
+text instead (it implies `--clock`). `--beats-per-bar 3` sets the bar length in
+quarter notes (default 4; MIDI clock carries no meter). The engine reports
+`/mpciml/clock <status> <bpm> <bar> <beat>` on every status change and once per beat
+while the DAW plays, and at the end of the full state. The status is `off` without
+`--clock`, `waiting` until the first tick, `running`, `stopped` after Stop, and
+`lost` when no tick has arrived for 0.5 s; bar and beat count from 1 (0 before the
+first tick). Pad input, recording, training and running never wait for the clock.
 
 ## Play the pressure preset
 
@@ -701,6 +730,11 @@ adds a preset without changing the toolkit:
 accepted**: the engine forwards `/mpciml/preset/<name>/<control>` to the handler of
 `<control>`, with the message's arguments, only while `<name>` is the active preset.
 Its type may change.
+
+`clock` is **provisional** too (ADR 0008): a function that the engine calls with a
+`mpc_iml.clock.ClockAccess` each time it loads the preset with `--clock`. It reads
+`state()` and `position(t)`, and `on_hit(callback)` receives each pad hit placed on
+the grid as a `GridHit` (bar, 16th step and offset from the step) while the DAW plays.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.

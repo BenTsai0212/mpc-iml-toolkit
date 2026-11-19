@@ -13,11 +13,15 @@ asks for another resolution.
 
 `feed` and `check` may run on the clock input thread while other threads read
 `state()`, `position(t)` or `tag(event)`, so the clock guards its state with a lock.
+
+`ClockAccess` is what a preset's provisional `Preset.clock` hook receives from the
+engine: read-only access to the clock and the pad hits placed on the grid.
 """
 
 import math
 import threading
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -30,9 +34,11 @@ __all__ = [
     "SIXTEENTH_TRIPLETS",
     "SIXTEENTHS",
     "TICKS_PER_BEAT",
+    "ClockAccess",
     "ClockState",
     "ClockStatus",
     "GridHit",
+    "HitCallback",
     "MidiClock",
     "off_state",
 ]
@@ -269,3 +275,51 @@ class MidiClock:
             t_tick=self._t_tick,
             beats_per_bar=self.beats_per_bar,
         )
+
+
+HitCallback = Callable[[GridHit], None]
+"""Receives each pad hit placed on the grid (`ClockAccess.on_hit`)."""
+
+
+class ClockAccess:
+    """Read-only access to the engine's clock for one loaded preset (ADR 0008).
+
+    **Provisional**, like `Preset.controls`. The engine makes a new one each time a
+    preset loads with sync on and passes it to the preset's `clock` hook, so
+    callbacks registered by an earlier preset stop when another one loads.
+    """
+
+    def __init__(self, clock: MidiClock, log: Callable[[str], None] = lambda line: None) -> None:
+        self._clock = clock
+        self._log = log
+        self._hits: list[tuple[HitCallback, int]] = []
+
+    def state(self) -> ClockState:
+        """The clock's current snapshot."""
+        return self._clock.state()
+
+    def position(self, t: float) -> float | None:
+        """The position of time `t` in ticks since song start (`MidiClock.position`)."""
+        return self._clock.position(t)
+
+    def on_hit(self, callback: HitCallback, ticks_per_step: int = SIXTEENTHS) -> None:
+        """Call `callback` with every pad hit while the clock is `running`.
+
+        `ticks_per_step` is the grid: `SIXTEENTHS` (default), `EIGHTHS` or
+        `SIXTEENTH_TRIPLETS`. The callback runs on the engine's input thread, so it
+        must return quickly; an exception is logged and the hit is dropped.
+        """
+        if TICKS_PER_BEAT % ticks_per_step:
+            raise ValueError(f"ticks_per_step must divide {TICKS_PER_BEAT}: {ticks_per_step}")
+        self._hits.append((callback, ticks_per_step))
+
+    def deliver(self, event: Event) -> None:
+        """Tag `event` and pass it to every `on_hit` callback (called by the engine)."""
+        for callback, ticks_per_step in list(self._hits):
+            hit = self._clock.tag(event, ticks_per_step)
+            if hit is None:
+                return
+            try:
+                callback(hit)
+            except Exception as error:
+                self._log(f"clock hit callback failed: {error!r}")

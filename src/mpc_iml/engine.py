@@ -14,6 +14,9 @@ Protocol 1.3 (ADR 0007) adds kits and modules for presets with named outputs:
 `kit/load` replaces the example set with a kit's generated takes, `pad/module`
 changes one pad's module, both followed by automatic training, and
 `pad/select/start` reports pad hits so a front end can select a pad on the MPC.
+Protocol 1.4 (ADR 0008) adds MIDI clock sync, off unless `--clock`: the engine reads
+clock from a DAW on a virtual input `mpc-iml clock` (or `--clock-port`), reports
+`/mpciml/clock` and gives presets with a `clock` hook the grid position of pad hits.
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -29,8 +32,8 @@ generated from a kit are kept apart (`GeneratedSet`) and written after the recor
 ones, as recording format version 2.
 
 Threads: control messages are handled one at a time on the server thread; frames
-are handled on the input thread; training runs on its own thread. A lock keeps them
-consistent.
+are handled on the input thread; training runs on its own thread; MIDI clock arrives
+on the clock input's thread. A lock keeps them consistent.
 """
 
 import argparse
@@ -50,8 +53,9 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 from pythonosc.udp_client import UDPClient
 
 from mpc_iml import __version__
+from mpc_iml.clock import ClockAccess, ClockState, MidiClock, off_state
 from mpc_iml.content import ContentError, Library, UnknownContentError, load_library
-from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, MidiKind
+from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, MidiKind, RawMidiEvent
 from mpc_iml.examples import ExampleError, ExampleSet
 from mpc_iml.frames import (
     DEFAULT_RATE,
@@ -76,7 +80,15 @@ from mpc_iml.presets import (
     available_presets,
 )
 from mpc_iml.recording import Header, read_recording, write_recording
-from mpc_iml.sources import DEFAULT_PORT_MATCH, ClockedSource, LiveSource, ReplaySource
+from mpc_iml.sources import (
+    DEFAULT_PORT_MATCH,
+    ClockedSource,
+    ClockInput,
+    ClockInputBackend,
+    LiveSource,
+    ReplaySource,
+    RtMidiClockBackend,
+)
 
 __all__ = [
     "CONTROL_PORT",
@@ -89,9 +101,9 @@ __all__ = [
     "run",
 ]
 
-PROTOCOL_VERSION = (1, 3)
+PROTOCOL_VERSION = (1, 4)
 """Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005; 1.2 in ADR 0006;
-1.3 in ADR 0007)."""
+1.3 in ADR 0007; 1.4 in ADR 0008)."""
 
 CONTROL_PORT = 6450
 """Default port the engine listens on for control messages."""
@@ -138,6 +150,9 @@ LEARN_SWEEP = (0, 32, 64, 96, 127)
 """The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
 
 _NAME = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
+
+_CLOCK_BYTES = frozenset({0xF8, 0xFA, 0xFB, 0xFC, 0xF2})
+"""MIDI clock, Start, Continue, Stop and Song Position Pointer."""
 
 EventInput = ClockedSource | Iterable[Event]
 """Gesture input: a real-time source (live MPC, paced replay) or an event iterable."""
@@ -234,7 +249,9 @@ class Engine:
     control changes to the first existing output port whose name contains it,
     instead of a virtual port; `midi_backend` makes the MIDI output backend (tests
     pass a fake). Port 0 picks a free port for the control server (see
-    `control_port`).
+    `control_port`). `clock` turns on MIDI clock sync (ADR 0008): `start()` opens a
+    virtual input, or the first input port whose name contains `clock_port`;
+    `clock_backend` makes its backend (tests pass a fake).
     """
 
     def __init__(
@@ -253,6 +270,10 @@ class Engine:
         midi_backend: Callable[[], MidiOutputBackend] = RtMidiOutBackend,
         rate: float = DEFAULT_RATE,
         log: Callable[[str], None] = lambda line: print(line, file=sys.stderr),
+        clock: bool = False,
+        clock_port: str | None = None,
+        beats_per_bar: int = 4,
+        clock_backend: Callable[[], ClockInputBackend] = RtMidiClockBackend,
     ) -> None:
         self.data_dir = Path(data_dir)
         self._source = source
@@ -285,6 +306,14 @@ class Engine:
         self._generated: GeneratedSet | None = None
         self._library: Library | None = None
         self._selecting = False
+        self._clock = MidiClock(beats_per_bar) if clock else None
+        self._clock_port = clock_port
+        self._clock_backend = clock_backend
+        self._clock_input: ClockInput | None = None
+        self._clock_access: ClockAccess | None = None
+        self._clock_lock = threading.Lock()
+        self._clock_reported: tuple[str, int, int] | None = None
+        self._t0 = time.monotonic()
         try:
             found = self._find(preset)
         except ControlError as error:
@@ -292,6 +321,7 @@ class Engine:
         self._preset = found
         self._examples = found.example_set()
         self._loop = self._build_loop(found, self._examples)
+        self._attach_clock(found)
         self._handlers: dict[str, Callable[[list[Any]], None]] = {
             "hello": self._hello,
             "ping": self._ping,
@@ -339,8 +369,17 @@ class Engine:
         return int(self._server.server_address[1])
 
     def start(self) -> None:
-        """Create the data folder, bind the control port and start reading input."""
+        """Create the data folder, open the clock input, bind the control port and
+        start reading input. Raises when the clock input cannot be opened."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        if self._clock is not None:
+            clock_input = ClockInput(self._on_clock_message, self._clock_port, self._clock_backend)
+            clock_input.open()
+            self._clock_input = clock_input
+            self._log(
+                f"MIDI clock: waiting on {clock_input.port_name!r}. In Live, turn on Sync "
+                "for this port (Settings > Link, Tempo & MIDI) and press Play."
+            )
         dispatcher = Dispatcher()
         dispatcher.set_default_handler(self.handle)
         self._server = BlockingOSCUDPServer((self._host, self._control_port), dispatcher)
@@ -365,6 +404,8 @@ class Engine:
             if self._serving:
                 self._server.shutdown()
             self._server.server_close()
+        if self._clock_input is not None:
+            self._clock_input.close()
         for thread in (self._input_thread, self._train_thread):
             if thread is not None:
                 thread.join()
@@ -592,6 +633,7 @@ class Engine:
             self._preset = preset
             self._examples = preset.example_set()
             self._loop = self._build_loop(preset, self._examples)
+            self._attach_clock(preset)
             self._timeline = []
             self._generated = None
             self._library = None
@@ -792,6 +834,11 @@ class Engine:
         self._kit_and_pads()
         self._counts()
         self._report_trained(always=True)
+        self._send_clock(self._clock.state() if self._clock is not None else off_state())
+
+    def _send_clock(self, state: ClockState) -> None:
+        """`/mpciml/clock`: status, bpm (0 when unknown), bar and beat (1-based, or 0)."""
+        self._send("clock", state.status, float(state.bpm or 0.0), *_bar_beat(state))
 
     # Examples, presets and training
 
@@ -982,7 +1029,14 @@ class Engine:
             yield event
 
     def _on_event(self, event: Event) -> None:
-        """Report a pad hit (`/mpciml/pad/hit`, pads 1-16, any bank) while selecting."""
+        """Feed clock bytes to the clock, give pad hits to the preset's clock hook, and
+        report a pad hit (`/mpciml/pad/hit`, pads 1-16, any bank) while selecting."""
+        if self._clock is not None:
+            if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in _CLOCK_BYTES:
+                self._clock_changed(self._clock.feed(event.data, event.t))
+            access = self._clock_access
+            if access is not None and isinstance(event, MidiEvent) and event.kind == "note_on":
+                access.deliver(event)
         if (
             self._selecting
             and isinstance(event, MidiEvent)
@@ -993,6 +1047,8 @@ class Engine:
             self._send("pad/hit", note_to_bank_pad(event.note)[1] + 1)
 
     def _on_frame(self, frame: Frame) -> None:
+        if self._clock is not None:
+            self._clock_changed(self._clock.check(frame.t))
         with self._lock:
             if self._state == RECORDING:
                 self._take.append(frame)
@@ -1001,6 +1057,49 @@ class Engine:
                     self._loop.step(frame)
                 except Exception as error:
                     self._log(f"run step failed: {error!r}")
+
+    # MIDI clock
+
+    def _attach_clock(self, preset: Preset) -> None:
+        """Give `preset` a new `ClockAccess` when sync is on and it has a clock hook."""
+        self._clock_access = None
+        if self._clock is None or preset.clock is None:
+            return
+        access = ClockAccess(self._clock, self._log)
+        try:
+            preset.clock(access)
+        except Exception as error:
+            self._log(f"preset {preset.name!r} clock hook failed, no clock: {error!r}")
+            return
+        self._clock_access = access
+
+    def _clock_now(self) -> float | None:
+        """Now, in the gesture source's time base (`None` before a replay starts)."""
+        source = self._source
+        if isinstance(source, ClockedSource):
+            try:
+                return source.now()
+            except RuntimeError:
+                return None
+        return time.monotonic() - self._t0
+
+    def _on_clock_message(self, data: bytes) -> None:
+        """One message from the clock input (on its thread)."""
+        t = self._clock_now()
+        if t is not None and self._clock is not None:
+            self._clock_changed(self._clock.feed(data, t))
+
+    def _clock_changed(self, state: ClockState) -> None:
+        """Report `state` if its status changed or, while running, its beat changed."""
+        bar, beat = _bar_beat(state) if state.status == "running" else (-1, -1)
+        key = (state.status, bar, beat)
+        with self._clock_lock:
+            if key == self._clock_reported:
+                return
+            self._clock_reported = key
+        if state.status == "lost":
+            self._log("MIDI clock lost: no tick for 0.5 s; waiting for the DAW")
+        self._send_clock(state)
 
 
 class _Tap:
@@ -1033,6 +1132,11 @@ class _Tap:
         return self._source.done()
 
 
+def _bar_beat(state: ClockState) -> tuple[int, int]:
+    """Bar and beat counted from 1 for replies, or (0, 0) before the first tick."""
+    return (state.bar + 1, state.beat + 1) if state.tick >= 0 else (0, 0)
+
+
 def _drop_unmatched_ends(events: list[Event]) -> list[Event]:
     """Remove `example_end` markers whose `example_start` was removed."""
     kept: list[Event] = []
@@ -1063,6 +1167,29 @@ def add_engine_options(parser: argparse.ArgumentParser) -> None:
         help="send MIDI CCs to the existing output port whose name contains this (e.g. IAC)"
         " instead of the virtual port",
     )
+    parser.add_argument(
+        "--clock",
+        action="store_true",
+        help="sync to MIDI clock from a DAW on the virtual input 'mpc-iml clock' (ADR 0008)",
+    )
+    parser.add_argument(
+        "--clock-port",
+        help="read MIDI clock from the existing input port whose name contains this"
+        " (e.g. IAC) instead; implies --clock",
+    )
+    parser.add_argument(
+        "--beats-per-bar",
+        type=_beats_per_bar,
+        default=4,
+        help="quarter notes per bar for --clock (default 4)",
+    )
+
+
+def _beats_per_bar(value: str) -> int:
+    count = int(value)
+    if count < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1: {count}")
+    return count
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1107,13 +1234,21 @@ def run(args: argparse.Namespace, on_started: Callable[["Engine"], None] | None 
             inputs_port=args.inputs_port,
             outputs_port=args.outputs_port,
             midi_port=args.midi_port,
+            clock=args.clock or args.clock_port is not None,
+            clock_port=args.clock_port,
+            beats_per_bar=args.beats_per_bar,
         )
     except PresetError as error:
         print(f"error: {error}", file=sys.stderr)
         if isinstance(source, LiveSource):
             source.close()
         return 2
-    engine.start()
+    try:
+        engine.start()
+    except Exception as error:
+        print(f"error: {error}", file=sys.stderr)
+        engine.close()
+        return 1
     print(
         f"Engine (protocol {PROTOCOL_VERSION[0]}.{PROTOCOL_VERSION[1]}) listening on "
         f"{args.host}:{engine.control_port}, replying to port {args.reply_port}, "

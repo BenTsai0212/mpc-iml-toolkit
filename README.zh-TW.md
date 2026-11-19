@@ -238,7 +238,8 @@ engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後�
 協定見 [ADR 0004](docs/adr/0004-engine-control-protocol.md)，1.1 版見
 [ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)，1.2 版見
 [ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md)，1.3 版見
-[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)。依[參考範例](#參考範例)接好
+[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)，1.4 版見
+[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md)。依[參考範例](#參考範例)接好
 MPC 後，指定一個存放範例集的資料夾來啟動：
 
 ```bash
@@ -283,6 +284,30 @@ pad（1～16），保留錄下的示範並重新訓練（兩者都在 `idle`，�
 `connect`），把已安裝的 preset 列成按鈕，並依載入的 preset 調整：`demo` 顯示類別按鈕，
 `pressure` 顯示目標滑桿 `t1`～`t8` 與 learn 按鈕 `l1`～`l8`。engine 的錯誤顯示在 patch 的狀態列。
 `uv run mpc-iml` 一步啟動 engine 並開啟這個 patch（[20 分鐘開始演奏](#20-分鐘開始演奏)）。
+
+### 跟隨 DAW 的速度（MIDI clock）
+
+1.4 版讓 engine 跟隨送出 MIDI clock 的 DAW 的速度、小節與拍（ADR 0008）。只有以 `--clock`
+啟動 engine 時才同步：
+
+```bash
+uv run mpc-iml --clock
+```
+
+engine 會開一個叫 `mpc-iml clock` 的虛擬 MIDI 輸入，DAW 把它列為輸出。先啟動 engine 再開
+DAW，或在 DAW 的 MIDI 設定把這個 port 關掉再打開。
+
+- **Live**（任何版本）：在 Settings > Link, Tempo & MIDI > MIDI Ports，把輸出 `mpc-iml clock`
+  的 **Sync** 打開，並把 MIDI Clock Type 設為 **Song**，讓 Live 送出歌曲位置。
+- **Logic**：在 File > Project Settings > Synchronization > MIDI，打開 Transmit MIDI Clock
+  並送到 `mpc-iml clock`，勾選 Song Position Pointer。
+
+`--clock-port IAC` 改從名稱包含該文字的既有輸入 port 讀取 clock（等同同時指定 `--clock`）。
+`--beats-per-bar 3` 設定每小節的四分音符數（預設 4；MIDI clock 不帶拍號）。engine 在每次狀態
+改變、DAW 播放時每拍一次，以及完整狀態的最後回報 `/mpciml/clock <status> <bpm> <bar> <beat>`。
+沒有 `--clock` 時狀態是 `off`，收到第一個 tick 前是 `waiting`，之後是 `running`，Stop 後是
+`stopped`，0.5 秒沒有 tick 時是 `lost`；小節與拍從 1 開始（第一個 tick 前為 0）。pad 輸入、
+錄製、訓練與執行都不會等待 clock。
 
 ## 演奏 preset pressure
 
@@ -553,6 +578,10 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
 `controls`（控制名稱對應到處理函式）**在 ADR 0004 接受前是暫定的**：engine 只在 `<name>`
 是目前啟用的 preset 時，把 `/mpciml/preset/<name>/<control>` 連同訊息的參數轉給
 `<control>` 的處理函式。型別仍可能改變。
+
+`clock` 同樣是**暫定的**（ADR 0008）：engine 每次在 `--clock` 下載入 preset 時，以
+`mpc_iml.clock.ClockAccess` 呼叫這個函式。它可讀取 `state()` 與 `position(t)`，`on_hit(callback)`
+則在 DAW 播放時收到每次 pad 敲擊放上格點後的 `GridHit`（小節、16 分音符的 step 與偏離 step 的量）。
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。

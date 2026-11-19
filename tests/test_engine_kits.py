@@ -171,6 +171,7 @@ def test_full_state_order_with_names(start: Any) -> None:
         ("/mpciml/pads", ["", 1.0] * PADS),
         ("/mpciml/counts", []),
         ("/mpciml/trained", [0]),
+        ("/mpciml/clock", ["off", 0.0, 0, 0]),
     ]
 
 

@@ -23,6 +23,7 @@ from importlib.metadata import EntryPoint, entry_points
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 
+from mpc_iml.clock import ClockAccess
 from mpc_iml.examples import ExampleSet, FeatureFn, default_features
 from mpc_iml.loop import IMLLoop, ValuesSender
 from mpc_iml.model import ModelFactory
@@ -141,6 +142,9 @@ class Preset:
       a handler. The engine (`mpc_iml.engine`) calls the handler of `<control>` with
       the arguments of `/mpciml/preset/<name>/<control>`, only while this preset is
       active; its type may change.
+    - `clock`: **provisional** (ADR 0008). Called with a `ClockAccess` each time the
+      engine loads this preset with MIDI clock sync on (`--clock`); never called
+      without sync. Errors are logged and the preset loads without the clock.
     """
 
     name: str
@@ -154,6 +158,7 @@ class Preset:
     controls: Mapping[str, ControlHandler] = field(default_factory=dict)
     patch: str | None = None
     output_names: tuple[str, ...] | None = None
+    clock: Callable[[ClockAccess], None] | None = None
 
     def __post_init__(self) -> None:
         if not _NAME.fullmatch(self.name):
