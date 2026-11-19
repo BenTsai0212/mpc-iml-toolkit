@@ -9,6 +9,10 @@ to produce frames on time even when no MIDI arrives.
 `python-rtmidi`, and tests pass a fake backend. It is single-threaded: iterating polls
 the backend, sleeping 1 ms when no message is pending, and `t` is the time a message
 is received, in seconds since the source was opened.
+
+`ClockInput` reads MIDI clock from a DAW for `mpc_iml.clock` (ADR 0008): by default
+on a virtual input port `mpc-iml clock`, with an rtmidi callback on its own thread so
+each tick is handled as it arrives. The MPC input keeps ignoring timing messages.
 """
 
 import json
@@ -23,20 +27,27 @@ from mpc_iml.midi import decode
 from mpc_iml.recording import Header, Recording, event_to_dict, header_to_dict, read_recording
 
 __all__ = [
+    "CLOCK_PORT_NAME",
     "DEFAULT_PORT_MATCH",
     "POLL_INTERVAL",
+    "ClockInput",
+    "ClockInputBackend",
     "ClockedSource",
     "LiveSource",
     "MidiInputBackend",
     "PortNotFoundError",
     "ReplaySource",
     "RtMidiBackend",
+    "RtMidiClockBackend",
     "record",
     "tee",
 ]
 
 DEFAULT_PORT_MATCH = "MPC"
 """Live input opens the first port whose name contains this (case-insensitive)."""
+
+CLOCK_PORT_NAME = "mpc-iml clock"
+"""The virtual input port the engine reads MIDI clock from (DAWs see an output)."""
 
 POLL_INTERVAL = 0.001
 """Seconds to sleep when no message is pending."""
@@ -117,6 +128,96 @@ class RtMidiBackend:
     def close(self) -> None:
         self._midi_in.close_port()
         self._midi_in.delete()
+
+
+class ClockInputBackend(Protocol):
+    """MIDI input for clock: open a port or a virtual one; messages go to a callback."""
+
+    def port_names(self) -> list[str]: ...
+
+    def open(self, index: int) -> None: ...
+
+    def open_virtual(self, name: str) -> None:
+        """Create a virtual input port that other applications see as a destination."""
+        ...
+
+    def set_callback(self, callback: Callable[[bytes], None]) -> None:
+        """Call `callback` with each complete message, on the backend's thread."""
+        ...
+
+    def close(self) -> None: ...
+
+
+class RtMidiClockBackend:
+    """`ClockInputBackend` on `python-rtmidi`: keeps timing, ignores SysEx and sensing."""
+
+    def __init__(self) -> None:
+        import rtmidi
+
+        self._midi_in = rtmidi.MidiIn()
+        self._midi_in.ignore_types(sysex=True, timing=False, active_sense=True)
+
+    def port_names(self) -> list[str]:
+        return list(self._midi_in.get_ports())
+
+    def open(self, index: int) -> None:
+        self._midi_in.open_port(index)
+
+    def open_virtual(self, name: str) -> None:
+        self._midi_in.open_virtual_port(name)
+
+    def set_callback(self, callback: Callable[[bytes], None]) -> None:
+        self._midi_in.set_callback(lambda message, _: callback(bytes(message[0])))
+
+    def close(self) -> None:
+        self._midi_in.cancel_callback()
+        self._midi_in.close_port()
+        self._midi_in.delete()
+
+
+class ClockInput:
+    """The port MIDI clock arrives on; passes each message to `on_message`.
+
+    `port_match` `None` opens a virtual input called `CLOCK_PORT_NAME`; otherwise
+    the first existing input port whose name contains it (case-insensitive).
+    """
+
+    def __init__(
+        self,
+        on_message: Callable[[bytes], None],
+        port_match: str | None = None,
+        backend: Callable[[], ClockInputBackend] = RtMidiClockBackend,
+    ) -> None:
+        self._on_message = on_message
+        self._port_match = port_match
+        self._make_backend = backend
+        self._backend: ClockInputBackend | None = None
+        self.port_name: str | None = None
+
+    def open(self) -> None:
+        """Open the port; raises `PortNotFoundError` when no port matches."""
+        backend = self._make_backend()
+        if self._port_match is None:
+            backend.open_virtual(CLOCK_PORT_NAME)
+            self.port_name = CLOCK_PORT_NAME
+        else:
+            names = backend.port_names()
+            needle = self._port_match.casefold()
+            index = next((i for i, n in enumerate(names) if needle in n.casefold()), None)
+            if index is None:
+                available = ", ".join(repr(n) for n in names) or "none"
+                raise PortNotFoundError(
+                    f"no MIDI input port contains {self._port_match!r}; available: {available}"
+                )
+            backend.open(index)
+            self.port_name = names[index]
+        backend.set_callback(self._on_message)
+        self._backend = backend
+
+    def close(self) -> None:
+        if self._backend is not None:
+            self._backend.close()
+            self._backend = None
 
 
 class LiveSource:

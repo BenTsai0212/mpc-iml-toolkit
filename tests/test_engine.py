@@ -279,9 +279,9 @@ def record_steps(front: Front, source: SteppedReplay, steps: Sequence[int] = DRO
 def test_hello_sends_version_then_full_state(start: Any) -> None:
     front = start()
     front.send("/mpciml/hello", 1)
-    replies = front.replies.until("/mpciml/trained")
+    replies = front.replies.until("/mpciml/clock")
     assert replies == [
-        ("/mpciml/version", [1, 3, __version__]),
+        ("/mpciml/version", [1, 4, __version__]),
         ("/mpciml/state", ["idle"]),
         ("/mpciml/preset", ["demo", DEMO.version]),
         ("/mpciml/layout", [0, 0]),
@@ -290,6 +290,7 @@ def test_hello_sends_version_then_full_state(start: Any) -> None:
         ("/mpciml/pads", ["", 1.0] * PADS),
         ("/mpciml/counts", ["rest", 0, "soft", 0, "hard", 0]),
         ("/mpciml/trained", [0]),
+        ("/mpciml/clock", ["off", 0.0, 0, 0]),
     ]
 
 
@@ -308,8 +309,8 @@ def test_hello_accepts_whole_number_floats(start: Any, receivers: list[Receiver]
     other = Receiver()
     receivers.append(other)
     front.send("/mpciml/hello", 1.0, float(other.port))
-    replies = other.until("/mpciml/trained")
-    assert replies[0] == ("/mpciml/version", [1, 3, __version__])
+    replies = other.until("/mpciml/clock")
+    assert replies[0] == ("/mpciml/version", [1, 4, __version__])
     front.replies = other
     assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
 
@@ -317,10 +318,10 @@ def test_hello_accepts_whole_number_floats(start: Any, receivers: list[Receiver]
 def test_hello_with_another_major_reports_mismatch_and_keeps_working(start: Any) -> None:
     front = start()
     front.send("/mpciml/hello", 2)
-    replies = front.replies.until("/mpciml/trained")
+    replies = front.replies.until("/mpciml/clock")
     assert replies[0][0] == "/mpciml/error"
     assert replies[0][1][:2] == ["version_mismatch", "/mpciml/hello"]
-    assert replies[1] == ("/mpciml/version", [1, 3, __version__])
+    assert replies[1] == ("/mpciml/version", [1, 4, __version__])
     assert front.ask("/mpciml/state/get")[0] == ("/mpciml/state", ["idle"])
 
 
@@ -337,6 +338,7 @@ def test_ping_and_state_get(start: Any) -> None:
         "/mpciml/pads",
         "/mpciml/counts",
         "/mpciml/trained",
+        "/mpciml/clock",
     ]
 
 
