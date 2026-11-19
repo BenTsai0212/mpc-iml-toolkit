@@ -309,6 +309,12 @@ DAW，或在 DAW 的 MIDI 設定把這個 port 關掉再打開。
 `stopped`，0.5 秒沒有 tick 時是 `lost`；小節與拍從 1 開始（第一個 tick 前為 0）。pad 輸入、
 錄製、訓練與執行都不會等待 clock。
 
+要確認 engine 送出的音符落在拍上，送 `/mpciml/clock/test 1`：engine 從下一小節開始，在
+`mpc-iml` MIDI 輸出上於第 1 拍送音符 72、其他拍送音符 60（長度一個 16 分音符）。在 DAW 把一條
+MIDI 軌的輸入設為 `mpc-iml`、放任何樂器並啟用錄音監聽即可聽到；`/mpciml/clock/test 0` 停止。
+DAW 按 Stop 時會結束正在發聲的音符，按 Play 或 Continue 後從下一小節重新開始。音符聽起來偏晚
+時，`--clock-lead-ms 10` 讓排程的音符提早 10 ms 送出（或使用 Live 的 MIDI Clock Sync Delay）。
+
 ## 演奏 preset pressure
 
 內建的 preset `pressure`（`src/mpc_iml/pressure.py`，[RFC 0002](docs/rfcs/0002-platform-positioning.md)
@@ -582,6 +588,9 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
 `clock` 同樣是**暫定的**（ADR 0008）：engine 每次在 `--clock` 下載入 preset 時，以
 `mpc_iml.clock.ClockAccess` 呼叫這個函式。它可讀取 `state()` 與 `position(t)`，`on_hit(callback)`
 則在 DAW 播放時收到每次 pad 敲擊放上格點後的 `GridHit`（小節、16 分音符的 step 與偏離 step 的量）。
+`scheduler`（`mpc_iml.clock.Scheduler`）在指定的小節與 step 於 `mpc-iml` port 送出音符與其他 MIDI
+訊息：`note(bar, step, note, velocity, length_steps)`、`at(bar, step, messages)` 與
+`at_next_bar(messages, n)`；`cancel(handle)` 取消一筆。
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。

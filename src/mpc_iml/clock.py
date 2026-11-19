@@ -14,14 +14,18 @@ asks for another resolution.
 `feed` and `check` may run on the clock input thread while other threads read
 `state()`, `position(t)` or `tag(event)`, so the clock guards its state with a lock.
 
+`Scheduler` sends raw MIDI messages (notes, control changes) at grid positions, and
+plays the engine's test pattern (`/mpciml/clock/test`).
+
 `ClockAccess` is what a preset's provisional `Preset.clock` hook receives from the
-engine: read-only access to the clock and the pad hits placed on the grid.
+engine: read-only access to the clock, the pad hits placed on the grid and the
+scheduler.
 """
 
 import math
 import threading
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -33,6 +37,7 @@ __all__ = [
     "LOST_AFTER",
     "SIXTEENTH_TRIPLETS",
     "SIXTEENTHS",
+    "TEST_NOTES",
     "TICKS_PER_BEAT",
     "ClockAccess",
     "ClockState",
@@ -40,6 +45,8 @@ __all__ = [
     "GridHit",
     "HitCallback",
     "MidiClock",
+    "Scheduled",
+    "Scheduler",
     "off_state",
 ]
 
@@ -289,9 +296,16 @@ class ClockAccess:
     callbacks registered by an earlier preset stop when another one loads.
     """
 
-    def __init__(self, clock: MidiClock, log: Callable[[str], None] = lambda line: None) -> None:
+    def __init__(
+        self,
+        clock: MidiClock,
+        log: Callable[[str], None] = lambda line: None,
+        scheduler: "Scheduler | None" = None,
+    ) -> None:
         self._clock = clock
         self._log = log
+        self.scheduler = scheduler
+        """The engine's `Scheduler` for notes at grid positions (`None` in tests)."""
         self._hits: list[tuple[HitCallback, int]] = []
 
     def state(self) -> ClockState:
@@ -323,3 +337,230 @@ class ClockAccess:
                 callback(hit)
             except Exception as error:
                 self._log(f"clock hit callback failed: {error!r}")
+
+
+TEST_NOTES = (72, 60)
+"""The test pattern's notes: on beat 1 of each bar, and on the other beats."""
+
+_TEST_VELOCITY = 100
+
+
+class Scheduled:
+    """A handle for messages queued on a `Scheduler`; pass it to `cancel`."""
+
+    def __init__(self, tick: int) -> None:
+        self.tick = tick
+        """When the first message is due, in ticks since song start."""
+
+
+class Scheduler:
+    """Sends raw MIDI messages at grid positions of a `MidiClock` (ADR 0008).
+
+    Positions are absolute: `bar` counts from song start (0-based) and `step` is a
+    16th within the bar, unless `ticks_per_step` says otherwise. Nothing is sent by a
+    timer: whoever feeds the clock calls `update(t)` after each clock message (and
+    may call it more often, for example on every frame), and every message due by
+    then goes to `send` on that thread. With `lead` (seconds), messages go out that
+    much early, judged from the clock's interpolated position at `t`; without it,
+    a message never goes out before the tick it is due on. A message for a position
+    already passed goes out at the next update.
+
+    When the clock stops, is lost or jumps (Start, Song Position Pointer), pending
+    messages are dropped and a Note Off is sent for every note still sounding, so no
+    note hangs. Every method may be called from any thread.
+    """
+
+    def __init__(
+        self,
+        clock: MidiClock,
+        send: Callable[[bytes], None],
+        lead: float = 0.0,
+        log: Callable[[str], None] = lambda line: None,
+    ) -> None:
+        if lead < 0:
+            raise ValueError(f"lead must be 0 or more: {lead}")
+        self._clock = clock
+        self._send = send
+        self.lead = lead
+        self._log = log
+        self._lock = threading.Lock()
+        self._pending: list[tuple[int, int, bytes, Scheduled]] = []
+        self._seq = 0
+        self._sounding: dict[tuple[int, int], int] = {}
+        self._tick = -1
+        self._running = False
+        self._done = -1
+        self._test = False
+        self._test_next: int | None = None
+        self._test_handles: list[Scheduled] = []
+
+    @property
+    def ticks_per_bar(self) -> int:
+        return self._clock.beats_per_bar * TICKS_PER_BEAT
+
+    def at(
+        self, bar: int, step: int, messages: Sequence[bytes], ticks_per_step: int = SIXTEENTHS
+    ) -> Scheduled:
+        """Send `messages` at `step` of `bar`, in order."""
+        tick = self._tick_of(bar, step, ticks_per_step)
+        handle = Scheduled(tick)
+        with self._lock:
+            for message in messages:
+                self._push(tick, bytes(message), handle)
+        return handle
+
+    def next_bar(self, n: int = 1) -> int:
+        """The first bar that starts after the current position, with `bar % n == 0`."""
+        if n < 1:
+            raise ValueError(f"n must be at least 1: {n}")
+        tick = self._clock.state().tick
+        bar = tick // self.ticks_per_bar + 1 if tick >= 0 else 0
+        return bar + (-bar) % n
+
+    def at_next_bar(
+        self,
+        messages: Sequence[bytes],
+        n: int = 1,
+        step: int = 0,
+        ticks_per_step: int = SIXTEENTHS,
+    ) -> Scheduled:
+        """Send `messages` at `step` of the next bar where `bar % n == 0`."""
+        return self.at(self.next_bar(n), step, messages, ticks_per_step)
+
+    def note(
+        self,
+        bar: int,
+        step: int,
+        note: int,
+        velocity: int = 100,
+        length_steps: int = 1,
+        channel: int = 1,
+        ticks_per_step: int = SIXTEENTHS,
+    ) -> Scheduled:
+        """A Note On at `step` of `bar` and its Note Off `length_steps` steps later."""
+        if not (0 <= note <= 127 and 1 <= velocity <= 127 and 1 <= channel <= 16):
+            raise ValueError(f"bad note: note {note}, velocity {velocity}, channel {channel}")
+        if length_steps < 1:
+            raise ValueError(f"length_steps must be at least 1: {length_steps}")
+        tick = self._tick_of(bar, step, ticks_per_step)
+        handle = Scheduled(tick)
+        with self._lock:
+            self._push_note(tick, note, velocity, length_steps * ticks_per_step, channel, handle)
+        return handle
+
+    def cancel(self, handle: Scheduled) -> None:
+        """Drop the handle's pending messages; a note it started is ended now."""
+        with self._lock:
+            self._cancel([handle])
+
+    def clear(self) -> None:
+        """Drop every pending message, stop the test pattern and end sounding notes."""
+        with self._lock:
+            self._test = False
+            self._test_handles = []
+            self._panic()
+
+    def test_pattern(self, on: bool) -> None:
+        """Start the test pattern from the next bar, or stop it now (ADR 0008).
+
+        Note `TEST_NOTES[0]` on beat 1 and `TEST_NOTES[1]` on the other beats,
+        velocity 100, one 16th long, on channel 1, until stopped.
+        """
+        with self._lock:
+            if on and not self._test:
+                self._test_next = None
+            elif not on:
+                self._cancel(self._test_handles)
+                self._test_handles = []
+            self._test = on
+
+    def update(self, t: float | None = None) -> None:
+        """Send every message due at the clock's current position (see the class)."""
+        with self._lock:
+            state = self._clock.state()
+            running = state.status == "running"
+            moved = state.tick < self._tick or not running and state.tick != self._tick
+            if moved or self._running and not running:
+                self._panic()
+                self._done = state.tick
+            self._tick, self._running = state.tick, running
+            if not running or state.tick < 0:
+                return
+            horizon = state.tick
+            if self.lead and state.bpm and t is not None:
+                position = self._clock.position(t)
+                ahead = self.lead * state.bpm * TICKS_PER_BEAT / 60.0
+                horizon = max(horizon, math.floor((position or state.tick) + ahead))
+            if self._test:
+                self._schedule_test(horizon)
+            while self._pending and self._pending[0][0] <= horizon:
+                self._emit(self._pending.pop(0)[2])
+            self._done = max(self._done, horizon)
+
+    def _tick_of(self, bar: int, step: int, ticks_per_step: int) -> int:
+        if TICKS_PER_BEAT % ticks_per_step:
+            raise ValueError(f"ticks_per_step must divide {TICKS_PER_BEAT}: {ticks_per_step}")
+        if bar < 0 or step < 0:
+            raise ValueError(f"bar and step must be 0 or more: {bar}, {step}")
+        return bar * self.ticks_per_bar + step * ticks_per_step
+
+    def _push(self, tick: int, message: bytes, handle: Scheduled) -> None:
+        self._seq += 1
+        entry = (tick, self._seq, message, handle)
+        index = len(self._pending)
+        while index and self._pending[index - 1][:2] > entry[:2]:
+            index -= 1
+        self._pending.insert(index, entry)
+
+    def _push_note(
+        self, tick: int, note: int, velocity: int, length: int, channel: int, handle: Scheduled
+    ) -> None:
+        self._push(tick, bytes([0x90 | (channel - 1), note, velocity]), handle)
+        self._push(tick + length, bytes([0x80 | (channel - 1), note, 0]), handle)
+
+    def _schedule_test(self, horizon: int) -> None:
+        """Queue the test pattern's beats up to one beat past `horizon`."""
+        if self._test_next is None:
+            self._test_next = -(-(self._done + 1) // self.ticks_per_bar) * self.ticks_per_bar
+        self._test_handles = [h for h in self._test_handles if self._is_pending(h)]
+        while self._test_next <= horizon + TICKS_PER_BEAT:
+            tick = self._test_next
+            note = TEST_NOTES[0] if tick % self.ticks_per_bar == 0 else TEST_NOTES[1]
+            handle = Scheduled(tick)
+            self._push_note(tick, note, _TEST_VELOCITY, SIXTEENTHS, 1, handle)
+            self._test_handles.append(handle)
+            self._test_next += TICKS_PER_BEAT
+
+    def _is_pending(self, handle: Scheduled) -> bool:
+        return any(entry[3] is handle for entry in self._pending)
+
+    def _cancel(self, handles: Sequence[Scheduled]) -> None:
+        dropped = [e for e in self._pending if any(e[3] is h for h in handles)]
+        self._pending = [e for e in self._pending if not any(e[3] is h for h in handles)]
+        for _, _, message, _ in dropped:
+            if message[0] & 0xF0 == 0x80 and (message[0] & 0x0F, message[1]) in self._sounding:
+                self._emit(message)
+
+    def _panic(self) -> None:
+        self._pending = []
+        self._test_next = None
+        self._test_handles = []
+        for channel, note in list(self._sounding):
+            self._emit(bytes([0x80 | channel, note, 0]))
+        self._sounding = {}
+
+    def _emit(self, message: bytes) -> None:
+        """Send one message and keep track of the notes it starts and ends."""
+        kind = message[0] & 0xF0
+        if kind in (0x80, 0x90) and len(message) == 3:
+            key = (message[0] & 0x0F, message[1])
+            if kind == 0x90 and message[2] > 0:
+                self._sounding[key] = self._sounding.get(key, 0) + 1
+            elif key in self._sounding:
+                self._sounding[key] -= 1
+                if not self._sounding[key]:
+                    del self._sounding[key]
+        try:
+            self._send(message)
+        except Exception as error:
+            self._log(f"scheduled MIDI message not sent: {error!r}")

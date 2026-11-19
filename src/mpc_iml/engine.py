@@ -16,7 +16,9 @@ changes one pad's module, both followed by automatic training, and
 `pad/select/start` reports pad hits so a front end can select a pad on the MPC.
 Protocol 1.4 (ADR 0008) adds MIDI clock sync, off unless `--clock`: the engine reads
 clock from a DAW on a virtual input `mpc-iml clock` (or `--clock-port`), reports
-`/mpciml/clock` and gives presets with a `clock` hook the grid position of pad hits.
+`/mpciml/clock`, gives presets with a `clock` hook the grid position of pad hits and
+a scheduler for notes on the `mpc-iml` port, and plays a test pattern on
+`/mpciml/clock/test`.
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -53,7 +55,7 @@ from pythonosc.osc_server import BlockingOSCUDPServer
 from pythonosc.udp_client import UDPClient
 
 from mpc_iml import __version__
-from mpc_iml.clock import ClockAccess, ClockState, MidiClock, off_state
+from mpc_iml.clock import ClockAccess, ClockState, MidiClock, Scheduler, off_state
 from mpc_iml.content import ContentError, Library, UnknownContentError, load_library
 from mpc_iml.events import Event, ExampleEnd, ExampleStart, MidiEvent, MidiKind, RawMidiEvent
 from mpc_iml.examples import ExampleError, ExampleSet
@@ -142,9 +144,10 @@ ALLOWED: Mapping[str, frozenset[str]] = {
     "pad/module": frozenset({IDLE, RUNNING}),
     "pad/select/start": _EDIT,
     "pad/select/stop": _EDIT,
+    "clock/test": _ALL,
 }
 """The states in which each control message is accepted (ADR 0004, States; ADR 0005;
-ADR 0007). `kit/load` and `pad/module` are also refused while a retrain runs."""
+ADR 0007; ADR 0008). `kit/load` and `pad/module` are also refused while a retrain runs."""
 
 LEARN_SWEEP = (0, 32, 64, 96, 127)
 """The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
@@ -251,7 +254,9 @@ class Engine:
     pass a fake). Port 0 picks a free port for the control server (see
     `control_port`). `clock` turns on MIDI clock sync (ADR 0008): `start()` opens a
     virtual input, or the first input port whose name contains `clock_port`;
-    `clock_backend` makes its backend (tests pass a fake).
+    `clock_backend` makes its backend (tests pass a fake). Scheduled notes go out
+    `clock_lead_ms` early, on the preset's first MIDI output, or on a port of their
+    own (`mpc-iml`, or `midi_port`) when the preset has none.
     """
 
     def __init__(
@@ -274,6 +279,7 @@ class Engine:
         clock_port: str | None = None,
         beats_per_bar: int = 4,
         clock_backend: Callable[[], ClockInputBackend] = RtMidiClockBackend,
+        clock_lead_ms: float = 0.0,
     ) -> None:
         self.data_dir = Path(data_dir)
         self._source = source
@@ -307,6 +313,13 @@ class Engine:
         self._library: Library | None = None
         self._selecting = False
         self._clock = MidiClock(beats_per_bar) if clock else None
+        self._scheduler = (
+            Scheduler(self._clock, self._send_note, clock_lead_ms / 1000, log)
+            if self._clock is not None
+            else None
+        )
+        self._note_port: MidiCcSender | None = None
+        self._note_failed = False
         self._clock_port = clock_port
         self._clock_backend = clock_backend
         self._clock_input: ClockInput | None = None
@@ -347,6 +360,7 @@ class Engine:
             "pad/module": self._pad_module,
             "pad/select/start": self._select_start,
             "pad/select/stop": self._select_stop,
+            "clock/test": self._clock_test,
         }
 
     # Life cycle
@@ -406,6 +420,8 @@ class Engine:
             self._server.server_close()
         if self._clock_input is not None:
             self._clock_input.close()
+        if self._scheduler is not None:
+            self._scheduler.clear()
         for thread in (self._input_thread, self._train_thread):
             if thread is not None:
                 thread.join()
@@ -414,6 +430,8 @@ class Engine:
             close()
         with self._lock:
             self._close_senders(self._loop)
+            if self._note_port is not None:
+                self._note_port.close()
             self._reply.close()
 
     # Control messages
@@ -663,6 +681,15 @@ class Engine:
             for value in reversed(LEARN_SWEEP) if down else LEARN_SWEEP:
                 sender.send_controller(index, value)
         self._send("midi/sent", output, senders[0].output.controllers[index])
+
+    def _clock_test(self, args: list[Any]) -> None:
+        _check_count(args, 1, 1)
+        on = _int(args[0])
+        if on not in (0, 1):
+            raise ControlError("bad_arguments", f"expected 0 or 1, got {on}")
+        if self._scheduler is None:
+            raise ControlError("bad_arguments", "clock sync is off; start the engine with --clock")
+        self._scheduler.test_pattern(bool(on))
 
     def _kit_list(self, args: list[Any]) -> None:
         _check_count(args, 0, 0)
@@ -954,6 +981,9 @@ class Engine:
             except Exception as error:
                 self._log(f"output {output} not opened, continuing without it: {error}")
             first_osc = first_osc and not isinstance(output, OscOutput)
+        if self._midi and self._note_port is not None:
+            self._note_port.close()
+            self._note_port = None
         outputs: ValuesSender | None = None
         if len(senders) == 1:
             outputs = senders[0]
@@ -1033,7 +1063,7 @@ class Engine:
         report a pad hit (`/mpciml/pad/hit`, pads 1-16, any bank) while selecting."""
         if self._clock is not None:
             if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in _CLOCK_BYTES:
-                self._clock_changed(self._clock.feed(event.data, event.t))
+                self._clock_changed(self._clock.feed(event.data, event.t), event.t)
             access = self._clock_access
             if access is not None and isinstance(event, MidiEvent) and event.kind == "note_on":
                 access.deliver(event)
@@ -1048,7 +1078,7 @@ class Engine:
 
     def _on_frame(self, frame: Frame) -> None:
         if self._clock is not None:
-            self._clock_changed(self._clock.check(frame.t))
+            self._clock_changed(self._clock.check(frame.t), frame.t)
         with self._lock:
             if self._state == RECORDING:
                 self._take.append(frame)
@@ -1065,7 +1095,7 @@ class Engine:
         self._clock_access = None
         if self._clock is None or preset.clock is None:
             return
-        access = ClockAccess(self._clock, self._log)
+        access = ClockAccess(self._clock, self._log, self._scheduler)
         try:
             preset.clock(access)
         except Exception as error:
@@ -1087,10 +1117,13 @@ class Engine:
         """One message from the clock input (on its thread)."""
         t = self._clock_now()
         if t is not None and self._clock is not None:
-            self._clock_changed(self._clock.feed(data, t))
+            self._clock_changed(self._clock.feed(data, t), t)
 
-    def _clock_changed(self, state: ClockState) -> None:
-        """Report `state` if its status changed or, while running, its beat changed."""
+    def _clock_changed(self, state: ClockState, t: float) -> None:
+        """Send the scheduled notes now due, then report `state` if its status changed
+        or, while running, its beat changed."""
+        if self._scheduler is not None:
+            self._scheduler.update(t)
         bar, beat = _bar_beat(state) if state.status == "running" else (-1, -1)
         key = (state.status, bar, beat)
         with self._clock_lock:
@@ -1100,6 +1133,24 @@ class Engine:
         if state.status == "lost":
             self._log("MIDI clock lost: no tick for 0.5 s; waiting for the DAW")
         self._send_clock(state)
+
+    def _send_note(self, message: bytes) -> None:
+        """Send a scheduled message on the preset's first MIDI output, or on a port of
+        the scheduler's own, opened on the first message (on the clock thread)."""
+        sender = self._midi[0] if self._midi else self._note_port
+        if sender is None:
+            if self._note_failed:
+                return
+            sender = MidiCcSender(MidiCcOutput((0,)), self._midi_port, self._midi_backend)
+            try:
+                sender.open()
+            except Exception as error:
+                self._note_failed = True
+                self._log(f"MIDI output for scheduled notes not opened: {error}")
+                return
+            self._log(f"scheduled notes on {sender.port_name!r}")
+            self._note_port = sender
+        sender.send_message(message)
 
 
 class _Tap:
@@ -1183,6 +1234,12 @@ def add_engine_options(parser: argparse.ArgumentParser) -> None:
         default=4,
         help="quarter notes per bar for --clock (default 4)",
     )
+    parser.add_argument(
+        "--clock-lead-ms",
+        type=_lead_ms,
+        default=0.0,
+        help="send notes scheduled on the clock this many ms early (default 0)",
+    )
 
 
 def _beats_per_bar(value: str) -> int:
@@ -1190,6 +1247,13 @@ def _beats_per_bar(value: str) -> int:
     if count < 1:
         raise argparse.ArgumentTypeError(f"must be at least 1: {count}")
     return count
+
+
+def _lead_ms(value: str) -> float:
+    lead = float(value)
+    if not 0 <= lead <= 1000:
+        raise argparse.ArgumentTypeError(f"must be 0-1000: {lead}")
+    return lead
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1237,6 +1301,7 @@ def run(args: argparse.Namespace, on_started: Callable[["Engine"], None] | None 
             clock=args.clock or args.clock_port is not None,
             clock_port=args.clock_port,
             beats_per_bar=args.beats_per_bar,
+            clock_lead_ms=args.clock_lead_ms,
         )
     except PresetError as error:
         print(f"error: {error}", file=sys.stderr)
