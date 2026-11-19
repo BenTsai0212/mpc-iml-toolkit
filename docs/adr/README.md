@@ -46,3 +46,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | [0005](0005-engine-protocol-1-1-midi-learn.md) | Engine protocol 1.1: MIDI learn | Accepted |
 | [0006](0006-engine-protocol-1-2-layout-and-front-ends.md) | Engine protocol 1.2: preset layout, and the shared front-end spec | Accepted |
 | [0007](0007-engine-protocol-1-3-kits-modules-and-pad-selection.md) | Engine protocol 1.3: kits, modules and pad selection | Accepted |
+| [0008](0008-engine-protocol-1-4-midi-clock-sync.md) | Engine protocol 1.4: MIDI clock sync | Proposed |
