@@ -83,6 +83,7 @@ from mpc_iml.presets import (
 )
 from mpc_iml.recording import Header, read_recording, write_recording
 from mpc_iml.sources import (
+    CLOCK_BYTES,
     DEFAULT_PORT_MATCH,
     ClockedSource,
     ClockInput,
@@ -153,9 +154,6 @@ LEARN_SWEEP = (0, 32, 64, 96, 127)
 """The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
 
 _NAME = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
-
-_CLOCK_BYTES = frozenset({0xF8, 0xFA, 0xFB, 0xFC, 0xF2})
-"""MIDI clock, Start, Continue, Stop and Song Position Pointer."""
 
 EventInput = ClockedSource | Iterable[Event]
 """Gesture input: a real-time source (live MPC, paced replay) or an event iterable."""
@@ -1062,7 +1060,7 @@ class Engine:
         """Feed clock bytes to the clock, give pad hits to the preset's clock hook, and
         report a pad hit (`/mpciml/pad/hit`, pads 1-16, any bank) while selecting."""
         if self._clock is not None:
-            if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in _CLOCK_BYTES:
+            if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in CLOCK_BYTES:
                 self._clock_changed(self._clock.feed(event.data, event.t), event.t)
             access = self._clock_access
             if access is not None and isinstance(event, MidiEvent) and event.kind == "note_on":

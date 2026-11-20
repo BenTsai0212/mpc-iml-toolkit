@@ -3,21 +3,36 @@
 Opens the live source, writes an ADR 0002 recording and stops after `--duration`
 seconds or on Ctrl-C, with the file closed properly. `--firmware` and
 `--full-level`/`--no-full-level` are written to the header as declared.
+
+`--clock` also records MIDI clock from a DAW (#139), off by default: it opens the
+virtual input `mpc-iml clock` (or `--clock-port`, as in the engine, ADR 0008) and
+injects Timing Clock, Start, Continue, Stop and Song Position Pointer into the live
+source, so pad and clock messages share one time base in one file. They are written
+as raw `midi` events; the recording format does not change. Other messages on the
+clock port are dropped. Pad events are recorded even when no clock arrives.
 """
 
 import argparse
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 
+from mpc_iml.events import Event, RawMidiEvent
 from mpc_iml.recording import Header
 from mpc_iml.sources import (
+    CLOCK_BYTES,
     DEFAULT_PORT_MATCH,
+    ClockInput,
+    ClockInputBackend,
     LiveSource,
     MidiInputBackend,
     PortNotFoundError,
+    RtMidiClockBackend,
     record,
 )
+
+CLOCK_WAIT = 2.0
+"""Seconds after the start to say once that no MIDI clock has arrived."""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,10 +56,37 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="whether the MPC's Full Level setting was on",
     )
+    parser.add_argument(
+        "--clock",
+        action="store_true",
+        help="also record MIDI clock from a DAW on a virtual input 'mpc-iml clock'",
+    )
+    parser.add_argument(
+        "--clock-port",
+        default=None,
+        help="record MIDI clock from the first input port containing this text"
+        " (e.g. IAC) instead; implies --clock",
+    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None, backend: MidiInputBackend | None = None) -> int:
+def is_clock(data: bytes) -> bool:
+    """True for the clock messages `--clock` records (`CLOCK_BYTES`)."""
+    return bool(data) and data[0] in CLOCK_BYTES
+
+
+def _count_clock(events: Iterable[Event], counter: list[int]) -> Iterator[Event]:
+    for event in events:
+        if isinstance(event, RawMidiEvent) and is_clock(event.data):
+            counter[0] += 1
+        yield event
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    backend: MidiInputBackend | None = None,
+    clock_backend: Callable[[], ClockInputBackend] = RtMidiClockBackend,
+) -> int:
     args = build_parser().parse_args(argv)
     if args.duration is not None and args.duration <= 0:
         print("error: --duration must be positive", file=sys.stderr)
@@ -60,10 +102,54 @@ def main(argv: Sequence[str] | None = None, backend: MidiInputBackend | None = N
         print(f"error: {error}", file=sys.stderr)
         return 1
     with source:
-        until = f"for {args.duration} s" if args.duration is not None else "until Ctrl-C"
-        print(f"Recording from {source.port_name!r} {until}...", file=sys.stderr)
+        clock_input: ClockInput | None = None
+        if args.clock or args.clock_port is not None:
+
+            def on_clock(data: bytes) -> None:
+                if is_clock(data):
+                    source.inject(data)
+
+            clock_input = ClockInput(on_clock, args.clock_port, clock_backend)
+            try:
+                clock_input.open()
+            except PortNotFoundError as error:
+                print(f"error: {error}", file=sys.stderr)
+                return 1
+        try:
+            return _record(args, source, clock_input, header)
+        finally:
+            if clock_input is not None:
+                clock_input.close()
+
+
+def _record(
+    args: argparse.Namespace, source: LiveSource, clock_input: ClockInput | None, header: Header
+) -> int:
+    until = f"for {args.duration} s" if args.duration is not None else "until Ctrl-C"
+    print(f"Recording from {source.port_name!r} {until}...", file=sys.stderr)
+    if clock_input is None:
         count = record(source.events(duration=args.duration), args.path, header)
-    print(f"Wrote {count} events to {args.path}", file=sys.stderr)
+        print(f"Wrote {count} events to {args.path}", file=sys.stderr)
+        return 0
+    print(f"Recording MIDI clock from {clock_input.port_name!r}.", file=sys.stderr)
+    clocks = [0]
+    warned = False
+
+    def warn_once() -> bool:
+        nonlocal warned
+        if not warned and clocks[0] == 0 and source.now() >= CLOCK_WAIT:
+            warned = True
+            print(
+                f"MIDI clock: nothing received on {clock_input.port_name!r} yet; recording "
+                "pad events anyway. In Live, turn on Sync for this port "
+                "(Settings > Link, Tempo & MIDI) and press Play.",
+                file=sys.stderr,
+            )
+        return False
+
+    events = _count_clock(source.events(duration=args.duration, stop=warn_once), clocks)
+    count = record(events, args.path, header)
+    print(f"Wrote {count} events ({clocks[0]} clock messages) to {args.path}", file=sys.stderr)
     return 0
 
 

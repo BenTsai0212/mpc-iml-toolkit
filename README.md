@@ -38,7 +38,12 @@ still change in 0.x. Phase 1 (Foundation). To try the whole loop, follow the
   uv run python -m mpc_iml.record out.jsonl --duration 5 --firmware 1.3.0 --no-full-level
   ```
 
-  Without `--duration` it records until Ctrl-C.
+  Without `--duration` it records until Ctrl-C. `--clock` also records MIDI clock
+  from a DAW on the virtual input `mpc-iml clock` (or `--clock-port IAC`, as for the
+  engine; see [Sync to the DAW's tempo](#sync-to-the-daws-tempo-midi-clock)), in the
+  same file and time base as the pads, as raw `midi` events. Other messages on that
+  port are dropped. Without clock, pads are still recorded and a line says so after
+  2 s.
 - training examples from the `example_start` / `example_end` segments of
   recordings, with stable class numbers (`mpc_iml.examples`);
 - a model extension point (`mpc_iml.model.Model`: `fit` and `predict`) and
