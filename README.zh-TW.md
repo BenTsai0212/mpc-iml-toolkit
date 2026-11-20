@@ -694,12 +694,16 @@ preset 把特徵函式、模型、選用的固定類別編號與輸出對應包�
 是目前啟用的 preset 時，把 `/mpciml/preset/<name>/<control>` 連同訊息的參數轉給
 `<control>` 的處理函式。型別仍可能改變。
 
-`clock` 同樣是**暫定的**（ADR 0008）：engine 每次在 `--clock` 下載入 preset 時，以
+`clock` 同樣是**暫定的**（ADR 0008）：engine 每次載入 preset 時（不論有沒有 `--clock`），以
 `mpc_iml.clock.ClockAccess` 呼叫這個函式。它可讀取 `state()` 與 `position(t)`，`on_hit(callback)`
 則在 DAW 播放時收到每次 pad 敲擊放上格點後的 `GridHit`（小節、16 分音符的 step 與偏離 step 的量）。
-`scheduler`（`mpc_iml.clock.Scheduler`）在指定的小節與 step 於 `mpc-iml` port 送出音符與其他 MIDI
-訊息：`note(bar, step, note, velocity, length_steps)`、`at(bar, step, messages)` 與
-`at_next_bar(messages, n)`；`cancel(handle)` 取消一筆。
+`on_pad(callback)` 在任何 clock 狀態下、沒有 `--clock` 時也會收到每次 pad 敲擊的 `PadHit`；
+DAW 播放時它的 `grid` 是 `GridHit`，否則是 `None`。`send_now(messages)` 立即在 `mpc-iml` port
+送出音符與其他 MIDI 訊息；有 `--clock` 時，它開始的音符與排程的音符一樣在 Stop 時結束。
+有 `--clock` 時，`scheduler`（`mpc_iml.clock.Scheduler`，否則是 `None`）在指定的小節與 step
+送出這些訊息：`note(bar, step, note, velocity, length_steps)`、`at(bar, step, messages)` 與
+`at_next_bar(messages, n)`；`cancel(handle)` 取消一筆。載入其他 preset 時，清除仍在排程中的訊息
+並結束正在發聲的音符。
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。
