@@ -429,6 +429,101 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 
 輸出沒有平滑處理；若演奏時確實有影響，之後再加入。
 
+## 演奏 preset ensemble
+
+內建的 preset `ensemble`（`src/mpc_iml/ensemble.py`，[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md)
+的第一步，#138）演奏跟隨 kick 的 bass。不用模型，也不需要訓練：照常在 MPC Sample 上打鼓，
+每一下打在 **kick** pad 上，就以固定和弦進行的根音帶出一個 bass 音符。bass 一次只發一個音，
+以 MIDI 音符送到虛擬 port `mpc-iml` 的 **channel 2**。engine 在任何狀態都會演奏，不需要按 `run`。
+
+每個 pad 有一個角色。預設是 boom-bap 的配置（pad 1 在左下；每個 bank 都一樣）：
+
+| Pad | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- |
+| 1-4 | kick | snare | hat（閉合） | hat（開放） |
+| 5-8 | kick | snare（clap 或 rim） | hat | other |
+| 9-16 | other | other | other | other |
+
+目前只有 `kick` 會帶出 bass，所以請把 MPC program 的 kick 放在 pad 1 或 5。pad 16 用來切換
+兩層（見下文），不發出 bass。
+
+bass 有兩層，可以各自開關來比較：
+
+- **immediate**：kick 立刻發出一個 bass 音符，和弦取自該下打擊所在的小節。打得越重越大聲
+  （velocity 1-127 變為 50-120）。音符在 2 個 16 分音符後結束（`length`），DAW 沒有播放時則
+  在 0.25 秒後結束。
+- **bar**（需要 `--clock`）：一個小節中每個 kick 的位置，在**下一個**小節的同一位置以該小節的
+  和弦發出 bass 音符。上一小節的 kick 晚一小節回來；沒有 kick 的小節之後就是沒有 bass 的小節。
+  第一個 clock tick 之前的打擊不採用。
+- **both**（預設）：每個 16 分音符最多一個 bass 音符。在 bar 層即將發出的音符附近打 kick 時，
+  你的 kick 發聲，回聲取消；回聲已經發出時，你的 kick 不發出 bass。節奏穩定時聽到的是
+  immediate 層；省略某個 kick 的地方，由上一小節的 kick 補上。
+
+和弦取自兩個和弦進行之一：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）與 `minor-four`
+（Dm7、Gm7、Bbmaj7、A7，各一小節）。bass 演奏各和弦在第 1 八度的根音（A1 是 MIDI 音符 33）。
+Live 的 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。
+
+### 為 bass 設定 Live
+
+1. 以 preset 與 clock 啟動 engine，終端機視窗保持開啟。Pure Data 前端也會開啟；`ensemble`
+   用不到其中的控制項，加上 `--no-patch` 就不會開啟：
+
+   ```bash
+   uv run mpc-iml --preset ensemble --clock
+   ```
+
+2. 在 Live 的 Settings > Link, Tempo & MIDI > MIDI Ports，為輸出 `mpc-iml clock` 打開
+   **Sync**，MIDI Clock Type 設為 **Song**（同[跟隨 DAW 的速度](#跟隨-daw-的速度midi-clock)），
+   並為輸入 `mpc-iml` 打開 **Track**。
+3. 新增一條 MIDI 軌並放上 bass 樂器（例如 Live 的 Drift 的 bass preset）。MIDI From 設為
+   `mpc-iml`，下方的 channel 設為 **Ch. 2**，Monitor 設為 **In**。
+4. 在 Live 按 Play，以 pad 1 的 kick 打一個節奏。在 Live 按 Stop 會結束正在發聲的 bass 音符，
+   並取消尚未發出的回聲。
+
+按 **pad 16** 依序切換 immediate → bar → both。終端機會顯示新的模式（`ensemble: immediate`、
+`ensemble: bar` 或 `ensemble: both`）。preset 從 both 開始。
+
+沒有 `--clock` 時，`ensemble` 仍會載入，immediate 層照常演奏，但一律使用第一個和弦與
+0.25 秒的音符；bar 層關閉，engine 印出
+`ensemble: no MIDI clock (start with --clock); bar layer off`。有 `--clock` 時，DAW 停止或尚未
+開始播放期間也是這樣演奏。
+
+### ensemble 的控制項
+
+控制項是送到 engine 控制 port（6450）的 preset 訊息。Pure Data patch 還沒有它們的群組，
+請從任何 OSC client 送出：
+
+| 訊息 | 值 | 預設 | 意義 |
+| --- | --- | --- | --- |
+| `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | immediate 層 |
+| `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | bar 層 |
+| `/mpciml/preset/ensemble/progression` | `minor-two` 或 `minor-four` | `minor-two` | 和弦進行 |
+| `/mpciml/preset/ensemble/octave` | 0-3 | 1 | bass 的八度（1 時為 A1） |
+| `/mpciml/preset/ensemble/length` | 1-16 | 2 | 音符長度（16 分音符數） |
+| `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
+| `/mpciml/preset/ensemble/role` | pad 1-16，再接 `kick`、`snare`、`hat` 或 `other` | 上表 | 一個 pad 的角色，所有 bank 都適用 |
+| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換兩層的 pad；0 表示不使用 |
+
+engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時
+得到 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
+`inactive_preset`。
+
+### 比較兩層
+
+#138 的人工檢查，使用 MPC Sample、依上文設定好的 Live，速度約 90 BPM：
+
+1. 以 boom-bap 節奏（pad 1 為 kick、pad 2 為 snare、pad 3 為 hat）在每個模式各演奏 5 分鐘：
+   只有 **immediate**、只有 **bar**、**both**。以 pad 16 切換，並在終端機確認模式。
+2. 每個模式結束後寫一列：
+
+   | 模式 | 好玩（1-5） | 像我（1-5） | 備註 |
+   | --- | --- | --- | --- |
+   | immediate | | | 時間點；bass 是否跟著 kick？ |
+   | bar | | | |
+   | both | | | |
+
+3. bass 正在發聲時在 Live 按 Stop，確認沒有音符持續發聲。
+
 ## Ableton Live 入門 set
 
 不需對應步驟就能演奏 preset `pressure` 的 Live set（RFC 0003、#104），放在
@@ -481,11 +576,12 @@ rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應
 
 | 症狀 | 要檢查的事 |
 | --- | --- |
-| 沒有聲音 | DAW 音軌的 MIDI 輸入是 MPC Sample（或 All Ins），不是 `mpc-iml`：這個 port 只送 CC，不送音符。音軌的 Monitor 是 In 或 Auto。MPC Sample 的 **MIDI Port** 設為 **USB**、**Pad MIDI Out** 設為 **Always**（[參考範例](#參考範例)第 3 步）。 |
+| 沒有聲音 | DAW 音軌的 MIDI 輸入是 MPC Sample（或 All Ins），不是 `mpc-iml`：這個 port 只送 CC 與 `ensemble` 的 bass，不送鼓的音符。音軌的 Monitor 是 In 或 Auto。MPC Sample 的 **MIDI Port** 設為 **USB**、**Pad MIDI Out** 設為 **Always**（[參考範例](#參考範例)第 3 步）。 |
 | 有聲音，但參數或 macro 不動 | engine 正在執行，前端的 `state` 顯示 `running`（按 `run`）。在 Live 中，Settings > Tempo & MIDI 已為 `mpc-iml` 開啟 **Remote**。DAW 比 engine 先開啟時，port `mpc-iml` 當時還不存在：啟動 engine 後重新開啟 DAW（或在 DAW 的 MIDI 設定中把這個 port 關掉再開啟）。 |
 | 對應遺失或錯誤 | 按 `stop` 讓 `state` 顯示 `idle`，再用 `l1`-`l8` 一次對應一個 CC，做法見[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)。使用 Live 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應。 |
 | patch 沒有反應 | 按 `connect`。仍沒有反應時，關閉 patch，在終端機按 Ctrl-C 停止 engine，再執行一次 `uv run mpc-iml`。 |
 | engine 停止了，或 MPC Sample 沒有反應 | 重新插上 USB 線，以 Ctrl-C 停止 `uv run mpc-iml` 再重新啟動，然後按 preset（例如 `pressure`），載入 kit，再按 `run`。 |
+| `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。pad 16 可能已切換到 bar 層，它需要 `--clock` 且 Live 正在播放；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
 | 修改 module 或 `amount` 後狀態列顯示 `wrong_state` | 重新訓練正在進行；稍等一下再試。 |
 | 輕輕按住或快速輕敲時聲音幾乎不變 | 見[演奏 preset pressure](#演奏-preset-pressure) 中[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 最後的輕觸一端說明（#76）。 |
 

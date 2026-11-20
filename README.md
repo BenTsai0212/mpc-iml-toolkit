@@ -559,6 +559,118 @@ patch has no group for them yet, so send them from any OSC client:
   again after `/mpciml/preset pressure`. Bad values get `/mpciml/error bad_arguments`.
 - Turning `drift/on` off returns to the model at once, without a crossfade.
 
+## Play the ensemble preset
+
+The built-in preset `ensemble` (`src/mpc_iml/ensemble.py`, the first step of
+[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md), #138) plays a bass line that follows
+your kick drum. There is no model and nothing to train: you play drums on the
+MPC Sample as usual, and each hit on a **kick** pad drives a bass note on the root of
+a fixed chord progression. The bass plays one note at a time, as MIDI notes on
+**channel 2** of the virtual port `mpc-iml`. It plays in any engine state; you do
+not need to click `run`.
+
+Each pad has a role. The defaults are a boom-bap layout (pad 1 is bottom left; the
+same in every bank):
+
+| Pads | 1 | 2 | 3 | 4 |
+| --- | --- | --- | --- | --- |
+| 1-4 | kick | snare | hat (closed) | hat (open) |
+| 5-8 | kick | snare (clap or rim) | hat | other |
+| 9-16 | other | other | other | other |
+
+Only `kick` drives the bass for now, so put the kick on pad 1 or 5 of your MPC
+program. Pad 16 switches between the layers (below) and plays no bass.
+
+The bass has two layers, and you can turn each one on or off to compare them:
+
+- **immediate**: a kick plays a bass note at once, with the chord of the bar it
+  falls in. A harder hit plays louder (velocity 1-127 becomes 50-120). The note
+  ends 2 sixteenths later (`length`), or after 0.25 s while the DAW is not playing.
+- **bar** (needs `--clock`): each kick at a position in one bar plays a bass note
+  at the same position in the **next** bar, on that bar's chord. Last bar's kicks
+  come back one bar later; a bar without kicks gives a bar without bass. Hits
+  before the first clock tick are ignored.
+- **both** (the default): at most one bass note per 16th. If you play a kick near
+  a note that the bar layer is about to play, your kick plays and the echo is
+  dropped. If the echo has already sounded, your kick plays no bass. With a steady
+  pattern you hear the immediate layer; where you leave a kick out, last bar's
+  kick fills it in.
+
+The chords come from one of two progressions: `minor-two` (default: Am7 for
+2 bars, then Fmaj7 for 2 bars) and `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
+each). The bass plays each chord's root in octave 1 (A1 is MIDI note 33). With
+Live's MIDI Clock Type set to **Song**, Live's bar 1 is the start of the
+progression.
+
+### Set up Live for the bass
+
+1. Start the engine with the preset and the clock, and leave the terminal window
+   open. The Pure Data front end also opens; `ensemble` needs none of its controls,
+   and `--no-patch` leaves it closed:
+
+   ```bash
+   uv run mpc-iml --preset ensemble --clock
+   ```
+
+2. In Live, in Settings > Link, Tempo & MIDI > MIDI Ports, turn on **Sync** for the
+   output `mpc-iml clock` with MIDI Clock Type **Song** (as in
+   [Sync to the DAW's tempo](#sync-to-the-daws-tempo-midi-clock)), and **Track** for
+   the input `mpc-iml`.
+3. Add a MIDI track with a bass instrument (for example a bass preset of Live's
+   Drift). Set MIDI From to `mpc-iml` and the channel below it to **Ch. 2**, and
+   set Monitor to **In**.
+4. Press Play in Live and play a pattern with the kick on pad 1. Stop in Live ends
+   the bass note that is sounding and drops the echoes still to come.
+
+Press **pad 16** to cycle immediate → bar → both. The terminal shows the new mode
+(`ensemble: immediate`, `ensemble: bar` or `ensemble: both`). The preset starts in
+both.
+
+Without `--clock`, `ensemble` still loads and the immediate layer plays, always
+with the first chord and 0.25 s notes; the bar layer is off and the engine prints
+`ensemble: no MIDI clock (start with --clock); bar layer off`. With `--clock`, it
+plays the same way while the DAW is stopped or before it starts.
+
+### Ensemble controls
+
+The controls are preset messages to the engine's control port (6450). The Pure
+Data patch has no group for them yet, so send them from any OSC client:
+
+| Message | Values | Default | Meaning |
+| --- | --- | --- | --- |
+| `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer |
+| `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer |
+| `/mpciml/preset/ensemble/progression` | `minor-two` or `minor-four` | `minor-two` | The chord progression |
+| `/mpciml/preset/ensemble/octave` | 0-3 | 1 | Octave of the bass (A1 at 1) |
+| `/mpciml/preset/ensemble/length` | 1-16 | 2 | Note length in 16ths |
+| `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
+| `/mpciml/preset/ensemble/role` | pad 1-16, then `kick`, `snare`, `hat` or `other` | the table above | The role of one pad, in every bank |
+| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the layers; 0 for none |
+
+The engine does not reply with these settings. They go back to the defaults when
+`ensemble` is loaded again or the engine starts. Bad values get
+`/mpciml/error bad_arguments`, and messages for `ensemble` while another preset is
+loaded get `inactive_preset`.
+
+### Compare the layers
+
+The manual check for #138, with the MPC Sample, Live set up as above, and a tempo
+around 90 BPM:
+
+1. Play a boom-bap pattern (kick on pad 1, snare on pad 2, hats on pad 3) for
+   5 minutes in each mode: **immediate** only, **bar** only, and **both**. Switch
+   with pad 16 and check the mode in the terminal.
+2. After each mode, write one row:
+
+   | Mode | Fun (1-5) | Sounds like me (1-5) | Notes |
+   | --- | --- | --- | --- |
+   | immediate | | | Timing; did the bass follow the kicks? |
+   | bar | | | |
+   | both | | | |
+
+3. Press Stop in Live while the bass is playing, and check that no note keeps
+   sounding.
+
 ## Ableton Live starter set
 
 A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),
@@ -618,11 +730,12 @@ engine appear on the status line in group 8 **Messages** of the patch.
 
 | Symptom | What to check |
 | --- | --- |
-| No sound | The DAW track's MIDI input is the MPC Sample (or All Ins), not `mpc-iml`: that port sends only CCs, no notes. The track's Monitor is In or Auto. On the MPC Sample, **MIDI Port** is **USB** and **Pad MIDI Out** is **Always** (step 3 of the [reference example](#reference-example)). |
+| No sound | The DAW track's MIDI input is the MPC Sample (or All Ins), not `mpc-iml`: that port sends only CCs and the `ensemble` bass, not the drums. The track's Monitor is In or Auto. On the MPC Sample, **MIDI Port** is **USB** and **Pad MIDI Out** is **Always** (step 3 of the [reference example](#reference-example)). |
 | Sound, but the parameters or macros do not move | The engine is running and the front end's `state` shows `running` (click `run`). In Live, `mpc-iml` has **Remote** on in Settings > Tempo & MIDI. If the DAW was opened before the engine, the port `mpc-iml` did not exist yet: after starting the engine, restart the DAW (or turn the port off and on again in its MIDI settings). |
 | Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
 | The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
 | The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
+| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. Pad 16 may have switched to the bar layer, which needs `--clock` and Live playing; see [Play the ensemble preset](#play-the-ensemble-preset). |
 | `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
 | A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
 
