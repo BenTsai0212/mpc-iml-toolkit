@@ -12,11 +12,16 @@ from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 from mpc_iml.ensemble import NO_CLOCK, Ensemble
 from mpc_iml.melody import (
     LOOPS,
+    MELODY_VARIATIONS,
+    ORNAMENTS,
     BarPlan,
     Follower,
+    Loop,
     brightness,
     chord_note,
     density,
+    melody_ornaments,
+    melody_variation,
     melody_velocity,
 )
 
@@ -73,6 +78,68 @@ def test_loops_have_levels_and_lengths() -> None:
     assert [n.step for n in pluck.bar_notes(5, 1)] == [0, 4, 8, 12]
     assert len(pluck.bar_notes(0, 3)) == 8
     assert all(n.level in (1, 2, 3) and 0 <= n.tone <= 3 for n in keys.notes + pluck.notes)
+
+
+def sounding(loop: Loop, level: int) -> set[tuple[int, ...]]:
+    """Every note of `loop` up to `level`, without its level."""
+    return {
+        (n.bar, n.step, n.tone, n.length, n.octave, n.chord, n.semitones, round(100 * n.velocity))
+        for n in loop.notes
+        if n.level <= level
+    }
+
+
+@pytest.mark.parametrize("name", list(LOOPS))
+def test_home_is_the_loop_re_levelled(name: str) -> None:
+    loop = LOOPS[name]
+    home = loop.variation("home")
+    assert sounding(home, ORNAMENTS) == sounding(loop, 3)
+    assert sounding(home, 1) == sounding(loop, 2)
+
+
+@pytest.mark.parametrize("name", list(LOOPS))
+def test_every_melody_variation_is_a_full_line(name: str) -> None:
+    loop = LOOPS[name]
+    assert tuple(v.name for v in loop.variations) == MELODY_VARIATIONS
+    for variation in loop.variations:
+        assert variation.bars == loop.bars
+        assert {n.level for n in variation.notes} == {1, ORNAMENTS}
+        assert all(0 <= n.tone <= 3 and n.chord == n.semitones == 0 for n in variation.notes)
+        for bar in range(loop.bars):
+            line = variation.bar_notes(bar, 1)
+            assert len(line) >= 2 and sum(n.length for n in line) >= 6
+            assert all(n.step + n.length <= 16 for n in variation.bar_notes(bar, ORNAMENTS))
+
+
+def test_variations_differ_and_unknown_names_fail() -> None:
+    for loop in LOOPS.values():
+        lines = [sounding(v, ORNAMENTS) for v in loop.variations]
+        assert len({frozenset(line) for line in lines}) == len(lines)
+    with pytest.raises(KeyError):
+        LOOPS["keys"].variation("drive")
+
+
+@pytest.mark.parametrize(
+    ("hits", "hat_steps", "variation"),
+    [
+        (0, [], "open"),
+        (5, [0, 4], "open"),
+        (4, [3], "busy"),
+        (6, [], "home"),
+        (12, [0, 2, 4, 6, 8, 10], "home"),
+        (13, [14], "home"),
+        (14, [], "busy"),
+        (9, [0, 7], "busy"),
+    ],
+)
+def test_the_drums_choose_the_melody_variation(
+    hits: int, hat_steps: list[int], variation: str
+) -> None:
+    assert melody_variation(hits, hat_steps) == variation
+
+
+def test_melody_ornaments_join_with_eight_hits() -> None:
+    assert [melody_ornaments(n) for n in (0, 1, 7, 8, 30)] == [1, 1, 1, 2, 2]
 
 
 def test_follower_no_drums() -> None:
