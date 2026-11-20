@@ -42,8 +42,11 @@ still change in 0.x. Phase 1 (Foundation). To try the whole loop, follow the
   from a DAW on the virtual input `mpc-iml clock` (or `--clock-port IAC`, as for the
   engine; see [Sync to the DAW's tempo](#sync-to-the-daws-tempo-midi-clock)), in the
   same file and time base as the pads, as raw `midi` events. Other messages on that
-  port are dropped. Without clock, pads are still recorded and a line says so after
-  2 s.
+  port are dropped. Without clock, pads are still recorded and after 2 s a line says
+  it is still waiting (`MIDI clock: waiting for 'mpc-iml clock' ...`). Live sends
+  clock only while it plays, so pressing Play later is fine: a line
+  `MIDI clock: receiving from 'mpc-iml clock'.` appears when the first clock message
+  arrives, and further lines when Live stops and plays again.
 - a grid read-back for such a recording: one tab-separated line per pad hit with
   time, bar, step, pad (`A01` to `H16`), velocity and offset from the step in ms
   (`-` while the clock was not running), and a summary on standard error. It uses

@@ -37,7 +37,9 @@
   `mpc-iml clock` 送來的 MIDI clock（或用 `--clock-port IAC`，與 engine 相同；DAW 的
   設定見[跟隨 DAW 的速度](#跟隨-daw-的速度midi-clock)），與 pad 寫在同一個檔案、同一個時間基準，格式是原有的
   raw `midi` 事件。該 port 的其他訊息會丟棄。沒有收到 clock 時仍會錄下 pad，並在 2 秒後
-  印出一行提示。
+  印出一行仍在等待的提示（`MIDI clock: waiting for 'mpc-iml clock' ...`）。Live 只在播放時
+  送出 clock，所以稍後才按 Play 也沒問題：收到第一個 clock 訊息時會印出
+  `MIDI clock: receiving from 'mpc-iml clock'.`，Live 停止與再次播放時也各印出一行。
 - 這種錄音的格點回讀：每個 pad 打擊輸出一行（以 tab 分隔），包含時間、小節、step、
   pad（`A01` 到 `H16`）、力度與偏離 step 的毫秒數（clock 未在執行時為 `-`），摘要印在
   標準錯誤。使用與 engine 相同的 `MidiClock`（`mpc_iml.clock.tag_recording`）：
