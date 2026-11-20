@@ -13,10 +13,15 @@ is received, in seconds since the source was opened.
 `ClockInput` reads MIDI clock from a DAW for `mpc_iml.clock` (ADR 0008): by default
 on a virtual input port `mpc-iml clock`, with an rtmidi callback on its own thread so
 each tick is handled as it arrives. The MPC input keeps ignoring timing messages.
+`LiveSource.inject` lets another thread add messages to the live stream, stamped on
+the source's clock, so `python -m mpc_iml.record --clock` writes pad and clock
+messages in one file with one time base.
 """
 
 import json
+import threading
 import time
+from collections import deque
 from collections.abc import Callable, Generator, Iterable, Iterator
 from pathlib import Path
 from types import TracebackType
@@ -27,6 +32,7 @@ from mpc_iml.midi import decode
 from mpc_iml.recording import Header, Recording, event_to_dict, header_to_dict, read_recording
 
 __all__ = [
+    "CLOCK_BYTES",
     "CLOCK_PORT_NAME",
     "DEFAULT_PORT_MATCH",
     "POLL_INTERVAL",
@@ -48,6 +54,10 @@ DEFAULT_PORT_MATCH = "MPC"
 
 CLOCK_PORT_NAME = "mpc-iml clock"
 """The virtual input port the engine reads MIDI clock from (DAWs see an output)."""
+
+CLOCK_BYTES = frozenset({0xF8, 0xFA, 0xFB, 0xFC, 0xF2})
+"""Status bytes of the MIDI clock messages `mpc_iml.clock` reads: Timing Clock, Start,
+Continue, Stop and Song Position Pointer."""
 
 POLL_INTERVAL = 0.001
 """Seconds to sleep when no message is pending."""
@@ -236,6 +246,8 @@ class LiveSource:
         self._sleep = sleep
         self._start: float | None = None
         self._port_name: str | None = None
+        self._lock = threading.Lock()
+        self._injected: deque[Event] = deque()
 
     @property
     def realtime(self) -> bool:
@@ -275,14 +287,35 @@ class LiveSource:
         """Same as `open()`."""
         self.open()
 
+    def inject(self, data: bytes) -> None:
+        """Add a complete message to the stream, stamped with `now()`; thread-safe.
+
+        Ignored while the source is not open. Injected and backend messages are
+        stamped and queued under one lock, so `t` never goes backwards.
+        """
+        with self._lock:
+            if self._start is None:
+                return
+            self._injected.append(decode(data, self.now()))
+
     def poll(self) -> Event | None:
-        """One non-blocking read: the pending message stamped with `now()`, or `None`."""
-        if self._start is None or self._backend is None:
-            return None
-        data = self._backend.poll()
+        """One non-blocking read: an injected message, or the backend's pending
+        message stamped with `now()`, or `None`."""
+        with self._lock:
+            if self._injected:
+                return self._injected.popleft()
+            backend = self._backend
+            if self._start is None or backend is None:
+                return None
+        data = backend.poll()
         if data is None:
             return None
-        return decode(data, self.now())
+        with self._lock:
+            if self._start is None:
+                return None
+            # Stamped after anything injected meanwhile, so it goes after it.
+            self._injected.append(decode(data, self.now()))
+            return self._injected.popleft()
 
     def sleep(self, seconds: float) -> None:
         self._sleep(seconds)
@@ -312,9 +345,11 @@ class LiveSource:
 
     def close(self) -> None:
         """Close the port; iteration stops."""
-        if self._start is not None and self._backend is not None:
-            self._backend.close()
-        self._start = None
+        with self._lock:
+            if self._start is not None and self._backend is not None:
+                self._backend.close()
+            self._start = None
+            self._injected.clear()
 
     def __enter__(self) -> Self:
         return self.open()

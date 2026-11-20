@@ -33,7 +33,11 @@
   uv run python -m mpc_iml.record out.jsonl --duration 5 --firmware 1.3.0 --no-full-level
   ```
 
-  不加 `--duration` 時錄到按 Ctrl-C 為止。
+  不加 `--duration` 時錄到按 Ctrl-C 為止。加上 `--clock` 會同時錄下 DAW 從虛擬輸入
+  `mpc-iml clock` 送來的 MIDI clock（或用 `--clock-port IAC`，與 engine 相同；DAW 的
+  設定見[跟隨 DAW 的速度](#跟隨-daw-的速度midi-clock)），與 pad 寫在同一個檔案、同一個時間基準，格式是原有的
+  raw `midi` 事件。該 port 的其他訊息會丟棄。沒有收到 clock 時仍會錄下 pad，並在 2 秒後
+  印出一行提示。
 - 由錄音中 `example_start`／`example_end` 區段建立訓練範例，類別編號固定不變
   （`mpc_iml.examples`）；
 - 模型擴充點（`mpc_iml.model.Model`：`fit` 與 `predict`）與內建的 scikit-learn
