@@ -38,6 +38,15 @@
   設定見[跟隨 DAW 的速度](#跟隨-daw-的速度midi-clock)），與 pad 寫在同一個檔案、同一個時間基準，格式是原有的
   raw `midi` 事件。該 port 的其他訊息會丟棄。沒有收到 clock 時仍會錄下 pad，並在 2 秒後
   印出一行提示。
+- 這種錄音的格點回讀：每個 pad 打擊輸出一行（以 tab 分隔），包含時間、小節、step、
+  pad（`A01` 到 `H16`）、力度與偏離 step 的毫秒數（clock 未在執行時為 `-`），摘要印在
+  標準錯誤。使用與 engine 相同的 `MidiClock`（`mpc_iml.clock.tag_recording`）：
+
+  ```bash
+  uv run python -m mpc_iml.grid out.jsonl --beats-per-bar 4 --resolution 16
+  ```
+
+  `--resolution` 可以是 `16`（預設）、`8` 或 `16t`（16 分音符三連音）。
 - 由錄音中 `example_start`／`example_end` 區段建立訓練範例，類別編號固定不變
   （`mpc_iml.examples`）；
 - 模型擴充點（`mpc_iml.model.Model`：`fit` 與 `predict`）與內建的 scikit-learn
