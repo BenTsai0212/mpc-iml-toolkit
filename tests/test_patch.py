@@ -1,9 +1,10 @@
 """The general Pure Data front end `patches/mpc-iml.pd` (#66, ADR 0006).
 
 Pure Data is not run here: the patch is parsed and checked against the protocol
-tables of ADR 0004 to ADR 0008 and the shared front-end spec (ADR 0006, updated by
-ADR 0007 with group 2 Kit, #101, and by ADR 0008 with the clock display, #130).
-Opening it in Pure Data is a manual task (#66, #101, #130).
+tables of ADR 0004 to ADR 0009 and the shared front-end spec (ADR 0006, updated by
+ADR 0007 with group 2 Kit, #101, by ADR 0008 with the clock display, #130, and by
+ADR 0009 with group 8 Ensemble, #153). Opening it in Pure Data is a manual task
+(#66, #101, #130, #153).
 """
 
 import dataclasses
@@ -17,6 +18,7 @@ import pytest
 from pd import Box, Canvas, box_rect, overlaps, parse
 
 from mpc_iml.demo import PRESET as DEMO
+from mpc_iml.ensemble import make_preset as make_ensemble
 from mpc_iml.pressure import PRESET as PRESSURE
 
 ADR = Path(__file__).parents[1] / "docs" / "adr"
@@ -35,10 +37,10 @@ def patch() -> Canvas:
 
 
 def protocol() -> tuple[dict[str, str], set[str]]:
-    """Control messages (address -> arguments) and replies of ADR 0004 to 0008."""
+    """Control messages (address -> arguments) and replies of ADR 0004 to 0009."""
     messages: dict[str, str] = {}
     replies: set[str] = set()
-    for name in ("0004", "0005", "0006", "0007", "0008"):
+    for name in ("0004", "0005", "0006", "0007", "0008", "0009"):
         (adr,) = ADR.glob(f"{name}-*.md")
         table = None
         for line in adr.read_text().splitlines():
@@ -128,12 +130,13 @@ def main_gui() -> dict[str, Box]:
 # The patch in the package
 
 
-def test_both_built_in_presets_use_the_patch() -> None:
-    for preset in (DEMO, PRESSURE):
+def test_the_built_in_presets_use_the_patch() -> None:
+    for preset in (DEMO, PRESSURE, make_ensemble()):
         assert preset.patch == "mpc_iml:patches/mpc-iml.pd"
         path = preset.patch_path()
         assert path is not None and path.is_file()
-    # It names no preset: the presets come from the engine (ADR 0006).
+    # The presets come from the engine (ADR 0006); only group 8 names `ensemble`
+    # (ADR 0009).
     text = files("mpc_iml").joinpath("patches/mpc-iml.pd").read_text()
     assert "demo" not in text and "pressure" not in text
 
@@ -142,7 +145,7 @@ def test_only_vanilla_objects() -> None:
     used = {box.cls for _, _, box in everything() if box.kind == "obj"}
     assert used <= VANILLA, used - VANILLA
     names = [c.name for c in patch().walk()]
-    assert names == ["main", "osc", "controls", "views", "kit"]
+    assert names == ["main", "osc", "controls", "views", "kit", "ensemble"]
 
 
 def test_nothing_overlaps() -> None:
@@ -167,8 +170,8 @@ def test_every_control_message_is_in_the_protocol_with_its_arguments() -> None:
     sources: dict[str, set[str]] = {}
     for c in patch().walk():
         for i, box in enumerate(c.boxes):
-            if box.cls != "oscformat":
-                continue
+            if box.cls != "oscformat" or box.args[1:4] == ["mpciml", "preset", "ensemble"]:
+                continue  # group 8's preset controls: test_ensemble_controls_...
             address = "/" + "/".join(box.args[1:])
             assert address in messages, address
             assert reaches(c, i, "s mpciml-out")
@@ -205,6 +208,10 @@ def test_every_reply_is_routed_to_something_that_shows_it() -> None:
     for outlet, name in enumerate(osc.boxes[top].args[1:]):
         (sink,) = osc.sinks(top, outlet)
         box = osc.boxes[sink]
+        if name == "preset":  # split by length: test_preset_replies_are_split_by_length
+            assert reaches(osc, sink, "s mpciml-preset")
+            routed.add(("/mpciml/preset", "mpciml-preset"))
+            continue
         if box.cls == "s":
             routed.add((f"/mpciml/{name}", box.args[1]))
             continue
@@ -212,7 +219,7 @@ def test_every_reply_is_routed_to_something_that_shows_it() -> None:
         for sub, part in enumerate(box.args[1:]):
             (send,) = osc.sinks(sink, sub)
             routed.add((f"/mpciml/{name}/{part}", osc.boxes[send].args[1]))
-    assert {address for address, _ in routed} == replies
+    assert {address for address, _ in routed} == replies - {"/mpciml/preset/<name>/<reply>"}
     for address, name in routed:
         assert name == "mpciml-" + address.removeprefix("/mpciml/").replace("/", "-")
         assert name in receivers(), address
@@ -313,7 +320,7 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
     headings.sort(key=lambda b: (b.y, b.x))
     assert [b.text for b in headings] == [
         "1 Connect", "2 Kit", "3 Teach", "4 Examples", "5 Model", "6 Library", "7 Outputs",
-        "8 Messages",
+        "8 Ensemble", "9 Messages",
     ]  # fmt: skip
     gui = main_gui()
 
@@ -330,8 +337,16 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
         5: ["train", "run", "stop", "trained", "train-done"],
         6: ["name-entry", "save", "load", "list"],
         7: [*(f"o{k}-gui" for k in range(1, 9)), *(f"l{k}" for k in range(1, 9))],
-        8: ["clock-test"],
-    }
+        8: [
+            *(f"ensemble-{n}" for n in ["b1", "b2", "b3", "m1", "m2", "m3"]),
+            *(f"ensemble-{n}{k}" for n in ["bl", "l", "p"] for k in range(1, 5)),
+            *(f"ensemble-{n}-{s}" for n in ["bass", "melody"] for s in ["now", "next"]),
+            *(f"ensemble-{n}-show" for n in ["bass-loop", "loop", "progression"]),
+            *(f"ensemble-role{k}" for k in range(1, 17)),
+            "ensemble-octave-entry", "ensemble-melody-octave-entry",
+        ],
+        9: ["clock-test"],
+    }  # fmt: skip
     for number, names in expected.items():
         for name in names:
             assert group(gui[name]) == number, name
@@ -364,7 +379,7 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
     assert main.boxes[status].y > max(h.y for h in headings)
 
 
-# The clock display in group 8 Messages (ADR 0008, #130)
+# The clock display in group 9 Messages (ADR 0008, #130)
 
 
 def test_the_clock_reply_is_shown_with_a_test_toggle() -> None:
@@ -637,3 +652,206 @@ def test_box_widths_are_read() -> None:
     (comment, *_) = patch().boxes
     assert comment.kind == "text" and comment.width == 120
     assert comment.text.endswith("no externals.")
+
+
+# Group 8 Ensemble (ADR 0009, #153)
+
+ENSEMBLE_REPLIES = [
+    "bass", "melody-mode", "bass-loop", "loop", "progression", "bass-loops", "loops",
+    "progressions", "octave", "melody-octave", "roles",
+]  # fmt: skip
+"""The replies of `ensemble` that group 8 uses; the others are ignored."""
+
+CHOOSERS = [
+    ("bl", "bass-loops", "bass-loop"),
+    ("l", "loops", "loop"),
+    ("p", "progressions", "progression"),
+]
+"""Button prefix, the reply that labels the buttons, and the control they send."""
+
+
+def reaches_box(c: Canvas, start: int, target: int) -> bool:
+    seen, todo = {start}, deque([start])
+    while todo:
+        box = todo.popleft()
+        if box == target:
+            return True
+        for sink in set(c.sinks(box)) - seen:
+            seen.add(sink)
+            todo.append(sink)
+    return False
+
+
+def sets_from(c: Canvas, reply: str) -> dict[str, str]:
+    """`<receiver> set <value>` sent by message boxes reached from `[r <reply>]`."""
+    (start,) = find(c, reply)
+    found = {}
+    for box in c.boxes:
+        if box.kind == "msg" and reaches(c, start, box.text):
+            for part in box.text.split(";"):
+                words = part.split()
+                if len(words) == 3 and words[1] == "set":
+                    found[words[0]] = words[2]
+    return found
+
+
+def test_the_whole_patch_fits_a_14_inch_macbook_screen() -> None:
+    """The #153 decision: canvas within about 1500 x 850, no scrolling at 1512 x 982.
+
+    Group 8 has no room above Messages within that height, so it is a new column
+    right of group 7 Outputs, in the row of groups 6 and 7.
+    """
+    header = files("mpc_iml").joinpath("patches/mpc-iml.pd").read_text().splitlines()[0]
+    m = re.fullmatch(r"#N canvas (\d+) (\d+) (\d+) (\d+) 12;", header)
+    assert m is not None
+    x, y, width, height = map(int, m.groups())
+    assert (width, height) == (1490, 840)
+    assert x + width <= 1512 and y + height <= 982
+    for box in patch().boxes:
+        _, _, right, bottom = box_rect(box)
+        assert right <= width and bottom <= height, box.text
+    headings = {b.text: b for b in patch().boxes if re.fullmatch(r"\d \w+", b.text)}
+    ensemble, outputs = headings["8 Ensemble"], headings["7 Outputs"]
+    assert ensemble.y == outputs.y and ensemble.x > outputs.x
+    group7 = [b for b in patch().boxes if outputs.x <= b.x < ensemble.x and b.y >= outputs.y]
+    assert all(box_rect(b)[2] < ensemble.x for b in group7 if b.y < headings["9 Messages"].y)
+
+
+def test_preset_replies_are_split_by_length() -> None:
+    """`/mpciml/preset <name> <version>` has 2 elements, a preset reply 3 or more."""
+    osc = canvas("osc")
+    (top,) = (i for i, b in enumerate(osc.boxes) if b.text.startswith("route version"))
+    (to_list,) = osc.sinks(top, osc.boxes[top].args[1:].index("preset"))
+    assert osc.boxes[to_list].text == "list"
+    (fanout,) = osc.sinks(to_list)
+    assert osc.boxes[fanout].text == "t l l"
+    (length,) = osc.sinks(fanout, 1)
+    assert osc.boxes[length].text == "list length"
+    (compare,) = osc.sinks(length)
+    assert osc.boxes[compare].text == "expr $f1>=3"
+    (both,) = osc.sinks(compare)
+    assert osc.boxes[both].text == "t f f"
+    gates = osc.sinks(fanout, 0)
+    assert [osc.boxes[g].text for g in gates] == ["spigot", "spigot"]
+    (core,) = (g for g in gates if osc.boxes[osc.sources(g, 1)[0]].text == "== 0")
+    (reply,) = (g for g in gates if osc.sources(g, 1) == [both])
+    (inverse,) = osc.sources(core, 1)
+    assert osc.sources(inverse) == [both]
+    assert [osc.boxes[s].text for s in osc.sinks(core)] == ["s mpciml-preset"]
+    assert not reaches(osc, reply, "s mpciml-preset")
+    # Preset replies: only ensemble's, each to [s mpciml-preset-ensemble-<reply>].
+    (trim,) = osc.sinks(reply)
+    assert osc.boxes[trim].text == "list trim", "route matches selectors"
+    (by_preset,) = osc.sinks(trim)
+    assert osc.boxes[by_preset].text == "route ensemble"
+    (by_reply,) = osc.sinks(by_preset, 0)
+    assert osc.boxes[by_reply].args[1:] == ENSEMBLE_REPLIES
+    for outlet, name in enumerate(ENSEMBLE_REPLIES):
+        (send,) = osc.sinks(by_reply, outlet)
+        assert osc.boxes[send].text == f"s mpciml-preset-ensemble-{name}"
+    assert not osc.sinks(by_reply, len(ENSEMBLE_REPLIES)), "other replies are ignored"
+    hook = make_ensemble().state
+    assert hook is not None
+    state = {name for name, _ in hook()}
+    assert set(ENSEMBLE_REPLIES) <= state
+
+
+def test_ensemble_controls_send_what_the_preset_accepts() -> None:
+    ens, preset = canvas("ensemble"), make_ensemble()
+    controls = preset.controls
+    assert preset.state is not None
+    state = dict(preset.state())
+    found: dict[str, list[int]] = {}
+    for i, box in enumerate(ens.boxes):
+        if box.cls == "oscformat":
+            assert box.args[1:4] == ["mpciml", "preset", "ensemble"] and len(box.args) == 5
+            assert box.args[4] in controls and reaches(ens, i, "s mpciml-out")
+            found[box.args[4]] = ens.sources(i)
+    assert set(found) == {"bass", "melody-mode", "octave", "melody-octave"} | {
+        control for _, _, control in CHOOSERS
+    }
+    modes = [("bass", ["loop", "rule", "off"]), ("melody-mode", ["follow", "fixed", "off"])]
+    for control, values in modes:
+        assert {ens.boxes[s].text for s in found[control]} == {f"symbol {v}" for v in values}
+        for value in values:
+            controls[control]([value])
+    for _, reply, control in CHOOSERS:
+        (store,) = found[control]
+        assert ens.boxes[store].text == "list store"
+        (r,) = find(ens, f"r mpciml-preset-ensemble-{reply}")
+        (fanout,) = (s for s in ens.sources(store, 1))
+        assert reaches_box(ens, r, fanout), "the names come from the reply"
+        for name in state[reply]:
+            controls[control]([name])
+    gui = main_gui()
+    for control in ("octave", "melody-octave"):
+        (r,) = found[control]
+        assert ens.boxes[r].text == f"r mpciml-ensemble-{control}-entry"
+        low, high = (int(a) for a in gui[f"ensemble-{control}-entry"].args[1:3])
+        for value in range(low, high + 1):
+            controls[control]([float(value)])
+        for value in (low - 1, high + 1):
+            with pytest.raises(ValueError):
+                controls[control]([float(value)])
+
+
+def test_ensemble_buttons_are_labelled_from_the_replies() -> None:
+    ens, gui = canvas("ensemble"), main_gui()
+    for prefix, reply, control in CHOOSERS:
+        labels = labels_from(ens, f"r mpciml-preset-ensemble-{reply}")
+        assert labels == {f"mpciml-ensemble-{prefix}{k}-gui": f"${k}" for k in range(1, 5)}
+        for k in range(1, 5):
+            assert gui_names(gui[f"ensemble-{prefix}{k}"])[1] == f"mpciml-ensemble-{prefix}{k}-gui"
+            (r,) = find(ens, f"r mpciml-ensemble-{prefix}{k}")
+            (get,) = ens.sinks(r)
+            assert ens.boxes[get].text == f"get {k - 1} 1"
+            assert reaches(ens, r, f"oscformat mpciml preset ensemble {control}")
+    for prefix, labels in (("b", ["loop", "rule", "off"]), ("m", ["follow", "fixed", "off"])):
+        assert [gui[f"ensemble-{prefix}{k}"].args[7] for k in range(1, 4)] == labels
+
+
+def test_ensemble_replies_reach_the_displays() -> None:
+    ens, gui = canvas("ensemble"), main_gui()
+    shown = {
+        "bass": {"mpciml-ensemble-bass-next": "$1", "mpciml-ensemble-bass-now": "$2"},
+        "melody-mode": {"mpciml-ensemble-melody-next": "$1", "mpciml-ensemble-melody-now": "$2"},
+        "roles": {f"mpciml-ensemble-role{k}": f"${k}" for k in range(1, 17)},
+    }
+    for name in ("bass-loop", "loop", "progression", "octave", "melody-octave"):
+        shown[name] = {f"mpciml-ensemble-{name}-show": "$1"}
+    main_receivers = {gui_names(b)[1] for b in patch().boxes}
+    for reply, expected in shown.items():
+        assert sets_from(ens, f"r mpciml-preset-ensemble-{reply}") == expected, reply
+        assert set(expected) <= main_receivers
+    # Now and next under the mode buttons; the roles laid out like the pads.
+    for mode in ("bass", "melody"):
+        now, after = gui[f"ensemble-{mode}-now"], gui[f"ensemble-{mode}-next"]
+        assert (now.args[4], after.args[4]) == ("now", "next") and now.y < after.y
+    roles = [gui[f"ensemble-role{k}"] for k in range(1, 17)]
+    for row in range(4):
+        pads = roles[4 * row : 4 * row + 4]
+        assert len({b.y for b in pads}) == 1 and [b.x for b in pads] == sorted(b.x for b in pads)
+    assert roles[12].y < roles[8].y < roles[4].y < roles[0].y, "13-16 on top"
+
+
+def test_ensemble_displays_reset_when_a_preset_loads() -> None:
+    ens = canvas("ensemble")
+    (r,) = find(ens, "r mpciml-preset")
+    (msg,) = ens.sinks(r)
+    sent = {}
+    for part in ens.boxes[msg].text.split(";"):
+        if words := part.split():
+            sent[words[0]] = words[1:]
+    name = "mpciml-preset-ensemble-"
+    assert sent == {
+        f"{name}bass": ["list", "-", "-"],
+        f"{name}melody-mode": ["list", "-", "-"],
+        f"{name}bass-loop": ["list", "-"],
+        f"{name}loop": ["list", "-"],
+        f"{name}progression": ["list", "-"],
+        f"{name}bass-loops": ["list"],
+        f"{name}loops": ["list"],
+        f"{name}progressions": ["list"],
+        f"{name}roles": ["list", *["-"] * 16],
+    }, "the reply chains themselves, fed with empty replies"
+    assert all(find(ens, f"r {target}") for target in sent)
