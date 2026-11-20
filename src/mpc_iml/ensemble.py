@@ -34,17 +34,24 @@ bar that ended set the next bar: the number of hits its density, their average
 velocity its loudness and the hat hits a brightness CC (`melody.Follower`). Hits on
 the layer pad and the melody pad do not count.
 
-Controls (provisional preset controls, ADR 0004; no replies, defaults return when
-the preset is built again): `bass loop|rule|off`, `bass-loop <name>`,
+Controls (provisional preset controls, ADR 0004; defaults return when the preset is
+built again): `bass loop|rule|off`, `bass-loop <name>`,
 `progression <name>`, `octave 0-3`, `channel 1-16`, `role <pad 1-16> <role>`,
 `layer-pad 0-16` (default 16: that pad cycles the bass loop, rule, off, and plays
 no bass; 0 turns it off), for `rule` only `immediate 0|1`, `bar 0|1` and
 `length 1-16`, and for the melody `melody 0|1`, `loop <name>`, `follow 0|1` (both
 loops), `melody-octave 2-6`, `melody-channel 1-16`, `filter-cc 0-127` (0 is off)
 and `melody-pad 0-16` (default 15: that pad cycles follow, fixed, off; follow and
-fixed apply to both loops, off only to the melody). Bass mode and melody changes
-apply from the next bar line (at once while the clock is not running); `melody 0`
-also drops the pending notes.
+fixed apply to both loops, off only to the melody), and `melody-mode
+follow|fixed|off` (#153: `melody` and `follow` in one message). Bass mode and melody
+changes apply from the next bar line (at once while the clock is not running);
+`melody 0` and `melody-mode off` also drop the pending notes.
+
+State replies (`Preset.state`, ADR 0009, #153): `bass` and `melody-mode` give the
+mode asked for (next) and the one playing, the other replies the current settings
+(`Ensemble.state`). The preset asks the engine to send them again
+(`ClockAccess.report()`) after a press of the layer pad or the melody pad, and at a
+bar line where the playing bass or melody mode changes.
 """
 
 import sys
@@ -71,6 +78,7 @@ from mpc_iml.presets import ControlHandler, Preset
 __all__ = [
     "BASS_MODES",
     "DEFAULT_ROLES",
+    "MELODY_MODES",
     "NO_CLOCK",
     "NOTE_SECONDS",
     "PROGRESSIONS",
@@ -86,6 +94,9 @@ ROLES = ("kick", "snare", "hat", "other")
 
 BASS_MODES = ("loop", "rule", "off")
 """The bass modes, in the order the layer pad cycles them; `loop` is the default."""
+
+MELODY_MODES = ("follow", "fixed", "off")
+"""The melody modes, in the order the melody pad cycles them; `follow` is the default."""
 
 NO_CLOCK = (
     "ensemble: no MIDI clock (start with --clock); bass loop, bar layer and melody off,"
@@ -197,6 +208,7 @@ class Ensemble:
         self.melody_channel = 3
         self.filter_cc = 74
         self.melody_pad = 15
+        self._melody_playing = "follow"
         self._follower = Follower()
         self._melody_notes: list[Scheduled] = []
         self._log = log
@@ -216,13 +228,24 @@ class Ensemble:
             self._log(NO_CLOCK)
 
     def on_pad(self, hit: PadHit) -> None:
+        if self._on_pad(hit):
+            self._report()
+
+    def _on_pad(self, hit: PadHit) -> bool:
+        """Handle a pad hit; `True` when it changed a mode, to report."""
         with self._lock:
             if self.layer_pad and hit.pad == self.layer_pad - 1:
                 self._cycle()
-                return
+                return True
             if self.melody_pad and hit.pad == self.melody_pad - 1:
                 self._cycle_melody()
-                return
+                return True
+            self._bass_hit(hit)
+            return False
+
+    def _bass_hit(self, hit: PadHit) -> None:
+        """The bass of a pad hit (`rule`, or `loop` without a running clock)."""
+        with self._lock:
             if self.roles[hit.pad] != "kick" or self._access is None:
                 return
             scheduler = self._access.scheduler
@@ -240,7 +263,21 @@ class Ensemble:
 
     def on_bar(self, start: BarStart) -> None:
         """Plan the bass loop and the melody of the bar that starts now from the drums
-        of the last one."""
+        of the last one; report when the playing bass or melody mode changes."""
+        with self._lock:
+            playing = (self._bass_active, self._melody_playing)
+            self._plan(start)
+            self._melody_playing = self._melody_mode()
+            changed = playing != (self._bass_active, self._melody_playing)
+        if changed:
+            self._report()
+
+    def _report(self) -> None:
+        """Ask the engine to send the state again (outside the lock, ADR 0009)."""
+        if self._access is not None:
+            self._access.report()
+
+    def _plan(self, start: BarStart) -> None:
         with self._lock:
             self._apply_bass()
             skip = {p - 1 for p in (self.layer_pad, self.melody_pad) if p}
@@ -308,8 +345,21 @@ class Ensemble:
         """Ask for a bass mode: it starts at the next bar line, or at once while the
         clock is not running."""
         self.bass = mode
-        if self._access is None or self._access.state().status != "running":
+        if not self._running():
             self._apply_bass()
+
+    def _running(self) -> bool:
+        """Whether the clock runs, so mode changes wait for the next bar line."""
+        return self._access is not None and self._access.state().status == "running"
+
+    def _melody_mode(self) -> str:
+        """The melody mode asked for: `follow`, `fixed` or `off`."""
+        return "off" if not self.melody else "follow" if self.follow else "fixed"
+
+    def _sync_melody(self) -> None:
+        """A melody change plays at once while the clock is not running."""
+        if not self._running():
+            self._melody_playing = self._melody_mode()
 
     def _apply_bass(self) -> None:
         """Switch to the asked bass mode, ending what the old one plays."""
@@ -336,8 +386,8 @@ class Ensemble:
             self.melody = False
         else:
             self.melody = self.follow = True
-        name = "off" if not self.melody else "follow" if self.follow else "fixed"
-        self._log(f"ensemble: melody {name}")
+        self._sync_melody()
+        self._log(f"ensemble: melody {self._melody_mode()}")
 
     def _stop_melody(self) -> None:
         """Drop the pending melody notes and end the sounding ones."""
@@ -454,7 +504,8 @@ class Ensemble:
             ),
             "melody": self._set_melody,
             "loop": self._set_loop,
-            "follow": lambda a: self._set(lambda: setattr(self, "follow", _flag(a))),
+            "follow": self._set_follow,
+            "melody-mode": self._set_melody_mode,
             "melody-octave": lambda a: self._set(
                 lambda: setattr(self, "melody_octave", _whole(a, 2, 6))
             ),
@@ -488,11 +539,59 @@ class Ensemble:
             self.bass_loop = BASS_LOOPS[str(args[0])]
 
     def _set_melody(self, args: Sequence[float | int | str]) -> None:
-        on = _flag(args)
+        self._melody_to(_flag(args), None)
+
+    def _set_follow(self, args: Sequence[float | int | str]) -> None:
+        self._melody_to(None, _flag(args))
+
+    def _set_melody_mode(self, args: Sequence[float | int | str]) -> None:
+        if len(args) != 1 or args[0] not in MELODY_MODES:
+            raise ValueError(f"expected one of {', '.join(MELODY_MODES)}, got {list(args)}")
+        if args[0] == "off":
+            self._melody_to(False, None)
+        else:
+            self._melody_to(True, args[0] == "follow")
+
+    def _melody_to(self, on: bool | None, follow: bool | None) -> None:
+        """Set `melody` and `follow` (`None` keeps one); off drops the pending notes,
+        so the melody stops at once."""
         with self._lock:
-            if not on:
-                self._stop_melody()
-            self.melody = on
+            if follow is not None:
+                self.follow = follow
+            if on is not None:
+                if not on:
+                    self._stop_melody()
+                    self._melody_playing = "off"
+                self.melody = on
+            self._sync_melody()
+
+    def state(self) -> list[tuple[str, list[int | float | str]]]:
+        """The `Preset.state` hook: the replies of ADR 0009, in its order. The melody's
+        playing mode is `off` without `--clock` (it never plays)."""
+        with self._lock:
+            scheduler = self._access.scheduler if self._access else None
+            melody = self._melody_playing if scheduler is not None else "off"
+            return [
+                ("bass", [self.bass, self._bass_active]),
+                ("melody-mode", [self._melody_mode(), melody]),
+                ("bass-loop", [self.bass_loop.name]),
+                ("loop", [self.loop.name]),
+                ("progression", [self.progression.name]),
+                ("bass-loops", list(BASS_LOOPS)),
+                ("loops", list(LOOPS)),
+                ("progressions", list(PROGRESSIONS)),
+                ("octave", [self.octave]),
+                ("melody-octave", [self.melody_octave]),
+                ("channel", [self.channel]),
+                ("melody-channel", [self.melody_channel]),
+                ("length", [self.length]),
+                ("filter-cc", [self.filter_cc]),
+                ("layer-pad", [self.layer_pad]),
+                ("melody-pad", [self.melody_pad]),
+                ("immediate", [int(self.immediate)]),
+                ("bar", [int(self.bar)]),
+                ("roles", list(self.roles)),
+            ]
 
     def _set_loop(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in LOOPS:
@@ -550,4 +649,5 @@ def make_preset(log: Callable[[str], None] | None = None) -> Preset:
         controls=ensemble.controls(),
         patch="mpc_iml:patches/mpc-iml.pd",
         clock=ensemble.attach,
+        state=ensemble.state,
     )
