@@ -1,9 +1,28 @@
 """The bass loops and kick rules in `mpc_iml.bass`, and the `melody` fields they use
 (`LoopNote.chord` and `semitones`, `Follower(density=…)`) (#148)."""
 
-from mpc_iml.bass import BASS_LOOPS, OFF_KICK, accent, bass_note_velocity, kick_density
+import pytest
+
+from mpc_iml.bass import (
+    BASS_LOOPS,
+    BASS_VARIATIONS,
+    OFF_KICK,
+    accent,
+    bass_note_velocity,
+    bass_ornaments,
+    bass_variation,
+    kick_density,
+)
 from mpc_iml.ensemble import PROGRESSIONS
-from mpc_iml.melody import LOOPS, BarPlan, Follower, LoopNote, chord_note, loop_pitch
+from mpc_iml.melody import (
+    LOOPS,
+    ORNAMENTS,
+    BarPlan,
+    Follower,
+    LoopNote,
+    chord_note,
+    loop_pitch,
+)
 
 
 def chords(progression: str, bar: int) -> tuple[tuple[int, str], tuple[int, str]]:
@@ -45,6 +64,50 @@ def test_bass_loops_are_monophonic_with_a_skeleton_and_an_approach() -> None:
             assert all(end <= nxt.step for end, nxt in zip(ends, notes[1:], strict=False))
             assert ends[-1] <= 16
         assert all(n.level in (1, 2, 3) and 0 <= n.tone <= 3 for n in loop.notes)
+
+
+@pytest.mark.parametrize("name", list(BASS_LOOPS))
+def test_every_bass_variation_is_a_full_monophonic_line(name: str) -> None:
+    loop = BASS_LOOPS[name]
+    assert tuple(v.name for v in loop.variations) == BASS_VARIATIONS
+    home = loop.variation("home")
+    assert {(n.bar, n.step, n.level) for n in home.notes} == {
+        (n.bar, n.step, 1 if n.level <= 2 else ORNAMENTS) for n in loop.notes
+    }
+    for variation in loop.variations:
+        assert variation.bars == loop.bars
+        assert {n.level for n in variation.notes} == {1, ORNAMENTS}
+        assert any(n.chord == 1 and n.semitones == -1 for n in variation.bar_notes(0, 1))
+        for bar in range(loop.bars):
+            line = variation.bar_notes(bar, 1)
+            assert len(line) >= 4 and any(n.step == 0 for n in line)
+            notes = sorted(variation.bar_notes(bar, ORNAMENTS), key=lambda n: n.step)
+            ends = [n.step + n.length for n in notes]
+            assert all(end <= nxt.step for end, nxt in zip(ends, notes[1:], strict=False))
+            assert ends[-1] <= 16
+        assert all(0 <= n.tone <= 3 for n in variation.notes)
+
+
+@pytest.mark.parametrize(
+    ("kicks", "variation"),
+    [
+        ([], "home"),
+        ([0], "home"),
+        ([0, 8], "home"),
+        ([0, 4, 8, 12], "home"),
+        ([0, 10], "push"),
+        ([0, 3, 8], "push"),
+        ([7], "push"),
+        ([0, 4, 8, 12, 14], "drive"),
+        ([0, 4, 8, 12, 0], "drive"),
+    ],
+)
+def test_kick_positions_choose_the_bass_variation(kicks: list[int], variation: str) -> None:
+    assert bass_variation(kicks) == variation
+
+
+def test_bass_ornaments_join_with_three_kicks() -> None:
+    assert [bass_ornaments(n) for n in range(6)] == [1, 1, 1, 2, 2, 2]
 
 
 def test_kick_density() -> None:
