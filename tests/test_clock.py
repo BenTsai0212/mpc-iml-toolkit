@@ -8,7 +8,10 @@ from mpc_iml.clock import (
     EIGHTHS,
     SIXTEENTH_TRIPLETS,
     TICKS_PER_BEAT,
+    ClockAccess,
+    GridHit,
     MidiClock,
+    PadHit,
     off_state,
 )
 from mpc_iml.events import MidiEvent, RawMidiEvent
@@ -227,3 +230,63 @@ def test_three_beats_per_bar() -> None:
     assert (state.bar, state.beat, state.step, state.beats_per_bar) == (1, 1, 4, 3)
     with pytest.raises(ValueError):
         MidiClock(beats_per_bar=0)
+
+
+# ClockAccess (#138)
+
+
+def test_access_without_sync_gives_pad_hits_and_sends_at_once() -> None:
+    sent: list[bytes] = []
+    pads: list[PadHit] = []
+    grid: list[GridHit] = []
+    access = ClockAccess(None, send=sent.append, beats_per_bar=3)
+    access.on_pad(pads.append)
+    access.on_hit(grid.append)
+    assert access.state() == off_state(3)
+    assert access.position(1.0) is None
+    assert access.scheduler is None
+    access.deliver(note_on(1.0, note=53, velocity=110))
+    access.deliver(note_on(1.1, velocity=0))
+    access.deliver(MidiEvent(t=1.2, kind="poly_pressure", channel=1, note=36, value=9))
+    assert pads == [PadHit(1.0, 1, 1, 110, None)]
+    assert grid == []
+    access.send_now([b"\x91\x21\x40", b"\x81\x21\x00"])
+    assert sent == [b"\x91\x21\x40", b"\x81\x21\x00"]
+
+
+def test_on_pad_has_the_grid_only_while_running() -> None:
+    clock, daw = MidiClock(), Daw(120.0, jitter=0.0)
+    pads: list[PadHit] = []
+    grid: list[GridHit] = []
+    access = ClockAccess(clock)
+    access.on_pad(pads.append)
+    access.on_pad(pads.append, ticks_per_step=EIGHTHS)
+    access.on_hit(grid.append)
+    access.deliver(note_on(0.0))
+    daw.send(clock, START)
+    daw.ticks(clock, 30)
+    access.deliver(note_on(12 * daw.interval))
+    first, eighths, second, second_eighths = pads
+    assert first.grid is None and eighths.grid is None
+    assert second.grid is not None and second.grid.step == 2
+    assert second_eighths.grid is not None and second_eighths.grid.step == 1
+    assert grid == [second.grid]
+    access.send_now([b"\x90\x21\x40"])
+
+
+def test_a_failing_pad_callback_is_logged_and_others_still_run() -> None:
+    lines: list[str] = []
+    pads: list[PadHit] = []
+
+    def fail(hit: PadHit) -> None:
+        raise RuntimeError("broken")
+
+    access = ClockAccess(None, log=lines.append)
+    access.on_pad(fail)
+    access.on_pad(pads.append)
+    access.deliver(note_on(0.0))
+    access.send_now([b"\x90\x21\x40"])
+    assert len(pads) == 1
+    assert "broken" in lines[0]
+    with pytest.raises(ValueError):
+        access.on_pad(pads.append, ticks_per_step=5)

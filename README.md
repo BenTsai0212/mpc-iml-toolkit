@@ -742,12 +742,17 @@ accepted**: the engine forwards `/mpciml/preset/<name>/<control>` to the handler
 Its type may change.
 
 `clock` is **provisional** too (ADR 0008): a function that the engine calls with a
-`mpc_iml.clock.ClockAccess` each time it loads the preset with `--clock`. It reads
-`state()` and `position(t)`, and `on_hit(callback)` receives each pad hit placed on
-the grid as a `GridHit` (bar, 16th step and offset from the step) while the DAW plays.
-`scheduler` (a `mpc_iml.clock.Scheduler`) sends notes and other MIDI messages on the
-`mpc-iml` port at a bar and step: `note(bar, step, note, velocity, length_steps)`,
+`mpc_iml.clock.ClockAccess` each time it loads the preset, with or without
+`--clock`. It reads `state()` and `position(t)`, and `on_hit(callback)` receives each
+pad hit placed on the grid as a `GridHit` (bar, 16th step and offset from the step)
+while the DAW plays. `on_pad(callback)` receives every pad hit as a `PadHit`, in any
+clock status and without `--clock`; its `grid` is the `GridHit` while the DAW plays,
+otherwise `None`. `send_now(messages)` sends notes and other MIDI messages at once on
+the `mpc-iml` port; with `--clock` the notes it starts end on Stop like scheduled
+ones. With `--clock`, `scheduler` (a `mpc_iml.clock.Scheduler`, otherwise `None`)
+sends them at a bar and step: `note(bar, step, note, velocity, length_steps)`,
 `at(bar, step, messages)` and `at_next_bar(messages, n)`; `cancel(handle)` drops one.
+Loading another preset drops what is still scheduled and ends sounding notes.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.

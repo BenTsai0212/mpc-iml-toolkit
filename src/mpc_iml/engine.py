@@ -18,7 +18,8 @@ Protocol 1.4 (ADR 0008) adds MIDI clock sync, off unless `--clock`: the engine r
 clock from a DAW on a virtual input `mpc-iml clock` (or `--clock-port`), reports
 `/mpciml/clock`, gives presets with a `clock` hook the grid position of pad hits and
 a scheduler for notes on the `mpc-iml` port, and plays a test pattern on
-`/mpciml/clock/test`.
+`/mpciml/clock/test`. The `clock` hook is also called without `--clock`, for pad hits
+and notes sent at once (#138).
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -320,6 +321,8 @@ class Engine:
         )
         self._note_port: MidiCcSender | None = None
         self._note_failed = False
+        self._note_lock = threading.Lock()
+        self._beats_per_bar = beats_per_bar
         self._clock_port = clock_port
         self._clock_backend = clock_backend
         self._clock_input: ClockInput | None = None
@@ -647,6 +650,8 @@ class Engine:
         name = _name(args)
         if name != self._preset.name:
             preset = self._find(name)
+            if self._scheduler is not None:
+                self._scheduler.clear(keep_test=True)
             self._close_senders(self._loop)
             self._preset = preset
             self._examples = preset.example_set()
@@ -981,9 +986,10 @@ class Engine:
             except Exception as error:
                 self._log(f"output {output} not opened, continuing without it: {error}")
             first_osc = first_osc and not isinstance(output, OscOutput)
-        if self._midi and self._note_port is not None:
-            self._note_port.close()
-            self._note_port = None
+        with self._note_lock:
+            if self._midi and self._note_port is not None:
+                self._note_port.close()
+                self._note_port = None
         outputs: ValuesSender | None = None
         if len(senders) == 1:
             outputs = senders[0]
@@ -1064,9 +1070,9 @@ class Engine:
         if self._clock is not None:
             if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in _CLOCK_BYTES:
                 self._clock_changed(self._clock.feed(event.data, event.t), event.t)
-            access = self._clock_access
-            if access is not None and isinstance(event, MidiEvent) and event.kind == "note_on":
-                access.deliver(event)
+        access = self._clock_access
+        if access is not None and isinstance(event, MidiEvent) and event.kind == "note_on":
+            access.deliver(event)
         if (
             self._selecting
             and isinstance(event, MidiEvent)
@@ -1091,11 +1097,13 @@ class Engine:
     # MIDI clock
 
     def _attach_clock(self, preset: Preset) -> None:
-        """Give `preset` a new `ClockAccess` when sync is on and it has a clock hook."""
+        """Give `preset` a new `ClockAccess` when it has a clock hook (sync on or off)."""
         self._clock_access = None
-        if self._clock is None or preset.clock is None:
+        if preset.clock is None:
             return
-        access = ClockAccess(self._clock, self._log, self._scheduler)
+        access = ClockAccess(
+            self._clock, self._log, self._scheduler, self._send_note, self._beats_per_bar
+        )
         try:
             preset.clock(access)
         except Exception as error:
@@ -1135,21 +1143,23 @@ class Engine:
         self._send_clock(state)
 
     def _send_note(self, message: bytes) -> None:
-        """Send a scheduled message on the preset's first MIDI output, or on a port of
-        the scheduler's own, opened on the first message (on the clock thread)."""
-        sender = self._midi[0] if self._midi else self._note_port
-        if sender is None:
-            if self._note_failed:
-                return
-            sender = MidiCcSender(MidiCcOutput((0,)), self._midi_port, self._midi_backend)
-            try:
-                sender.open()
-            except Exception as error:
-                self._note_failed = True
-                self._log(f"MIDI output for scheduled notes not opened: {error}")
-                return
-            self._log(f"scheduled notes on {sender.port_name!r}")
-            self._note_port = sender
+        """Send a scheduled message, or one a preset sends at once, on the preset's
+        first MIDI output, or on a port of the engine's own, opened on the first
+        message (on the clock thread, the input thread or a preset's thread)."""
+        with self._note_lock:
+            sender = self._midi[0] if self._midi else self._note_port
+            if sender is None:
+                if self._note_failed:
+                    return
+                sender = MidiCcSender(MidiCcOutput((0,)), self._midi_port, self._midi_backend)
+                try:
+                    sender.open()
+                except Exception as error:
+                    self._note_failed = True
+                    self._log(f"MIDI output for scheduled notes not opened: {error}")
+                    return
+                self._log(f"scheduled notes on {sender.port_name!r}")
+                self._note_port = sender
         sender.send_message(message)
 
 

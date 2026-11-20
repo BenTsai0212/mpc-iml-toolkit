@@ -4,6 +4,8 @@
 - Date: 2026-11-19
 - Related: RFC 0004, RFC 0005 (proposed in #131), ADR 0002, ADR 0004, ADR 0006,
   ADR 0007, #130, #113 (Epic)
+- Amended: 2026-11-20, #138 (`Preset.clock` without sync, `on_pad`, `send_now`,
+  scheduler cleared on a preset switch; see "Amendment for #138")
 
 ## Context
 
@@ -157,9 +159,10 @@ New module `mpc_iml.clock` (standard library only):
 ### Plugin interface
 
 - New optional field `Preset.clock: Callable[[ClockAccess], None] | None = None`,
-  **provisional** like `controls`. The engine calls it when the preset loads, only
-  with `--clock`. `ClockAccess` is read-only apart from the scheduler: `state()`,
-  `position(t)`, `on_hit(callback)` (tagged pad hits) and `scheduler`.
+  **provisional** like `controls`. The engine calls it when the preset loads, with
+  or without `--clock` (amended for #138). `ClockAccess` is read-only apart from
+  the note output: `state()`, `position(t)`, `on_hit(callback)` (tagged pad hits),
+  `on_pad(callback)` and `send_now(messages)` (#138), and `scheduler`.
 - Presets without the field see no change.
 
 ### Protocol 1.4
@@ -223,3 +226,30 @@ change.
   CLI options, `/mpciml/clock`, `Preset.clock`, README setup); the scheduler,
   `send_message`, `clock/test` and the Pd clock display; the manual check with Live
   sending clock; AGENTS.md rows once implemented.
+
+## Amendment for #138
+
+The drum-led `ensemble` preset (RFC 0005, #138) plays a bass note at once on a kick
+hit, and must load and play without `--clock`. The decision on #138 allows these
+changes to the provisional plugin interface; the protocol stays 1.4.
+
+- **C1: the hook without sync.** The engine calls `Preset.clock` also without
+  `--clock`, with a `ClockAccess` whose `state()` is `off_state()`, whose
+  `position(t)` is `None` and whose `scheduler` is `None`; `on_hit` never fires.
+  New `ClockAccess.on_pad(callback, ticks_per_step=SIXTEENTHS)`: every pad
+  `note_on` with velocity above 0, in any clock status, as
+  `PadHit(t, pad, bank, velocity, grid)`, where `grid` is the `GridHit` while the
+  clock is `running`, otherwise `None`. `on_hit` is unchanged.
+- **C2: notes at once.** New `ClockAccess.send_now(messages)` sends raw MIDI
+  messages at once on the note path (the preset's first MIDI output, or the
+  `mpc-iml` port). With sync on they go through the new `Scheduler.send_now`, so
+  the notes they start count as sounding and Stop, `lost`, a jump and `clear` end
+  them. Without sync the preset ends its own notes. This avoids holding a hit back
+  to the grid: a hit is tagged with the nearest step, so `Scheduler.at` would delay
+  an early hit by up to half a step.
+- **C3: preset switch.** `preset/load` to another preset calls
+  `Scheduler.clear(keep_test=True)` before the old preset's outputs close: pending
+  messages are dropped and sounding notes end, so no scheduled note survives a
+  switch. A running test pattern (`clock/test`) carries on from the next bar.
+- Content formats and the protocol do not change; presets that do not use the new
+  methods see no change, apart from the hook being called without `--clock`.

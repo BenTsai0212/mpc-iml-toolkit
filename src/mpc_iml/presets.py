@@ -143,8 +143,10 @@ class Preset:
       the arguments of `/mpciml/preset/<name>/<control>`, only while this preset is
       active; its type may change.
     - `clock`: **provisional** (ADR 0008). Called with a `ClockAccess` each time the
-      engine loads this preset with MIDI clock sync on (`--clock`); never called
-      without sync. Errors are logged and the preset loads without the clock.
+      engine loads this preset, with MIDI clock sync on (`--clock`) or off; without
+      sync the access has no clock and no scheduler, but still gives every pad hit
+      (`on_pad`) and sends notes at once (`send_now`). Errors are logged and the
+      preset loads without the clock.
     """
 
     name: str

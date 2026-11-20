@@ -14,7 +14,7 @@ import pytest
 import test_engine
 from test_engine import TIMEOUT, Front
 
-from mpc_iml.clock import TEST_NOTES, TICKS_PER_BEAT, ClockAccess, GridHit
+from mpc_iml.clock import TEST_NOTES, TICKS_PER_BEAT, ClockAccess, GridHit, PadHit
 from mpc_iml.demo import PRESET as DEMO
 from mpc_iml.engine import Engine, build_parser
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
@@ -102,12 +102,41 @@ def with_hook(hook: Callable[[ClockAccess], None]) -> Callable[[], Mapping[str, 
 # Sync off
 
 
-def test_without_clock_no_port_opens_and_the_hook_is_not_called(start: Any) -> None:
+def test_without_clock_no_port_opens_and_the_hook_gets_an_access_without_clock(
+    start: Any,
+) -> None:
     called: list[ClockAccess] = []
     front = start(preset="synced", presets=with_hook(called.append))
     assert front.ask("/mpciml/state/get")[-1] == ("/mpciml/clock", ["off", 0.0, 0, 0])
     assert FakeClockBackend.made == []
-    assert called == []
+    (access,) = called
+    assert access.state().status == "off"
+    assert access.scheduler is None
+
+
+def test_without_clock_pad_hits_arrive_and_notes_go_out_at_once(start: Any) -> None:
+    FakeMidiOut.made = []
+    pads: list[PadHit] = []
+    done = threading.Event()
+
+    def hook(access: ClockAccess) -> None:
+        def on_pad(pad_hit: PadHit) -> None:
+            pads.append(pad_hit)
+            access.send_now([bytes([0x91, 33, 90])])
+            done.set()
+
+        access.on_pad(on_pad)
+
+    start(
+        [hit(0.05, note=40, velocity=0), hit(0.1, note=40)],
+        preset="synced",
+        presets=with_hook(hook),
+        midi_backend=FakeMidiOut,
+    )
+    assert done.wait(TIMEOUT)
+    assert pads == [PadHit(0.1, 4, 0, 100, None)]
+    (port,) = FakeMidiOut.made
+    assert (port.opened, port.sent) == ("mpc-iml", [bytes([0x91, 33, 90])])
 
 
 # Clock input and replies
@@ -316,6 +345,36 @@ def test_notes_share_the_presets_midi_port_and_end_on_stop(start: Any) -> None:
     clock.send(TICK)
     clock.send(STOP)
     assert notes(port) == [bytes([0x90, 36, 100]), bytes([0x80, 36, 0])]
+
+
+def test_notes_sent_at_once_end_on_stop_and_on_preset_load(start: Any) -> None:
+    """`send_now` notes count as sounding; a preset switch drops pending notes and
+    ends sounding ones, and the test pattern carries on from the next bar (#138)."""
+    FakeMidiOut.made = []
+    called: list[ClockAccess] = []
+    front = clocked(
+        start, preset="synced", presets=with_hook(called.append), midi_backend=FakeMidiOut
+    )
+    (access,) = called
+    clock = daw()
+    clock.send(START)
+    clock.send(TICK)
+    access.send_now([bytes([0x91, 33, 90])])
+    clock.send(STOP)
+    (port,) = FakeMidiOut.made
+    assert notes(port) == [bytes([0x91, 33, 90]), bytes([0x81, 33, 0])]
+    clock.send(START)
+    clock.send(TICK)
+    front.ask("/mpciml/clock/test", 1)
+    access.send_now([bytes([0x91, 34, 90])])
+    assert access.scheduler is not None
+    access.scheduler.at(0, 8, [bytes([0x91, 35, 90])])
+    front.ask("/mpciml/preset/load", "demo")
+    assert notes(port)[-1] == bytes([0x81, 34, 0])
+    for _ in range(1, 4 * TICKS_PER_BEAT + 1):
+        clock.send(TICK)
+    assert bytes([0x91, 35, 90]) not in port.sent
+    assert notes(port)[-1] == bytes([0x90, TEST_NOTES[0], 100])
 
 
 # Command line
