@@ -303,8 +303,10 @@ app) drives with OSC control messages; the protocol is
 [ADR 0004](docs/adr/0004-engine-control-protocol.md), version 1.1 in
 [ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md), 1.2 in
 [ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md), 1.3 in
-[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md) and 1.4 in
-[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md). Start it with a folder for
+[ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md), 1.4 in
+[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md) and 1.5 (preset state
+replies) in
+[ADR 0009](docs/adr/0009-engine-protocol-1-5-preset-state-and-ensemble-group.md). Start it with a folder for
 its saved example sets, with the MPC connected as in the
 [reference example](#reference-example):
 
