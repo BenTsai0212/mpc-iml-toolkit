@@ -38,6 +38,7 @@ __all__ = [
     "Output",
     "Preset",
     "PresetError",
+    "StateReplies",
     "available_presets",
     "get_preset",
     "scale_to_cc",
@@ -55,6 +56,9 @@ RESERVED_NAMES = frozenset({"list", "load"})
 
 ControlHandler = Callable[[Sequence[float | int | str]], None]
 """Provisional (ADR 0004): handles the arguments of one preset control message."""
+
+StateReplies = Sequence[tuple[str, Sequence[int | float | str]]]
+"""Provisional (ADR 0009): a preset's state as (reply name, arguments) pairs."""
 
 
 class PresetError(Exception):
@@ -147,6 +151,13 @@ class Preset:
       sync the access has no clock and no scheduler, but still gives every pad hit
       (`on_pad`) and sends notes at once (`send_now`). Errors are logged and the
       preset loads without the clock.
+    - `state`: **provisional** (ADR 0009). Returns the preset's current state as
+      (reply name, arguments) pairs; names are lower case letters, digits and
+      hyphens, arguments ints, floats or strings. The engine sends each pair as
+      `/mpciml/preset/<name>/<reply> <args…>` after `preset/load`, in the full state
+      (after `clock`), after each successful control, and when the preset calls
+      `ClockAccess.report()`. It runs on the engine's threads and must return
+      quickly; errors are logged and nothing is sent.
     """
 
     name: str
@@ -161,6 +172,7 @@ class Preset:
     patch: str | None = None
     output_names: tuple[str, ...] | None = None
     clock: Callable[[ClockAccess], None] | None = None
+    state: Callable[[], StateReplies] | None = None
 
     def __post_init__(self) -> None:
         if not _NAME.fullmatch(self.name):

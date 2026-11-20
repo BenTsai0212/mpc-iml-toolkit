@@ -358,8 +358,10 @@ class ClockAccess:
         scheduler: "Scheduler | None" = None,
         send: Callable[[bytes], None] | None = None,
         beats_per_bar: int = 4,
+        report: "Callable[[ClockAccess], None] | None" = None,
     ) -> None:
         self._clock = clock
+        self._report = report
         self._log = log
         self.scheduler = scheduler
         """The engine's `Scheduler` for notes at grid positions (`None` without sync)."""
@@ -437,6 +439,19 @@ class ClockAccess:
                 self._send(bytes(message))
             except Exception as error:
                 self._log(f"MIDI message not sent: {error!r}")
+
+    def report(self) -> None:
+        """Ask the engine to send the preset's state replies again (ADR 0009).
+
+        Call it when the preset changes its state on its own, for example on a pad
+        press or a bar line; the engine already sends the state after each preset
+        control. The engine calls the preset's `state` hook on the calling thread
+        while holding its lock, so do not call this while holding a lock that the
+        preset's controls also take. Does nothing once another preset has loaded,
+        or without an engine.
+        """
+        if self._report is not None:
+            self._report(self)
 
     def deliver(self, event: Event) -> None:
         """Pass a pad hit to every `on_pad` and `on_hit` callback, and keep it for

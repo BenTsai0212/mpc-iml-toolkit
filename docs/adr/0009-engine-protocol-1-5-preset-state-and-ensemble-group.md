@@ -1,0 +1,148 @@
+# ADR 0009: Engine protocol 1.5, preset state replies and a preset group in Pure Data
+
+- Status: Proposed
+- Date: 2026-11-20
+- Related: ADR 0004, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed), #138, #144,
+  #148, #153, #113 (Epic)
+
+## Context
+
+The built-in `ensemble` preset changes its bass mode (pad 16: `loop`, `rule`, `off`)
+and its melody (pad 15: follow, fixed, off) from the MPC, and its loops and
+progression from OSC. The only feedback is a line in the engine's terminal, so a
+musician cannot see which mode is on, and the Pure Data front end has no controls
+for it.
+
+A front end cannot show a preset's state today: the engine sends nothing back after
+a preset control (ADR 0004, clarification 6), and ADR 0004 lists "a reply channel
+for preset controls" as open work for a minor protocol version. ADR 0006 allows
+front ends only core messages, and a change to the groups needs a new ADR.
+
+The `## Decision` on #153 (2026-11-20) accepts the plan posted there and grants an
+exception under RFC 0005 "Core changes" for the engine, plugin-interface and
+protocol changes below, as for #130, #138 and #144.
+
+## Options
+
+### 1. How a front end learns a preset's state
+
+- **A general preset state reply (chosen).** A preset declares a snapshot hook; the
+  engine sends the snapshot under the preset's subtree at fixed moments, and the
+  preset can ask for it to be sent again when it changes on its own.
+- Preset-specific replies only: a front end that connects, or loses a UDP packet,
+  cannot ask for the state, and each later preset reinvents it.
+- Front end only: the patch cannot see pad presses or bar lines. Rejected.
+
+### 2. When a change applies
+
+- **"next" and "playing" for the bass and melody modes (chosen).** Mode changes
+  wait for the next bar line while the clock runs; a musician needs to see both
+  that the press was taken and what is heard.
+- Only "playing": a press seems to do nothing until the bar line.
+- Only "next": the front end shows a mode not yet heard.
+
+Loops and the progression change the notes of the next bar; front ends show only
+the selection.
+
+### 3. Where the controls go in Pure Data
+
+- **An always present group 8 Ensemble in `patches/mpc-iml.pd` (chosen).**
+- A separate patch per preset: only one front end can listen on port 6451
+  (ADR 0006), so it would copy the whole general patch.
+- A subwindow that opens when `ensemble` loads: easy to lose behind the DAW.
+
+## Decision
+
+### Protocol 1.5
+
+The protocol version becomes **1.5** (`PROTOCOL_VERSION = (1, 5)`). ADR 0004 to
+ADR 0008 stay as they are; this ADR adds replies and lengthens the full state, which
+is a minor change. There is no new message, error code, state rule or port.
+
+| Reply | Arguments | When |
+| --- | --- | --- |
+| `/mpciml/preset/<name>/<reply>` | as the preset declares (`i`, `f`, `s`) | After `preset/load`; in the full state, after `clock`; after each preset control that succeeds; when the preset calls `ClockAccess.report()` |
+
+- The engine sends the whole snapshot each time, in the order the preset gives, so
+  a lost UDP packet is fixed by the next report and `state/get` or `hello` always
+  gives the current state.
+- **Full state**: `state`, `preset`, `layout`, `names`, `kit`, `pads`, `counts`,
+  `trained`, `clock`, then the active preset's state replies.
+- A preset control that fails gets only `bad_arguments`, as before.
+- Presets without a state hook send nothing new. Front ends written for 1.0 to 1.4
+  ignore the new replies.
+- The names and arguments of each preset's replies are versioned by the preset
+  version (ADR 0004, Preset messages). This closes ADR 0004's clarification 6 and
+  its follow-up "a reply channel for preset controls".
+
+### Plugin interface
+
+- New optional field `Preset.state: Callable[[], StateReplies] | None = None`,
+  **provisional** like `controls` and `clock`. It returns (reply name, arguments)
+  pairs; names are lower case letters, digits and hyphens, arguments are ints,
+  floats or strings. The engine skips and logs an invalid pair, and sends nothing
+  when the hook raises.
+- New `ClockAccess.report()`: asks the engine to send the preset's state again. It
+  does nothing once another preset has loaded. The engine calls the hook on the
+  calling thread while holding its lock, so a preset must not call `report()` while
+  holding a lock its controls also take.
+
+### `ensemble` replies (preset version)
+
+The reply name is the control name where a control exists.
+
+| Reply | Arguments |
+| --- | --- |
+| `bass` | `s` next, `s` playing (`loop`, `rule`, `off`) |
+| `melody-mode` | `s` next, `s` playing (`follow`, `fixed`, `off`) |
+| `bass-loop`, `loop`, `progression` | `s` selected name |
+| `bass-loops`, `loops`, `progressions` | `s`… the names to choose from, in the order of the built-in tables |
+| `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | `i` value |
+| `roles` | 16 × `s`, pads 1-16 |
+
+- While the clock is not running, changes apply at once, so next and playing are
+  equal. Without `--clock` the melody never plays, so its playing mode is `off`.
+- `ensemble` calls `report()` after a pad 15 or 16 press, and at a bar line only
+  when the playing bass or melody mode changed there.
+- New control `melody-mode follow|fixed|off` sets the melody mode in one message;
+  `melody` and `follow` stay. No musical behaviour changes.
+
+### Front ends (update of ADR 0006 and ADR 0007)
+
+- `patches/mpc-iml.pd` gains **group 8 Ensemble**; Messages becomes **group 9** and
+  keeps its status line last. Groups 1-7 do not change.
+- Controls, in order: `bass` (`loop`, `rule`, `off`, showing playing and next),
+  `bass loop` (up to 4 buttons labelled from `bass-loops`), `melody` (`follow`,
+  `fixed`, `off`, showing playing and next), `melody loop` (up to 4 from `loops`),
+  `progression` (up to 4 from `progressions`) with `octave` and `melody octave`,
+  and `roles` (read only, 4 rows of 4 like the pads, 13-16 on top). Changes start at
+  the next bar line, which the group's label says.
+- The group is always shown. While another preset is active its displays show `-`
+  (reset on `/mpciml/preset`), and a click gets the engine's `inactive_preset`
+  error on the status line. `ensemble` is loaded with the existing preset buttons.
+- In `[pd osc]`, messages routed as `preset` are split by length: 2 elements are
+  `/mpciml/preset <name> <version>`, 3 or more are preset replies, of which only
+  `ensemble`'s are used.
+- The whole patch stays visible without scrolling on a 14-inch MacBook screen: the
+  canvas stays within about 1500 × 850. If the group does not fit in a row above
+  Messages within that height, it goes in a new column to the right. The PR that
+  adds the group states which layout it used, and `tests/test_patch.py` checks the
+  canvas size.
+- Exception to ADR 0006's rule "only core messages": group 8 uses `ensemble`'s
+  subtree. The general patch therefore names one preset.
+- The Max for Live device is unchanged; group 8 is Pure Data only, as the clock
+  display of ADR 0008.
+
+## Consequences
+
+- A front end can show any preset's state, including changes made on the MPC, with
+  no extra request: `hello` and `state/get` already give it.
+- **The plugin interface grows** by the provisional `Preset.state` and
+  `ClockAccess.report()`; existing presets keep working unchanged.
+- The general Pure Data patch knows one preset by name; a later preset with its own
+  group needs another ADR.
+- Recording format, kits and modules, the clock and scheduler, ADR 0008 and the
+  musical behaviour of `ensemble` do not change.
+- Follow-up work under #153: the engine and its tests (this ADR's PR); `ensemble`'s
+  state, `melody-mode` and `report()` calls; the Pd group and its tests; README and
+  AGENTS.md rows; the manual check with `ensemble` running.

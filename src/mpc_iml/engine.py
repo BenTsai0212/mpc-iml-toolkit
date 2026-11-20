@@ -19,7 +19,10 @@ clock from a DAW on a virtual input `mpc-iml clock` (or `--clock-port`), reports
 `/mpciml/clock`, gives presets with a `clock` hook the grid position of pad hits and
 a scheduler for notes on the `mpc-iml` port, and plays a test pattern on
 `/mpciml/clock/test`. The `clock` hook is also called without `--clock`, for pad hits
-and notes sent at once (#138).
+and notes sent at once (#138). Protocol 1.5 (ADR 0009) adds preset state replies: a
+preset with a `state` hook has its state sent under `/mpciml/preset/<name>/…` after
+`preset/load`, in the full state, after each of its controls, and when it asks with
+`ClockAccess.report()`.
 
 Start it with `python -m mpc_iml.engine <data folder>`. The engine only writes inside
 that folder: `examples/save` writes `<data folder>/<name>.jsonl`.
@@ -105,9 +108,9 @@ __all__ = [
     "run",
 ]
 
-PROTOCOL_VERSION = (1, 4)
+PROTOCOL_VERSION = (1, 5)
 """Control protocol version `(major, minor)` (ADR 0004; 1.1 in ADR 0005; 1.2 in ADR 0006;
-1.3 in ADR 0007; 1.4 in ADR 0008)."""
+1.3 in ADR 0007; 1.4 in ADR 0008; 1.5 in ADR 0009)."""
 
 CONTROL_PORT = 6450
 """Default port the engine listens on for control messages."""
@@ -155,6 +158,8 @@ LEARN_SWEEP = (0, 32, 64, 96, 127)
 """The values `/mpciml/midi/learn` sends, upwards; the next message sends them downwards."""
 
 _NAME = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
+_REPLY = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*", re.ASCII)
+"""A preset state reply name (ADR 0009): lower case letters, digits and hyphens."""
 
 EventInput = ClockedSource | Iterable[Event]
 """Gesture input: a real-time source (live MPC, paced replay) or an event iterable."""
@@ -666,6 +671,7 @@ class Engine:
         self._kit_and_pads()
         self._counts()
         self._report_trained()
+        self._preset_state()
 
     def _midi_learn(self, args: list[Any]) -> None:
         _check_count(args, 1, 1)
@@ -782,6 +788,7 @@ class Engine:
             handler(args)
         except Exception as error:
             raise ControlError("bad_arguments", f"{control}: {error}") from error
+        self._preset_state()
 
     # Replies
 
@@ -865,6 +872,37 @@ class Engine:
         self._counts()
         self._report_trained(always=True)
         self._send_clock(self._clock.state() if self._clock is not None else off_state())
+        self._preset_state()
+
+    def _preset_state(self) -> None:
+        """The active preset's state replies, `/mpciml/preset/<name>/<reply> <args…>`
+        (ADR 0009), in the order its `state` hook gives them; nothing without a hook.
+
+        A hook that raises sends nothing; a reply with an invalid name or argument is
+        skipped. Both are logged.
+        """
+        with self._lock:
+            preset = self._preset
+            if preset.state is None:
+                return
+            try:
+                replies = list(preset.state())
+            except Exception as error:
+                self._log(f"preset {preset.name!r} state failed: {error!r}")
+                return
+            for reply in replies:
+                checked = _state_reply(reply)
+                if checked is None:
+                    self._log(f"preset {preset.name!r} state reply skipped: {reply!r}")
+                    continue
+                self._send(f"preset/{preset.name}/{checked[0]}", *checked[1])
+
+    def _report(self, access: ClockAccess) -> None:
+        """`ClockAccess.report()`: send the preset's state again, unless `access`
+        belongs to a preset that is no longer loaded."""
+        with self._lock:
+            if access is self._clock_access:
+                self._preset_state()
 
     def _send_clock(self, state: ClockState) -> None:
         """`/mpciml/clock`: status, bpm (0 when unknown), bar and beat (1-based, or 0)."""
@@ -1100,7 +1138,12 @@ class Engine:
         if preset.clock is None:
             return
         access = ClockAccess(
-            self._clock, self._log, self._scheduler, self._send_note, self._beats_per_bar
+            self._clock,
+            self._log,
+            self._scheduler,
+            self._send_note,
+            self._beats_per_bar,
+            report=self._report,
         )
         try:
             preset.clock(access)
@@ -1198,6 +1241,23 @@ class _Tap:
 def _bar_beat(state: ClockState) -> tuple[int, int]:
     """Bar and beat counted from 1 for replies, or (0, 0) before the first tick."""
     return (state.bar + 1, state.beat + 1) if state.tick >= 0 else (0, 0)
+
+
+def _state_reply(reply: Any) -> tuple[str, list[int | float | str]] | None:
+    """A checked `(name, arguments)` pair of a preset state reply, or `None`."""
+    try:
+        name, args = reply
+        values = list(args)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(name, str) or not _REPLY.fullmatch(name):
+        return None
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, int | float | str):
+            return None
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+    return name, values
 
 
 def _drop_unmatched_ends(events: list[Event]) -> list[Event]:
