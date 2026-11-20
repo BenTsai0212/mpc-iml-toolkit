@@ -11,7 +11,7 @@ import test_engine
 from test_engine_preset_state import installed
 from test_ensemble import BAR, LAYER, START, STEP, STOP, Rig
 
-from mpc_iml.ensemble import DEFAULT_ROLES, Ensemble, make_preset
+from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_CC_SWEEP, Ensemble, make_preset
 
 receivers = test_engine.receivers
 start = test_engine.start
@@ -226,3 +226,77 @@ def test_the_engine_sends_ensemble_state_after_load_and_a_control(start: Any) ->
     assert ensemble[1] == (prefix + "melody-mode", ["follow", "off"])
     replies = front.ask(prefix + "melody-mode", "fixed")
     assert (prefix + "melody-mode", ["fixed", "off"]) in replies
+
+
+# learn-cc (#159): the brightness CC alone, so a DAW maps it and not a melody note.
+
+
+def ccs(rig: Rig) -> list[tuple[int, int, int]]:
+    """(status, controller, value) of every message sent."""
+    return [(m[0], m[1], m[2]) for _, m in rig.sent]
+
+
+def test_learn_cc_sweeps_only_the_cc_up_then_down_without_clock() -> None:
+    rig = Rig(clock=False, melody=True)
+    learn = rig.ensemble.controls()["learn-cc"]
+    learn([])
+    assert ccs(rig) == [(0xB2, 74, v) for v in LEARN_CC_SWEEP]
+    learn([])
+    assert ccs(rig)[5:] == [(0xB2, 74, v) for v in reversed(LEARN_CC_SWEEP)]
+    learn([])
+    assert ccs(rig)[10:] == [(0xB2, 74, v) for v in LEARN_CC_SWEEP]
+    assert LEARN_CC_SWEEP == (0, 32, 64, 96, 127)
+
+
+def test_learn_cc_follows_filter_cc_and_melody_channel() -> None:
+    rig = Rig(clock=False, melody=True)
+    controls = rig.ensemble.controls()
+    controls["filter-cc"]([71])
+    controls["melody-channel"]([5])
+    controls["learn-cc"]([])
+    assert ccs(rig) == [(0xB4, 71, v) for v in LEARN_CC_SWEEP]
+
+
+def test_learn_cc_only_while_the_clock_is_not_running() -> None:
+    rig = Rig(melody=True)
+    learn = rig.ensemble.controls()["learn-cc"]
+    learn([])
+    assert len(rig.sent) == 5, "waiting: accepted"
+    rig.send(START)
+    with pytest.raises(ValueError, match="clock is running"):
+        learn([])
+    rig.until(BAR + STEP)
+    rig.send(STOP)
+    stopped = len(rig.sent)
+    learn([])
+    assert ccs(rig)[stopped:] == [(0xB2, 74, v) for v in reversed(LEARN_CC_SWEEP)]
+
+
+@pytest.mark.parametrize("args", [[1], ["x"]])
+def test_learn_cc_takes_no_arguments(args: list[Any]) -> None:
+    rig = Rig(clock=False)
+    with pytest.raises(ValueError, match="no arguments"):
+        rig.ensemble.controls()["learn-cc"](args)
+    assert rig.sent == []
+
+
+def test_learn_cc_is_refused_when_filter_cc_is_off() -> None:
+    rig = Rig(clock=False)
+    controls = rig.ensemble.controls()
+    controls["filter-cc"]([0])
+    with pytest.raises(ValueError, match="filter-cc is 0"):
+        controls["learn-cc"]([])
+    assert rig.sent == []
+
+
+def test_the_engine_accepts_learn_cc_and_sends_the_state(start: Any) -> None:
+    found = installed(make_preset(lambda line: None))
+    front = start(presets=found)
+    prefix = "/mpciml/preset/ensemble/"
+    front.ask("/mpciml/preset/load", "ensemble")
+    replies = front.ask(prefix + "learn-cc")
+    assert not [m for m in replies if m[0] == "/mpciml/error"]
+    assert [m[0] for m in replies if m[0].startswith(prefix)] == [prefix + n for n in NAMES]
+    replies = front.ask(prefix + "learn-cc", 1)
+    assert [m[0] for m in replies] == ["/mpciml/error"]
+    assert replies[0][1][0] == "bad_arguments"

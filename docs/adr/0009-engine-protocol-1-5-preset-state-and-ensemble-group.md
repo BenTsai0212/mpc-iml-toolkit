@@ -2,8 +2,8 @@
 
 - Status: Proposed
 - Date: 2026-11-20
-- Related: ADR 0004, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed), #138, #144,
-  #148, #153, #113 (Epic)
+- Related: ADR 0004, ADR 0005, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed),
+  #138, #144, #148, #153, #159, #113 (Epic)
 
 ## Context
 
@@ -132,6 +132,27 @@ The reply name is the control name where a control exists.
   subtree. The general patch therefore names one preset.
 - The Max for Live device is unchanged; group 8 is Pure Data only, as the clock
   display of ADR 0008.
+
+## Amendment: `learn-cc` (#159)
+
+The `## Decision` on #159 (2026-11-20) accepts this amendment. In a manual test,
+Live's MIDI Map Mode mapped a melody note instead of the brightness CC, because the
+CC goes out only at a bar line, on the same channel and tick as the melody's notes.
+The engine's `/mpciml/midi/learn` (ADR 0005) does not apply: `ensemble` declares no
+`MidiCcOutput`.
+
+- New `ensemble` control `learn-cc` (no arguments, preset version): sends only the
+  brightness CC (`filter-cc` on `melody-channel`) through `ClockAccess.send_now`, as
+  ADR 0005's sweep 0, 32, 64, 96, 127, downwards on every other call. It is refused
+  with `bad_arguments` while the clock is `running` (the loops would send notes in
+  between), when `filter-cc` is 0, and with arguments. It works without `--clock`.
+  As after every control that succeeds, the engine then sends the state replies.
+- Group 8 gains a row under `roles`: a `learn_CC` button that sends it, with the
+  `filter-cc` and `melody-channel` replies shown next to it as `CC <n> ch <m>`. The
+  canvas stays 1490 × 840. The Max for Live device does not change.
+- No core message, reply, error code or protocol version changes. Reusing
+  `/mpciml/midi/learn` for preset CCs would need a plugin-interface field and
+  protocol 1.6; it can be decided when another preset needs it.
 
 ## Consequences
 
