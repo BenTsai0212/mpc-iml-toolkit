@@ -277,7 +277,7 @@ toolkit with `uv sync`, the MPC Sample connected and set up), and
    brings them back.
 
 Errors from the engine (for example a button clicked in the wrong state) appear on
-the status line in group 8 **Messages**, not only in the Pd window.
+the status line in group 9 **Messages**, not only in the Pd window.
 
 **Recording from nothing** (the advanced route): instead of a kit, click `clear`
 in group 4 **Examples** (it also clears the kit) and record every example
@@ -397,7 +397,7 @@ To check that notes from the engine land on the beat, send `/mpciml/clock/test 1
 from the next bar, the engine plays note 72 on beat 1 and note 60 on the other beats
 (one 16th long) on the `mpc-iml` MIDI output. Arm a MIDI track on input `mpc-iml`
 with any instrument to hear it; `/mpciml/clock/test 0` stops it. In the Pure Data
-front end, group 8 **Messages** shows the clock line (status, BPM, bar and beat), and
+front end, group 9 **Messages** shows the clock line (status, BPM, bar and beat), and
 the `test` toggle next to it sends `/mpciml/clock/test`. Stop in the DAW
 ends sounding notes, and the pattern starts again on the next bar after Play or
 Continue. If the notes sound late, `--clock-lead-ms 10` sends scheduled notes 10 ms
@@ -620,8 +620,9 @@ set to **Song**, Live's bar 1 is the start of the progression.
 ### Set up Live for the bass
 
 1. Start the engine with the preset and the clock, and leave the terminal window
-   open. The Pure Data front end also opens; `ensemble` needs none of its controls,
-   and `--no-patch` leaves it closed:
+   open. The Pure Data front end also opens and shows the modes in group 8
+   **Ensemble** ([below](#the-ensemble-group-in-pure-data)); `ensemble` needs none
+   of its controls, and `--no-patch` leaves it closed:
 
    ```bash
    uv run mpc-iml --preset ensemble --clock
@@ -638,7 +639,8 @@ set to **Song**, Live's bar 1 is the start of the progression.
    the bass note that is sounding and drops the notes still to come.
 
 Press **pad 16** to cycle the bass loop → rule → off. The terminal shows the new
-mode (`ensemble: bass loop`, `ensemble: bass rule` or `ensemble: bass off`), and it
+mode (`ensemble: bass loop`, `ensemble: bass rule` or `ensemble: bass off`), and so
+does group 8 **Ensemble** of the patch (`next` at once, `now` from the bar line). It
 applies from the next bar line (at once while Live is stopped). The preset starts
 in loop.
 
@@ -719,8 +721,8 @@ melody loop at velocity 100 and sends no CC, and every note of the bass loop at
 velocity 100 with no accents, whatever the drums do, so you can compare it with
 **follow**. **off** turns off the melody only (the bass loop stays fixed). The
 terminal shows the new mode (`ensemble: melody follow`, `ensemble: melody fixed` or
-`ensemble: melody off`), and it applies from the next bar line. The preset starts
-in follow.
+`ensemble: melody off`), as does group 8 **Ensemble** of the patch, and it applies
+from the next bar line. The preset starts in follow.
 
 To hear the melody in Live, add a second MIDI track with a keys instrument (for
 example an electric piano or a pluck preset of Drift). Set MIDI From to `mpc-iml`,
@@ -729,10 +731,41 @@ filter cutoff: click **MIDI** at the top right, click the filter knob, hit pads 
 `hat` pads with Live playing (the CC goes out at the next bar line), and click
 **MIDI** again. Stop in Live ends the melody notes that are sounding.
 
+### The Ensemble group in Pure Data
+
+Group 8 **Ensemble** of the patch (`src/mpc_iml/patches/mpc-iml.pd`, ADR 0009), in
+the column right of group 7 **Outputs**, shows what `ensemble` plays and switches
+its modes, loops and progression with clicks. Load `ensemble` with its preset button
+in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits a
+14-inch MacBook screen without scrolling (1490 × 840).
+
+| In the group | What it does |
+| --- | --- |
+| `bass`: `loop`, `rule`, `off` | Sets the bass mode. `now` shows the mode playing, `next` the one asked for. |
+| `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. |
+| `bass loop`, `melody loop` | Up to 4 buttons, labelled with the loops the engine lists (`boom`, `walk`; `keys`, `pluck`); the box under them shows the one selected. |
+| `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
+| `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
+| `roles` | The role of each pad, read only, 4 rows of 4 like the pads (13-16 on top). |
+
+As the label next to the heading says, changes start at the next bar line while
+Live plays. A press of pad 15 or 16 on the MPC shows up in the group too: `next`
+changes at once, `now` at the bar line where the mode starts playing; while Live
+is stopped both change at once. Without `--clock` the melody's `now` stays `off`,
+because the melody does not play.
+
+The group is always there. While another preset is loaded, its boxes show `-` (the
+octave boxes keep their last number), and a click puts `inactive_preset` on the
+status line in group 9 **Messages**: load `ensemble` first. The pad roles, the MIDI
+channels, `length`, `immediate`, `bar`, `filter-cc` and the pads that cycle the modes
+stay OSC only ([Ensemble controls](#ensemble-controls)). The Max for Live device
+has no Ensemble group.
+
 ### Ensemble controls
 
-The controls are preset messages to the engine's control port (6450). The Pure
-Data patch has no group for them yet, so send them from any OSC client:
+The controls are preset messages to the engine's control port (6450). Group 8
+**Ensemble** of the Pure Data patch ([above](#the-ensemble-group-in-pure-data))
+sends the most used ones; send the others from any OSC client:
 
 | Message | Values | Default | Meaning |
 | --- | --- | --- | --- |
@@ -746,6 +779,7 @@ Data patch has no group for them yet, so send them from any OSC client:
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
 | `/mpciml/preset/ensemble/role` | pad 1-16, then `kick`, `snare`, `hat` or `other` | the table above | The role of one pad, in every bank |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the bass mode; 0 for none |
+| `/mpciml/preset/ensemble/melody-mode` | `follow`, `fixed` or `off` | `follow` | The melody mode in one message (sets `melody` and `follow`); `off` also drops the notes still to come |
 | `/mpciml/preset/ensemble/melody` | 0 or 1 | 1 | The melody; 0 also drops the notes still to come |
 | `/mpciml/preset/ensemble/loop` | `keys` or `pluck` | `keys` | The melody loop |
 | `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed |
@@ -754,11 +788,27 @@ Data patch has no group for them yet, so send them from any OSC client:
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
 | `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | The pad that cycles the melody; 0 for none |
 
-The engine does not reply with these settings. They go back to the defaults when
-`ensemble` is loaded again or the engine starts. Bad values get
-`/mpciml/error bad_arguments`, and messages for `ensemble` while another preset is
-loaded get `inactive_preset`. The bass mode and the melody controls apply from the
-next bar line.
+The settings go back to the defaults when `ensemble` is loaded again or the engine
+starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
+while another preset is loaded get `inactive_preset`. The bass mode and the melody
+controls apply from the next bar line.
+
+**State replies** (protocol 1.5, ADR 0009): the engine sends `ensemble`'s whole state
+to the reply port (6451) as `/mpciml/preset/ensemble/<reply>` messages after
+`preset/load`, in the full state (`hello`, `state/get`), after each control that
+succeeds, after a press of pad 15 or 16, and at a bar line where the playing bass or
+melody mode changes:
+
+| Reply | Arguments |
+| --- | --- |
+| `bass` | next and playing mode (`loop`, `rule`, `off`) |
+| `melody-mode` | next and playing mode (`follow`, `fixed`, `off`) |
+| `bass-loop`, `loop`, `progression` | the selected name |
+| `bass-loops`, `loops`, `progressions` | the names to choose from |
+| `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
+| `roles` | 16 roles, pads 1-16 |
+
+The names and arguments are versioned by the preset version (ADR 0004).
 
 ### Compare the layers
 
@@ -832,6 +882,25 @@ two bars without drums.
 3. Press Stop in Live while the bass and the melody play, and check that no note
    keeps sounding on channel 2 or 3.
 
+### Check the Ensemble group
+
+The manual check for #153, with Live set up as above, Sync on for `mpc-iml clock`,
+and `uv run mpc-iml --clock` (the patch opens):
+
+1. Click the preset button `ensemble` in group 1. Group 8 **Ensemble** shows the
+   defaults: bass `loop`/`loop`, melody `follow`/`follow`, `boom`, `keys`,
+   `minor-two`, octaves 1 and 4, and the roles of the table above. The whole patch
+   is visible without scrolling, and no boxes overlap.
+2. Press Play in Live. From the patch, click every bass mode, bass loop, melody mode,
+   melody loop and progression, and change both octaves. Check that `next` changes
+   at once and `now` at the following bar line, and that what you hear matches.
+3. Press pad 16 and pad 15 on the MPC Sample through all their modes, and check the
+   same in the group.
+4. Click `connect` in group 1: the group shows the same state again.
+5. Click the preset button `pressure`: the group shows `-`, and a click in it gives
+   `inactive_preset` on the status line.
+6. Check that the Pd window shows no red errors.
+
 ## Ableton Live starter set
 
 A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),
@@ -887,7 +956,7 @@ macros as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw).
 ## Troubleshooting
 
 What to check first when something does not work while you play. Errors from the
-engine appear on the status line in group 8 **Messages** of the patch.
+engine appear on the status line in group 9 **Messages** of the patch.
 
 | Symptom | What to check |
 | --- | --- |
@@ -896,8 +965,8 @@ engine appear on the status line in group 8 **Messages** of the patch.
 | Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
 | The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
 | The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
-| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. The bass loop needs `--clock` and Live playing, waits for your first kick after Start and stops after two bars without kicks. Pad 16 may have switched the bass to `rule` or `off` (the terminal shows `ensemble: bass …`); see [Play the ensemble preset](#play-the-ensemble-preset). |
-| `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and stops after two empty bars. Pad 15 may have switched it off (the terminal shows `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
+| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. The bass loop needs `--clock` and Live playing, waits for your first kick after Start and stops after two bars without kicks. Pad 16 may have switched the bass to `rule` or `off` (group 8 **Ensemble** and the terminal show the mode); see [Play the ensemble preset](#play-the-ensemble-preset). |
+| `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and stops after two empty bars. Pad 15 may have switched it off (group 8 **Ensemble** shows `off`, the terminal `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
 | `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
 | A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
 
@@ -905,8 +974,9 @@ engine appear on the status line in group 8 **Messages** of the patch.
 
 The Max for Live device lets you record, train, run and map the model without
 leaving Ableton Live. It has the 7 groups of ADR 0006 with the button names and
-order of the Pure Data front end, but not yet group 2 **Kit** of ADR 0007, so the
-patch's groups 3-8 are the device's groups 2-7, and the recording route of
+order of the Pure Data front end, but not yet group 2 **Kit** of ADR 0007 or
+group 8 **Ensemble** of ADR 0009 (Pure Data only), so the patch's groups 3-7 and 9
+are the device's groups 2-7, and the recording route of
 [Play in 20 minutes](#play-in-20-minutes) applies to it; only the start and the
 install differ. The device has not been checked in Live yet (#86).
 
@@ -1043,6 +1113,17 @@ ones. With `--clock`, `scheduler` (a `mpc_iml.clock.Scheduler`, otherwise `None`
 sends them at a bar and step: `note(bar, step, note, velocity, length_steps)`,
 `at(bar, step, messages)` and `at_next_bar(messages, n)`; `cancel(handle)` drops one.
 Loading another preset drops what is still scheduled and ends sounding notes.
+`report()` asks the engine to send the preset's state again (below); it does nothing
+once another preset has loaded.
+
+`state` is **provisional** too (ADR 0009): a function that returns the preset's
+current state as (reply name, arguments) pairs, with names in lower case letters,
+digits and hyphens and arguments as ints, floats or strings. The engine sends each
+pair as `/mpciml/preset/<name>/<reply>` after `preset/load`, in the full state after
+`clock`, after each preset control that succeeds, and when the preset calls
+`report()`, for example after a pad press that changed a mode. The engine calls
+`state` while holding its lock, so do not call `report()` while holding a lock your
+controls also take. `ensemble` is the example.
 
 `tests/plugins/` holds a complete example package, and `tests/test_presets.py`
 installs it and runs it on a recorded fixture.
