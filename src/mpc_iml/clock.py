@@ -21,16 +21,19 @@ plays the engine's test pattern (`/mpciml/clock/test`).
 engine: read-only access to the clock, every pad hit (placed on the grid while the
 clock runs), the scheduler, and a path for notes sent at once. The engine calls the
 hook with sync off too, with no clock and no scheduler (#138).
+
+`tag_recording` places the pad hits of a recording made with `record --clock` on
+the grid after the fact, with the same `MidiClock` the engine uses live (#139).
 """
 
 import math
 import threading
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal, TypeVar
 
-from mpc_iml.events import Event, MidiEvent
+from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.frames import note_to_bank_pad
 
 __all__ = [
@@ -51,6 +54,7 @@ __all__ = [
     "Scheduled",
     "Scheduler",
     "off_state",
+    "tag_recording",
 ]
 
 ClockStatus = Literal["off", "waiting", "running", "stopped", "lost"]
@@ -417,6 +421,36 @@ class ClockAccess:
             callback(hit)
         except Exception as error:
             self._log(f"clock hit callback failed: {error!r}")
+
+
+def tag_recording(
+    events: Iterable[Event], beats_per_bar: int = 4, ticks_per_step: int = SIXTEENTHS
+) -> list[PadHit]:
+    """Every pad hit of a recording, placed on the grid by the clock recorded with it.
+
+    Replays the recording's raw clock messages through a new `MidiClock` in time
+    order, as the engine does live: positions are interpolated from the ticks up to
+    each hit, and a hit more than `LOST_AFTER` seconds after the last tick is not
+    placed. Hits while the clock is not `running` (before Start, after Stop, lost)
+    keep `grid=None`; they are returned, not dropped.
+    """
+    _check_step(ticks_per_step)
+    clock = MidiClock(beats_per_bar)
+    hits: list[PadHit] = []
+    for event in events:
+        if isinstance(event, RawMidiEvent):
+            clock.feed(event.data, event.t)
+        elif (
+            isinstance(event, MidiEvent)
+            and event.kind == "note_on"
+            and event.note is not None
+            and event.value > 0
+        ):
+            clock.check(event.t)
+            bank, pad = note_to_bank_pad(event.note)
+            grid = clock.tag(event, ticks_per_step)
+            hits.append(PadHit(event.t, pad, bank, event.value, grid))
+    return hits
 
 
 def _check_step(ticks_per_step: int) -> None:

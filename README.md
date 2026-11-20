@@ -44,6 +44,16 @@ still change in 0.x. Phase 1 (Foundation). To try the whole loop, follow the
   same file and time base as the pads, as raw `midi` events. Other messages on that
   port are dropped. Without clock, pads are still recorded and a line says so after
   2 s.
+- a grid read-back for such a recording: one tab-separated line per pad hit with
+  time, bar, step, pad (`A01` to `H16`), velocity and offset from the step in ms
+  (`-` while the clock was not running), and a summary on standard error. It uses
+  the engine's `MidiClock` (`mpc_iml.clock.tag_recording`):
+
+  ```bash
+  uv run python -m mpc_iml.grid out.jsonl --beats-per-bar 4 --resolution 16
+  ```
+
+  `--resolution` is `16` (default), `8` or `16t` (16th triplets).
 - training examples from the `example_start` / `example_end` segments of
   recordings, with stable class numbers (`mpc_iml.examples`);
 - a model extension point (`mpc_iml.model.Model`: `fit` and `predict`) and
