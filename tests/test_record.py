@@ -6,6 +6,7 @@ the file is known without real ports or threads.
 """
 
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from mpc_iml.sources import CLOCK_PORT_NAME, LiveSource
 
 PAD_ON, PAD_OFF = b"\x90\x24\x1e", b"\x80\x24\x00"
 START, TICK, NOTE = b"\xfa", b"\xf8", b"\x90\x3c\x64"
+STOP, CONTINUE = b"\xfc", b"\xfb"
+RECEIVING = "MIDI clock: receiving from 'mpc-iml clock'."
+WAITING = "MIDI clock: waiting for 'mpc-iml clock' (pad events are being recorded)."
 
 
 class FakeDaw:
@@ -65,6 +69,32 @@ class PadsWithDaw(FakeBackend):
     def poll(self) -> bytes | None:
         if self.script:
             self.daw.deliver()
+        return super().poll()
+
+
+class LateDaw(PadsWithDaw):
+    """The DAW's batches and the pads arrive only `delay` real seconds after the
+    first poll, as when Play is pressed in Live after the start."""
+
+    def __init__(self, daw: FakeDaw, script: list[tuple[float, bytes]], delay: float) -> None:
+        super().__init__(daw, script)
+        self.delay = delay
+        self.started: float | None = None
+
+    def poll(self) -> bytes | None:
+        if self.started is None:
+            self.started = time.monotonic()
+        if time.monotonic() - self.started < self.delay:
+            return None
+        return super().poll()
+
+
+class CtrlC(PadsWithDaw):
+    """The musician presses Ctrl-C after the scripted messages."""
+
+    def poll(self) -> bytes | None:
+        if not self.script:
+            raise KeyboardInterrupt
         return super().poll()
 
 
@@ -139,9 +169,78 @@ def test_no_clock_records_pads_with_one_log_line(
     assert code == 0
     assert len(read_recording(path).events) == 2
     err = capsys.readouterr().err
-    assert err.count("MIDI clock: nothing received on 'mpc-iml clock' yet") == 1
+    assert err.count(WAITING) == 1
     assert "turn on Sync" in err
+    assert RECEIVING not in err
     assert "Wrote 2 events (0 clock messages)" in err
+
+
+def test_receiving_is_said_once_when_clock_arrives_before_the_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, _ = run(tmp_path / "out.jsonl", "--clock", batches=[[START, TICK], [TICK]])
+    assert code == 0
+    err = capsys.readouterr().err
+    assert err.count(RECEIVING) == 1
+    assert WAITING not in err
+    assert "Stop received" not in err
+    assert "playing again" not in err
+
+
+def test_receiving_is_said_once_when_clock_arrives_after_the_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(record_cli, "CLOCK_WAIT", 0.05)
+    daw = FakeDaw()
+    daw.pending = [[START, TICK], [TICK]]
+    backend = LateDaw(daw, [(0.0, PAD_ON), (0.0, PAD_OFF)], delay=0.15)
+    path = tmp_path / "out.jsonl"
+    code = record_main([str(path), "--duration", "0.4", "--clock"], backend, lambda: daw)
+    assert code == 0
+    err = capsys.readouterr().err
+    assert err.count(WAITING) == 1
+    assert err.count(RECEIVING) == 1
+    assert err.index(WAITING) < err.index(RECEIVING)
+    assert "Wrote 5 events (3 clock messages)" in err
+
+
+def test_stop_and_play_again_are_said(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code, _ = run(
+        tmp_path / "out.jsonl", "--clock", batches=[[START, TICK, STOP, STOP], [CONTINUE]]
+    )
+    assert code == 0
+    err = capsys.readouterr().err
+    assert err.count(RECEIVING) == 1
+    assert err.count("MIDI clock: Stop received; pad events are still recorded.") == 1
+    assert err.count("MIDI clock: Continue received; playing again.") == 1
+    assert err.index("Stop received") < err.index("Continue received")
+
+
+def test_start_after_stop_is_said_again(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code, _ = run(tmp_path / "out.jsonl", "--clock", batches=[[STOP, START], [STOP, START]])
+    assert code == 0
+    err = capsys.readouterr().err
+    assert err.count("Stop received") == 2
+    assert err.count("MIDI clock: Start received; playing again.") == 2
+
+
+@pytest.mark.parametrize("flags", [(), ("--clock",)])
+def test_summary_is_printed_on_ctrl_c(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], flags: tuple[str, ...]
+) -> None:
+    daw = FakeDaw()
+    daw.pending = [[START, TICK]]
+    backend = CtrlC(daw, [(0.0, PAD_ON), (0.0, PAD_OFF)])
+    path = tmp_path / "out.jsonl"
+    code = record_main([str(path), *flags], backend, lambda: daw)
+    assert code == 0
+    err = capsys.readouterr().err
+    if flags:
+        assert "Wrote 4 events (2 clock messages)" in err
+        assert len(read_recording(path).events) == 4
+    else:
+        assert f"Wrote 2 events to {path}" in err
+        assert len(read_recording(path).events) == 2
 
 
 def test_inject_from_another_thread_keeps_time_monotonic() -> None:

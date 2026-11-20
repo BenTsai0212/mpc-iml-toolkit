@@ -10,6 +10,10 @@ injects Timing Clock, Start, Continue, Stop and Song Position Pointer into the l
 source, so pad and clock messages share one time base in one file. They are written
 as raw `midi` events; the recording format does not change. Other messages on the
 clock port are dropped. Pad events are recorded even when no clock arrives.
+
+With `--clock`, standard error says when the first clock message arrives, says once
+after `CLOCK_WAIT` seconds that it is still waiting if none has, and says when the
+DAW's transport stops (Stop) and plays again (Start or Continue) (#160).
 """
 
 import argparse
@@ -32,7 +36,9 @@ from mpc_iml.sources import (
 )
 
 CLOCK_WAIT = 2.0
-"""Seconds after the start to say once that no MIDI clock has arrived."""
+"""Seconds after the start to say once that MIDI clock has not arrived yet."""
+
+START, CONTINUE, STOP = 0xFA, 0xFB, 0xFC
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,11 +81,35 @@ def is_clock(data: bytes) -> bool:
     return bool(data) and data[0] in CLOCK_BYTES
 
 
-def _count_clock(events: Iterable[Event], counter: list[int]) -> Iterator[Event]:
-    for event in events:
-        if isinstance(event, RawMidiEvent) and is_clock(event.data):
-            counter[0] += 1
-        yield event
+class ClockReport:
+    """Counts the recorded clock messages and prints what the musician needs to know:
+    when clock first arrives, and when the transport stops and plays again (#160)."""
+
+    def __init__(self, port_name: str | None) -> None:
+        self.port_name = port_name
+        self.count = 0
+        self.stopped = False
+
+    def see(self, data: bytes) -> None:
+        if not is_clock(data):
+            return
+        self.count += 1
+        if self.count == 1:
+            print(f"MIDI clock: receiving from {self.port_name!r}.", file=sys.stderr)
+        status = data[0]
+        if status == STOP and not self.stopped:
+            self.stopped = True
+            print("MIDI clock: Stop received; pad events are still recorded.", file=sys.stderr)
+        elif status in (START, CONTINUE) and self.stopped:
+            self.stopped = False
+            name = "Start" if status == START else "Continue"
+            print(f"MIDI clock: {name} received; playing again.", file=sys.stderr)
+
+    def count_in(self, events: Iterable[Event]) -> Iterator[Event]:
+        for event in events:
+            if isinstance(event, RawMidiEvent):
+                self.see(event.data)
+            yield event
 
 
 def main(
@@ -132,24 +162,24 @@ def _record(
         print(f"Wrote {count} events to {args.path}", file=sys.stderr)
         return 0
     print(f"Recording MIDI clock from {clock_input.port_name!r}.", file=sys.stderr)
-    clocks = [0]
+    report = ClockReport(clock_input.port_name)
     warned = False
 
     def warn_once() -> bool:
         nonlocal warned
-        if not warned and clocks[0] == 0 and source.now() >= CLOCK_WAIT:
+        if not warned and report.count == 0 and source.now() >= CLOCK_WAIT:
             warned = True
             print(
-                f"MIDI clock: nothing received on {clock_input.port_name!r} yet; recording "
-                "pad events anyway. In Live, turn on Sync for this port "
+                f"MIDI clock: waiting for {report.port_name!r} (pad events are being "
+                "recorded). In Live, turn on Sync for this port "
                 "(Settings > Link, Tempo & MIDI) and press Play.",
                 file=sys.stderr,
             )
         return False
 
-    events = _count_clock(source.events(duration=args.duration, stop=warn_once), clocks)
+    events = report.count_in(source.events(duration=args.duration, stop=warn_once))
     count = record(events, args.path, header)
-    print(f"Wrote {count} events ({clocks[0]} clock messages) to {args.path}", file=sys.stderr)
+    print(f"Wrote {count} events ({report.count} clock messages) to {args.path}", file=sys.stderr)
     return 0
 
 
