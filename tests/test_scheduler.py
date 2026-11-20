@@ -219,3 +219,47 @@ def test_clear_stops_everything() -> None:
     assert daw.sent[-1][1] == off(72)
     daw.until(2 * BAR)
     assert len(notes(daw)) == 1
+
+
+# Notes sent at once and a preset switch (#138)
+
+
+@pytest.mark.parametrize("ending", ["stop", "lost", "clear"])
+def test_send_now_goes_out_at_once_and_is_ended_like_scheduled_notes(ending: str) -> None:
+    daw = Daw()
+    daw.send(START)
+    daw.until(5)
+    daw.scheduler.send_now([on(33, 90)])
+    assert daw.sent == [(4, on(33, 90))]
+    if ending == "stop":
+        daw.send(STOP)
+    elif ending == "lost":
+        daw.clock.check(daw.t + 1)
+        daw.scheduler.update(daw.t + 1)
+    else:
+        daw.scheduler.clear()
+    assert daw.sent[-1][1] == off(33)
+
+
+def test_send_now_with_its_note_off_on_the_grid() -> None:
+    daw = Daw()
+    daw.send(START)
+    daw.until(5)
+    daw.scheduler.send_now([on(33)])
+    daw.scheduler.at(0, 2, [off(33)])
+    daw.until(13)
+    daw.send(STOP)
+    assert daw.sent == [(4, on(33)), (12, off(33))]
+
+
+def test_clear_can_keep_the_test_pattern() -> None:
+    daw = Daw()
+    daw.scheduler.test_pattern(True)
+    daw.scheduler.at(1, 8, [on(5)])
+    daw.send(START)
+    daw.until(BAR + 2)
+    daw.scheduler.clear(keep_test=True)
+    assert daw.sent[-1] == (BAR + 1, off(72))
+    daw.until(2 * BAR + 1)
+    assert notes(daw)[-2:] == [(BAR, 72), (2 * BAR, 72)]
+    assert (BAR + 48, on(5)) not in daw.sent

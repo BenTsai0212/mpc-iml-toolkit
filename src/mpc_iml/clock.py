@@ -18,8 +18,9 @@ asks for another resolution.
 plays the engine's test pattern (`/mpciml/clock/test`).
 
 `ClockAccess` is what a preset's provisional `Preset.clock` hook receives from the
-engine: read-only access to the clock, the pad hits placed on the grid and the
-scheduler.
+engine: read-only access to the clock, every pad hit (placed on the grid while the
+clock runs), the scheduler, and a path for notes sent at once. The engine calls the
+hook with sync off too, with no clock and no scheduler (#138).
 """
 
 import math
@@ -27,7 +28,7 @@ import threading
 from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeVar
 
 from mpc_iml.events import Event, MidiEvent
 from mpc_iml.frames import note_to_bank_pad
@@ -45,6 +46,8 @@ __all__ = [
     "GridHit",
     "HitCallback",
     "MidiClock",
+    "PadCallback",
+    "PadHit",
     "Scheduled",
     "Scheduler",
     "off_state",
@@ -62,6 +65,8 @@ SIXTEENTH_TRIPLETS = 4
 
 LOST_AFTER = 0.5
 """Seconds without a tick while `running` before the status becomes `lost`."""
+
+_H = TypeVar("_H", "GridHit", "PadHit")
 
 _TICK, _START, _CONTINUE, _STOP, _SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
 
@@ -288,33 +293,62 @@ HitCallback = Callable[[GridHit], None]
 """Receives each pad hit placed on the grid (`ClockAccess.on_hit`)."""
 
 
+@dataclass(frozen=True)
+class PadHit:
+    """A pad hit in any clock status (`ClockAccess.on_pad`).
+
+    `pad` and `bank` count from 0, as in `GridHit`. `grid` is the hit placed on the
+    grid while the clock is `running`, otherwise `None` (sync off, `waiting`,
+    `stopped` or `lost`).
+    """
+
+    t: float
+    pad: int
+    bank: int
+    velocity: int
+    grid: GridHit | None
+
+
+PadCallback = Callable[[PadHit], None]
+"""Receives every pad hit (`ClockAccess.on_pad`)."""
+
+
 class ClockAccess:
-    """Read-only access to the engine's clock for one loaded preset (ADR 0008).
+    """Access to the engine's clock and note output for one loaded preset (ADR 0008).
 
     **Provisional**, like `Preset.controls`. The engine makes a new one each time a
-    preset loads with sync on and passes it to the preset's `clock` hook, so
-    callbacks registered by an earlier preset stop when another one loads.
+    preset loads and passes it to the preset's `clock` hook, so callbacks registered
+    by an earlier preset stop when another one loads. With sync off, `clock` and
+    `scheduler` are `None`: `state()` is `off`, `position` is `None`, `on_hit` never
+    fires, and `on_pad` and `send_now` still work.
     """
 
     def __init__(
         self,
-        clock: MidiClock,
+        clock: MidiClock | None,
         log: Callable[[str], None] = lambda line: None,
         scheduler: "Scheduler | None" = None,
+        send: Callable[[bytes], None] | None = None,
+        beats_per_bar: int = 4,
     ) -> None:
         self._clock = clock
         self._log = log
         self.scheduler = scheduler
-        """The engine's `Scheduler` for notes at grid positions (`None` in tests)."""
+        """The engine's `Scheduler` for notes at grid positions (`None` without sync)."""
+        self._send = send
+        self._beats_per_bar = clock.beats_per_bar if clock is not None else beats_per_bar
         self._hits: list[tuple[HitCallback, int]] = []
+        self._pads: list[tuple[PadCallback, int]] = []
 
     def state(self) -> ClockState:
-        """The clock's current snapshot."""
+        """The clock's current snapshot (`off` without sync)."""
+        if self._clock is None:
+            return off_state(self._beats_per_bar)
         return self._clock.state()
 
     def position(self, t: float) -> float | None:
         """The position of time `t` in ticks since song start (`MidiClock.position`)."""
-        return self._clock.position(t)
+        return self._clock.position(t) if self._clock is not None else None
 
     def on_hit(self, callback: HitCallback, ticks_per_step: int = SIXTEENTHS) -> None:
         """Call `callback` with every pad hit while the clock is `running`.
@@ -323,20 +357,71 @@ class ClockAccess:
         `SIXTEENTH_TRIPLETS`. The callback runs on the engine's input thread, so it
         must return quickly; an exception is logged and the hit is dropped.
         """
-        if TICKS_PER_BEAT % ticks_per_step:
-            raise ValueError(f"ticks_per_step must divide {TICKS_PER_BEAT}: {ticks_per_step}")
+        _check_step(ticks_per_step)
         self._hits.append((callback, ticks_per_step))
 
-    def deliver(self, event: Event) -> None:
-        """Tag `event` and pass it to every `on_hit` callback (called by the engine)."""
-        for callback, ticks_per_step in list(self._hits):
-            hit = self._clock.tag(event, ticks_per_step)
-            if hit is None:
+    def on_pad(self, callback: PadCallback, ticks_per_step: int = SIXTEENTHS) -> None:
+        """Call `callback` with every pad hit (velocity above 0), in any clock status.
+
+        `PadHit.grid` is placed on the `ticks_per_step` grid while the clock is
+        `running`, otherwise `None`. Same thread and error rules as `on_hit`.
+        """
+        _check_step(ticks_per_step)
+        self._pads.append((callback, ticks_per_step))
+
+    def send_now(self, messages: Sequence[bytes]) -> None:
+        """Send raw MIDI `messages` at once, in order, on the engine's note path.
+
+        With sync on they go through the scheduler, so the notes they start count as
+        sounding and are ended on Stop, `lost`, `clear` and a preset switch. Without
+        sync the preset ends its own notes. A failed send is logged.
+        """
+        if self.scheduler is not None:
+            self.scheduler.send_now(messages)
+            return
+        for message in messages:
+            if self._send is None:
                 return
             try:
-                callback(hit)
+                self._send(bytes(message))
             except Exception as error:
-                self._log(f"clock hit callback failed: {error!r}")
+                self._log(f"MIDI message not sent: {error!r}")
+
+    def deliver(self, event: Event) -> None:
+        """Pass a pad hit to every `on_pad` and `on_hit` callback (called by the engine)."""
+        if not (
+            isinstance(event, MidiEvent)
+            and event.kind == "note_on"
+            and event.note is not None
+            and event.value > 0
+        ):
+            return
+        tags: dict[int, GridHit | None] = {}
+
+        def tag(ticks_per_step: int) -> GridHit | None:
+            if ticks_per_step not in tags:
+                clock = self._clock
+                tags[ticks_per_step] = clock.tag(event, ticks_per_step) if clock else None
+            return tags[ticks_per_step]
+
+        bank, pad = note_to_bank_pad(event.note)
+        for pad_callback, ticks_per_step in list(self._pads):
+            self._call(pad_callback, PadHit(event.t, pad, bank, event.value, tag(ticks_per_step)))
+        for hit_callback, ticks_per_step in list(self._hits):
+            hit = tag(ticks_per_step)
+            if hit is not None:
+                self._call(hit_callback, hit)
+
+    def _call(self, callback: Callable[[_H], None], hit: _H) -> None:
+        try:
+            callback(hit)
+        except Exception as error:
+            self._log(f"clock hit callback failed: {error!r}")
+
+
+def _check_step(ticks_per_step: int) -> None:
+    if TICKS_PER_BEAT % ticks_per_step:
+        raise ValueError(f"ticks_per_step must divide {TICKS_PER_BEAT}: {ticks_per_step}")
 
 
 TEST_NOTES = (72, 60)
@@ -453,10 +538,18 @@ class Scheduler:
         with self._lock:
             self._cancel([handle])
 
-    def clear(self) -> None:
-        """Drop every pending message, stop the test pattern and end sounding notes."""
+    def send_now(self, messages: Sequence[bytes]) -> None:
+        """Send `messages` at once, in order; the notes they start count as sounding,
+        so Stop, `lost`, a jump and `clear` end them."""
         with self._lock:
-            self._test = False
+            for message in messages:
+                self._emit(bytes(message))
+
+    def clear(self, keep_test: bool = False) -> None:
+        """Drop every pending message and end sounding notes. The test pattern stops,
+        unless `keep_test`: then it starts again from the next bar."""
+        with self._lock:
+            self._test = self._test and keep_test
             self._test_handles = []
             self._panic()
 
