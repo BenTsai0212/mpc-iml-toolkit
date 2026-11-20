@@ -232,7 +232,7 @@ vanilla 0.54 以上。安裝後先開啟 Pure Data 一次，讓 macOS 以它開�
 7. 在第 6 組 **Library** 按 `save`，把範例連同 kit 與各 pad 的 module 存在
    `mpc-iml-data/pressure-examples.jsonl`；下次按 `load` 載回。
 
-engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 8 組 **Messages** 的狀態列，不只在 Pd 視窗。
+engine 的錯誤（例如在錯誤的狀態按了按鈕）顯示在第 9 組 **Messages** 的狀態列，不只在 Pd 視窗。
 
 **從零開始錄音**（進階路線）：不用 kit，按第 4 組 **Examples** 的 `clear`（kit 也一併清除），所有範例
 都自己錄。每個範例：把目標滑桿（0-1）設成想要的聲音，在 pad 上保持手勢，按 `record`，持續約兩秒，按
@@ -252,7 +252,8 @@ engine 是長時間執行的 IML 迴圈，由前端（Pure Data、Max，之後�
 [ADR 0005](docs/adr/0005-engine-protocol-1-1-midi-learn.md)，1.2 版見
 [ADR 0006](docs/adr/0006-engine-protocol-1-2-layout-and-front-ends.md)，1.3 版見
 [ADR 0007](docs/adr/0007-engine-protocol-1-3-kits-modules-and-pad-selection.md)，1.4 版見
-[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md)。依[參考範例](#參考範例)接好
+[ADR 0008](docs/adr/0008-engine-protocol-1-4-midi-clock-sync.md)，1.5 版（preset 的狀態回覆）見
+[ADR 0009](docs/adr/0009-engine-protocol-1-5-preset-state-and-ensemble-group.md)。依[參考範例](#參考範例)接好
 MPC 後，指定一個存放範例集的資料夾來啟動：
 
 ```bash
@@ -477,8 +478,9 @@ MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的�
 
 ### 為 bass 設定 Live
 
-1. 以 preset 與 clock 啟動 engine，終端機視窗保持開啟。Pure Data 前端也會開啟；`ensemble`
-   用不到其中的控制項，加上 `--no-patch` 就不會開啟：
+1. 以 preset 與 clock 啟動 engine，終端機視窗保持開啟。Pure Data 前端也會開啟，並在第 8 組
+   **Ensemble** 顯示模式（見[下文](#pure-data-的-ensemble-群組)）；`ensemble` 用不到其中的
+   控制項，加上 `--no-patch` 就不會開啟：
 
    ```bash
    uv run mpc-iml --preset ensemble --clock
@@ -493,7 +495,8 @@ MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的�
    並取消尚未發出的音符。
 
 按 **pad 16** 依序切換 bass 的 loop → rule → off。終端機會顯示新的模式（`ensemble: bass loop`、
-`ensemble: bass rule` 或 `ensemble: bass off`），從下一個小節線開始生效（Live 停止時立即生效）。
+`ensemble: bass rule` 或 `ensemble: bass off`），patch 的第 8 組 **Ensemble** 也會顯示（`next`
+立即改變，`now` 在小節線改變）。從下一個小節線開始生效（Live 停止時立即生效）。
 preset 從 loop 開始。
 
 沒有 `--clock` 時，`ensemble` 仍會載入，bass 在每個 kick 發出一個音符（immediate 層，loop 模式
@@ -559,18 +562,43 @@ fixed，直到再按一次 pad 15 回到 follow。
 按 **pad 15** 依序切換 follow → fixed → off。**fixed** 不論鼓怎麼打，都以 velocity 100 奏出
 旋律 loop 的所有音符、不送 CC，也以 velocity 100、不加重音奏出 bass loop 的所有音符，可以拿來
 和 **follow** 比較。**off** 只關掉旋律（bass loop 保持 fixed）。終端機會顯示新的模式
-（`ensemble: melody follow`、`ensemble: melody fixed` 或 `ensemble: melody off`），從下一個
-小節線開始生效。preset 從 follow 開始。
+（`ensemble: melody follow`、`ensemble: melody fixed` 或 `ensemble: melody off`），patch 的
+第 8 組 **Ensemble** 也會顯示，從下一個小節線開始生效。preset 從 follow 開始。
 
 要在 Live 聽到旋律，新增第二條 MIDI 軌並放上鍵盤樂器（例如電鋼琴，或 Drift 的 pluck preset）。
 MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。把 CC 74 對應到樂器的
 濾波器 cutoff：按右上角的 **MIDI**，點選濾波器旋鈕，在 Live 播放時打 `hat` pad（CC 在下一個
 小節線送出），再按一次 **MIDI**。在 Live 按 Stop 會結束正在發聲的旋律音符。
 
+### Pure Data 的 Ensemble 群組
+
+patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 位於第 7 組
+**Outputs** 右邊的欄，顯示 `ensemble` 正在演奏的內容，並以點擊切換模式、loop 與和弦進行。以
+第 1 組 **Connect** 的 preset 按鈕載入 `ensemble`，或以 `--preset ensemble` 啟動。整個 patch
+在 14 吋 MacBook 的螢幕上不必捲動就能看到全部（1490 × 840）。
+
+| 群組中的項目 | 作用 |
+| --- | --- |
+| `bass`：`loop`、`rule`、`off` | 設定 bass 的模式。`now` 顯示正在演奏的模式，`next` 顯示要求的模式。 |
+| `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。 |
+| `bass loop`、`melody loop` | 最多 4 個按鈕，標示 engine 列出的 loop（`boom`、`walk`；`keys`、`pluck`）；下方的方塊顯示選擇的 loop。 |
+| `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
+| `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
+| `roles` | 每個 pad 的角色，唯讀，與 pad 一樣排成 4 列 4 個（13-16 在最上面）。 |
+
+如標題旁的文字所說，Live 播放時，改變從下一個小節線開始。在 MPC 上按 pad 15 或 16 也會顯示在
+群組中：`next` 立即改變，`now` 在該模式開始演奏的小節線改變；Live 停止時兩者都立即改變。沒有
+`--clock` 時，旋律不會演奏，所以旋律的 `now` 一直是 `off`。
+
+這個群組一直存在。載入其他 preset 時，它的方塊顯示 `-`（八度的數字方塊保留最後的數字），點擊會在
+第 9 組 **Messages** 的狀態列得到 `inactive_preset`：請先載入 `ensemble`。pad 的角色、MIDI
+channel、`length`、`immediate`、`bar`、`filter-cc` 與切換模式的 pad 仍只能以 OSC 設定（見
+[ensemble 的控制項](#ensemble-的控制項)）。Max for Live 裝置沒有 Ensemble 群組。
+
 ### ensemble 的控制項
 
-控制項是送到 engine 控制 port（6450）的 preset 訊息。Pure Data patch 還沒有它們的群組，
-請從任何 OSC client 送出：
+控制項是送到 engine 控制 port（6450）的 preset 訊息。Pure Data patch 的第 8 組 **Ensemble**
+（見[上文](#pure-data-的-ensemble-群組)）送出常用的控制項；其他的請從任何 OSC client 送出：
 
 | 訊息 | 值 | 預設 | 意義 |
 | --- | --- | --- | --- |
@@ -584,6 +612,7 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
 | `/mpciml/preset/ensemble/role` | pad 1-16，再接 `kick`、`snare`、`hat` 或 `other` | 上表 | 一個 pad 的角色，所有 bank 都適用 |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換 bass 模式的 pad；0 表示不使用 |
+| `/mpciml/preset/ensemble/melody-mode` | `follow`、`fixed` 或 `off` | `follow` | 以一則訊息設定旋律的模式（設定 `melody` 與 `follow`）；`off` 也取消尚未發出的音符 |
 | `/mpciml/preset/ensemble/melody` | 0 或 1 | 1 | 旋律；0 時也取消尚未發出的音符 |
 | `/mpciml/preset/ensemble/loop` | `keys` 或 `pluck` | `keys` | 旋律的 loop |
 | `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed |
@@ -592,9 +621,25 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | 亮度的 CC；0 表示不送 |
 | `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | 切換旋律的 pad；0 表示不使用 |
 
-engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時
-得到 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
+再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
+`/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
 `inactive_preset`。bass 的模式與旋律的控制項從下一個小節線開始生效。
+
+**狀態回覆**（協定 1.5，ADR 0009）：engine 在 `preset/load` 之後、完整狀態中（`hello`、
+`state/get`）、每個成功的控制項之後、按 pad 15 或 16 之後，以及正在演奏的 bass 或旋律模式改變
+的小節線，把 `ensemble` 的完整狀態以 `/mpciml/preset/ensemble/<reply>` 訊息送到回覆 port
+（6451）：
+
+| 回覆 | 參數 |
+| --- | --- |
+| `bass` | 下一個與正在演奏的模式（`loop`、`rule`、`off`） |
+| `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`） |
+| `bass-loop`、`loop`、`progression` | 選擇的名稱 |
+| `bass-loops`、`loops`、`progressions` | 可選擇的名稱 |
+| `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
+| `roles` | 16 個角色，pad 1-16 |
+
+名稱與參數依 preset 的版本管理（ADR 0004）。
 
 ### 比較兩層
 
@@ -659,6 +704,21 @@ Ch. 3 並把 CC 74 對應到濾波器）、為 `mpc-iml clock` 打開 Sync 且 M
 
 3. bass 與旋律都在發聲時在 Live 按 Stop，確認 channel 2 與 3 都沒有音符持續發聲。
 
+### 檢查 Ensemble 群組
+
+#153 的人工檢查，依上文設定好 Live，為 `mpc-iml clock` 打開 Sync，執行
+`uv run mpc-iml --clock`（patch 會開啟）：
+
+1. 按第 1 組的 preset 按鈕 `ensemble`。第 8 組 **Ensemble** 顯示預設值：bass `loop`/`loop`、
+   旋律 `follow`/`follow`、`boom`、`keys`、`minor-two`、八度 1 與 4，以及上表的角色。整個
+   patch 不必捲動就能看到全部，方塊沒有重疊。
+2. 在 Live 按 Play。從 patch 點擊每個 bass 模式、bass loop、旋律模式、旋律 loop 與和弦進行，
+   並改變兩個八度。確認 `next` 立即改變、`now` 在下一個小節線改變，且聽到的內容相符。
+3. 在 MPC Sample 上按 pad 16 與 pad 15 切換所有模式，在群組中確認同樣的事。
+4. 按第 1 組的 `connect`：群組再次顯示相同的狀態。
+5. 按 preset 按鈕 `pressure`：群組顯示 `-`，在群組中點擊時狀態列得到 `inactive_preset`。
+6. 確認 Pd 視窗沒有紅色的錯誤。
+
 ## Ableton Live 入門 set
 
 不需對應步驟就能演奏 preset `pressure` 的 Live set（RFC 0003、#104），放在
@@ -707,7 +767,7 @@ rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應
 
 ## 疑難排解
 
-演奏時遇到問題，先檢查下列事項。engine 的錯誤顯示在 patch 第 8 組 **Messages** 的狀態列。
+演奏時遇到問題，先檢查下列事項。engine 的錯誤顯示在 patch 第 9 組 **Messages** 的狀態列。
 
 | 症狀 | 要檢查的事 |
 | --- | --- |
@@ -716,16 +776,17 @@ rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應
 | 對應遺失或錯誤 | 按 `stop` 讓 `state` 顯示 `idle`，再用 `l1`-`l8` 一次對應一個 CC，做法見[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)。使用 Live 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應。 |
 | patch 沒有反應 | 按 `connect`。仍沒有反應時，關閉 patch，在終端機按 Ctrl-C 停止 engine，再執行一次 `uv run mpc-iml`。 |
 | engine 停止了，或 MPC Sample 沒有反應 | 重新插上 USB 線，以 Ctrl-C 停止 `uv run mpc-iml` 再重新啟動，然後按 preset（例如 `pressure`），載入 kit，再按 `run`。 |
-| `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。bass loop 需要 `--clock` 且 Live 正在播放，按 Start 後會等你的第一個 kick，連續兩個沒有 kick 的小節後會停止。pad 16 可能已把 bass 切換到 `rule` 或 `off`（終端機顯示 `ensemble: bass …`）；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
-| `ensemble` 沒有發出旋律 | engine 以 `--clock` 執行，Live 正在播放且為 `mpc-iml clock` 打開 Sync。鍵盤軌的 MIDI From 是 `mpc-iml`、**Ch. 3**。按 Start 後旋律會等你的第一下打擊，連續兩個空小節後會停止。pad 15 可能已把它關掉（終端機顯示 `ensemble: melody off`）；見[旋律 loop](#旋律-loop)。 |
+| `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。bass loop 需要 `--clock` 且 Live 正在播放，按 Start 後會等你的第一個 kick，連續兩個沒有 kick 的小節後會停止。pad 16 可能已把 bass 切換到 `rule` 或 `off`（第 8 組 **Ensemble** 與終端機會顯示模式）；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
+| `ensemble` 沒有發出旋律 | engine 以 `--clock` 執行，Live 正在播放且為 `mpc-iml clock` 打開 Sync。鍵盤軌的 MIDI From 是 `mpc-iml`、**Ch. 3**。按 Start 後旋律會等你的第一下打擊，連續兩個空小節後會停止。pad 15 可能已把它關掉（第 8 組 **Ensemble** 顯示 `off`，終端機顯示 `ensemble: melody off`）；見[旋律 loop](#旋律-loop)。 |
 | 修改 module 或 `amount` 後狀態列顯示 `wrong_state` | 重新訓練正在進行；稍等一下再試。 |
 | 輕輕按住或快速輕敲時聲音幾乎不變 | 見[演奏 preset pressure](#演奏-preset-pressure) 中[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 最後的輕觸一端說明（#76）。 |
 
 ## 使用 Max for Live 裝置
 
 Max for Live 裝置讓你不離開 Ableton Live 就能錄範例、訓練、執行與對應模型。它有 ADR 0006 的
-7 組，按鈕名稱與順序和 Pure Data 前端相同，但還沒有 ADR 0007 的第 2 組 **Kit**，所以 patch 的第
-3～8 組是裝置的第 2～7 組，[20 分鐘開始演奏](#20-分鐘開始演奏)的錄音路線同樣適用；只有啟動與安裝
+7 組，按鈕名稱與順序和 Pure Data 前端相同，但還沒有 ADR 0007 的第 2 組 **Kit**，也沒有
+ADR 0009 的第 8 組 **Ensemble**（只有 Pure Data 有），所以 patch 的第 3～7 組與第 9 組是裝置的
+第 2～7 組，[20 分鐘開始演奏](#20-分鐘開始演奏)的錄音路線同樣適用；只有啟動與安裝
 不同。這個裝置還沒有在 Live 中確認過（#86）。
 
 需要 Live Suite，或 Live Standard 加上 Max for Live；[參考範例](#參考範例)的設定（第 1～3 步）；
@@ -839,7 +900,14 @@ DAW 播放時它的 `grid` 是 `GridHit`，否則是 `None`。`send_now(messages
 有 `--clock` 時，`scheduler`（`mpc_iml.clock.Scheduler`，否則是 `None`）在指定的小節與 step
 送出這些訊息：`note(bar, step, note, velocity, length_steps)`、`at(bar, step, messages)` 與
 `at_next_bar(messages, n)`；`cancel(handle)` 取消一筆。載入其他 preset 時，清除仍在排程中的訊息
-並結束正在發聲的音符。
+並結束正在發聲的音符。`report()` 要求 engine 再送一次 preset 的狀態（見下文）；載入其他 preset
+後不做任何事。
+
+`state` 同樣是**暫定的**（ADR 0009）：這個函式以（回覆名稱, 參數）配對傳回 preset 目前的狀態；
+名稱是小寫英文字母、數字與連字號，參數是 int、float 或字串。engine 在 `preset/load` 之後、完整
+狀態中 `clock` 之後、每個成功的 preset 控制項之後，以及 preset 呼叫 `report()` 時（例如 pad
+改變了模式之後），把每個配對以 `/mpciml/preset/<name>/<reply>` 送出。engine 在持有自己的 lock 時
+呼叫 `state`，所以不要在持有控制項也會取得的 lock 時呼叫 `report()`。範例見 `ensemble`。
 
 `tests/plugins/` 有一個完整的範例套件，`tests/test_presets.py` 安裝它並在錄製的 fixture
 上執行。
