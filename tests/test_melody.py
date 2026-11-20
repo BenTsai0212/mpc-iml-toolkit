@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 
-from mpc_iml.ensemble import Ensemble
+from mpc_iml.ensemble import NO_CLOCK, Ensemble
 from mpc_iml.melody import (
     LOOPS,
     BarPlan,
@@ -192,7 +192,7 @@ def test_the_bass_is_the_same_with_the_melody_on() -> None:
 def test_without_clock_no_melody() -> None:
     rig = Rig(clock=False, melody=True)
     rig.hit()
-    assert rig.log[0].endswith("bar layer and melody off")
+    assert rig.log[0] == NO_CLOCK
     assert all(m[0] & 0x0F == 1 for _, m in rig.sent)
 
 

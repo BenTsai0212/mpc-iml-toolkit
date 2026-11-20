@@ -1,5 +1,8 @@
 """The built-in preset `ensemble`: pad roles and a rule-based bass (#138).
 
+These tests run the bass in `rule` mode; the bass loop (#148) is in
+`test_bass_loop.py`.
+
 The bass is driven by simulated MIDI clock at 120 BPM (as in `test_scheduler.py`)
 through a real `MidiClock`, `Scheduler` and `ClockAccess`; pad hits arrive as the
 engine delivers them. Timers are fakes, so nothing waits on the wall clock.
@@ -17,6 +20,7 @@ from test_engine_clock import FakeMidiOut
 from mpc_iml.clock import TICKS_PER_BEAT, ClockAccess, GridHit, MidiClock, PadHit, Scheduler
 from mpc_iml.ensemble import (
     DEFAULT_ROLES,
+    NO_CLOCK,
     NOTE_SECONDS,
     PROGRESSIONS,
     Ensemble,
@@ -56,9 +60,9 @@ class FakeTimer:
 
 class Rig:
     """An `Ensemble` on a simulated DAW clock (or without one); the melody layer is
-    off unless `melody` (its tests are in `test_melody.py`)."""
+    off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`."""
 
-    def __init__(self, clock: bool = True, melody: bool = False) -> None:
+    def __init__(self, clock: bool = True, melody: bool = False, bass: str = "rule") -> None:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
         self.timers: list[FakeTimer] = []
@@ -67,6 +71,7 @@ class Rig:
         self.access = ClockAccess(self.clock, self.log.append, self.scheduler, self.record)
         self.ensemble = Ensemble(self.log.append, self.timer)
         self.ensemble.melody = melody
+        self.ensemble.controls()["bass"]([bass])
         self.ensemble.attach(self.access)
         self.t = 0.0
         self.next_tick = 0
@@ -140,7 +145,7 @@ def test_only_kick_pads_play_in_any_bank_and_roles_change() -> None:
 
 def test_without_clock_first_chord_timed_note_off_and_one_log_line() -> None:
     rig = Rig(clock=False)
-    assert rig.log == ["ensemble: no MIDI clock (start with --clock); bar layer and melody off"]
+    assert rig.log == [NO_CLOCK]
     rig.ensemble.controls()["progression"](["minor-four"])
     rig.hit()
     rig.hit()
@@ -209,21 +214,22 @@ def test_stop_ends_every_note_and_drops_pending() -> None:
     assert len(rig.on()) == len(rig.off()) == 1
 
 
-def test_layer_pad_cycles_and_plays_no_bass() -> None:
+def test_layer_pad_cycles_the_bass_mode_and_plays_no_bass() -> None:
     rig = started()
     rig.until(STEP)
     for _ in range(4):
         rig.hit(LAYER)
     assert rig.log == [
-        "ensemble: immediate",
-        "ensemble: bar",
-        "ensemble: both",
-        "ensemble: immediate",
+        "ensemble: bass off",
+        "ensemble: bass loop",
+        "ensemble: bass rule",
+        "ensemble: bass off",
     ]
+    rig.until(BAR + STEP)
     assert rig.sent == []
     rig.ensemble.controls()["layer-pad"]([0])
     rig.hit(LAYER)
-    assert rig.log[-1] == "ensemble: immediate" and len(rig.log) == 4
+    assert rig.log[-1] == "ensemble: bass off" and len(rig.log) == 4
 
 
 @pytest.mark.parametrize(
@@ -238,6 +244,9 @@ def test_layer_pad_cycles_and_plays_no_bass() -> None:
         ("role", [17, "kick"]),
         ("role", [1, "bass"]),
         ("layer-pad", [1, 2]),
+        ("bass", ["walk"]),
+        ("bass", []),
+        ("bass-loop", ["rule"]),
     ],
 )
 def test_bad_control_arguments_are_rejected(control: str, args: list[Any]) -> None:
@@ -265,6 +274,6 @@ def test_registered_and_plays_through_the_engine(start: Any) -> None:
         midi_backend=Out,
     )
     assert sent.wait(TIMEOUT)
-    assert log == ["ensemble: no MIDI clock (start with --clock); bar layer and melody off"]
+    assert log == [NO_CLOCK]
     (port,) = FakeMidiOut.made
     assert (port.opened, port.sent[0]) == ("mpc-iml", bytes([0x91, 33, 120]))
