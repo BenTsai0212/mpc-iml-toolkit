@@ -10,6 +10,13 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Added
 
+- `ensemble` control `learn-cc` (#159, ADR 0009 amendment): sends only the
+  brightness CC (`filter-cc` on `melody-channel`) as a sweep 0-127, downwards on
+  every other call, so Live's MIDI Map Mode maps the CC instead of a melody note;
+  refused while the clock is running or `filter-cc` is 0. Group 8 **Ensemble** of
+  the Pure Data patch gains a `learn_CC` button with the CC and channel next to it.
+  The READMEs' mapping steps now stop Live and use it.
+
 - The Ableton Live starter set (#104, RFC 0003): `assets/ableton/mpc-iml-starter.als`,
   one MIDI track with an Instrument Rack of built-in Live 12 devices whose eight
   macros are named after the `pressure` outputs and stored mapped to CC 20-27 from

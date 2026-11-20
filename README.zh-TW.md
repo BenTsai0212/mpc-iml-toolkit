@@ -568,9 +568,21 @@ fixed，直到再按一次 pad 15 回到 follow。
 第 8 組 **Ensemble** 也會顯示，從下一個小節線開始生效。preset 從 follow 開始。
 
 要在 Live 聽到旋律，新增第二條 MIDI 軌並放上鍵盤樂器（例如電鋼琴，或 Drift 的 pluck preset）。
-MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。把 CC 74 對應到樂器的
-濾波器 cutoff：按右上角的 **MIDI**，點選濾波器旋鈕，在 Live 播放時打 `hat` pad（CC 在下一個
-小節線送出），再按一次 **MIDI**。在 Live 按 Stop 會結束正在發聲的旋律音符。
+MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。在 Live 按 Stop 會結束
+正在發聲的旋律音符。
+
+以 **learn CC** 把 CC 74 對應到樂器的濾波器 cutoff（#159）。Live 播放時，旋律在 channel 3 的音符
+會在每個小節線比 CC 早到 Live，MIDI Map Mode 會抓到音符而不是 CC：
+
+1. 停止 Live（engine 繼續執行）。
+2. 在 Live 按右上角的 **MIDI**（或按 Cmd-M），再點選鍵盤樂器的濾波器旋鈕。
+3. 點 patch 第 8 組 **Ensemble** 的 **learn_CC**（或送出 `/mpciml/preset/ensemble/learn-cc`）。它
+   只在 channel 3 送出 CC 74（旁邊的標示顯示 `CC 74 ch 3`），是一段短的掃動，不送其他訊息。
+   對應時不要打 pad：Live 停止時 kick 也會發出 bass 音符。
+4. 再按一次 **MIDI**。再點一次 **learn_CC** 會把旋鈕掃回去，也可以確認對應。
+
+接著啟動 Live 並打 `hat` pad：濾波器在下一個小節線改變。Live 播放時，`learn-cc` 得到
+`/mpciml/error bad_arguments`。
 
 ### Pure Data 的 Ensemble 群組
 
@@ -587,6 +599,7 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
 | `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
 | `roles` | 每個 pad 的角色，唯讀，與 pad 一樣排成 4 列 4 個（13-16 在最上面）。 |
+| `learn_CC`、`CC`、`ch` | 送出 `learn-cc`，在 Live 對應亮度的 CC（[旋律 loop](#旋律-loop)）；`CC` 與 `ch` 顯示它送出的 CC 與 channel（`filter-cc`、`melody-channel`）。 |
 
 如標題旁的文字所說，Live 播放時，改變從下一個小節線開始。在 MPC 上按 pad 15 或 16 也會顯示在
 群組中：`next` 立即改變，`now` 在該模式開始演奏的小節線改變；Live 停止時兩者都立即改變。沒有
@@ -622,6 +635,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc` 與切換模式的 pad �
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | 亮度的 CC；0 表示不送 |
 | `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | 切換旋律的 pad；0 表示不使用 |
+| `/mpciml/preset/ensemble/learn-cc` | 無 | - | 只在旋律的 channel 送出亮度的 CC（0、32、64、96、127，下一則訊息往下），讓 DAW 對應；clock 執行中或 `filter-cc` 為 0 時拒絕 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
@@ -664,7 +678,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc` 與切換模式的 pad �
 ### 檢查旋律
 
 #144 的人工檢查，使用 MPC Sample、依上文為 bass 與旋律設定好的 Live（bass 在 Ch. 2，鍵盤在
-Ch. 3 並把 CC 74 對應到濾波器）、為 `mpc-iml clock` 打開 Sync 且 MIDI Clock Type 為 **Song**，
+Ch. 3 並以 **learn_CC** 把 CC 74 對應到濾波器，見[旋律 loop](#旋律-loop)）、為 `mpc-iml clock` 打開 Sync 且 MIDI Clock Type 為 **Song**，
 並執行 `uv run mpc-iml --preset ensemble --clock`：
 
 1. 旋律 **follow**（終端機顯示 `ensemble: melody follow`）演奏 5 分鐘：稀疏的小節（只有 kick 與

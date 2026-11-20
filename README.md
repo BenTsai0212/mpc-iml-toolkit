@@ -729,10 +729,25 @@ from the next bar line. The preset starts in follow.
 
 To hear the melody in Live, add a second MIDI track with a keys instrument (for
 example an electric piano or a pluck preset of Drift). Set MIDI From to `mpc-iml`,
-the channel to **Ch. 3**, and Monitor to **In**. Map CC 74 to the instrument's
-filter cutoff: click **MIDI** at the top right, click the filter knob, hit pads on
-`hat` pads with Live playing (the CC goes out at the next bar line), and click
-**MIDI** again. Stop in Live ends the melody notes that are sounding.
+the channel to **Ch. 3**, and Monitor to **In**. Stop in Live ends the melody notes
+that are sounding.
+
+Map CC 74 to the instrument's filter cutoff with **learn CC** (#159). While Live
+plays, the melody's notes on channel 3 reach Live before the CC at each bar line,
+so MIDI Map Mode would catch a note instead:
+
+1. Stop Live (the engine keeps running).
+2. In Live, click **MIDI** at the top right (or press Cmd-M), then click the filter
+   knob of the keys instrument.
+3. Click **learn_CC** in group 8 **Ensemble** of the patch (or send
+   `/mpciml/preset/ensemble/learn-cc`). It sends only CC 74 on channel 3 (the label
+   next to it shows `CC 74 ch 3`), as a short sweep, and nothing else. Do not hit
+   pads while mapping: a kick plays a bass note even while Live is stopped.
+4. Click **MIDI** again. Clicking **learn_CC** once more sweeps the knob back down,
+   which also checks the mapping.
+
+Then start Live and play `hat` pads: the filter moves at the next bar line. While
+Live plays, `learn-cc` gets `/mpciml/error bad_arguments`.
 
 ### The Ensemble group in Pure Data
 
@@ -750,6 +765,7 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
 | `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
 | `roles` | The role of each pad, read only, 4 rows of 4 like the pads (13-16 on top). |
+| `learn_CC`, `CC`, `ch` | Sends `learn-cc` to map the brightness CC in Live ([The melody loop](#the-melody-loop)); `CC` and `ch` show the CC and channel it sends on (`filter-cc`, `melody-channel`). |
 
 As the label next to the heading says, changes start at the next bar line while
 Live plays. A press of pad 15 or 16 on the MPC shows up in the group too: `next`
@@ -790,6 +806,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
 | `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | The pad that cycles the melody; 0 for none |
+| `/mpciml/preset/ensemble/learn-cc` | none | - | Sends only the brightness CC on the melody channel (0, 32, 64, 96, 127, then downwards on the next message) so a DAW can map it; refused while the clock runs or when `filter-cc` is 0 |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -837,7 +854,8 @@ around 90 BPM:
 ### Check the melody
 
 The manual check for #144, with the MPC Sample, Live set up for the bass and the
-melody as above (bass on Ch. 2, keys on Ch. 3 with CC 74 mapped to its filter),
+melody as above (bass on Ch. 2, keys on Ch. 3 with CC 74 mapped to its filter with
+**learn_CC**, [The melody loop](#the-melody-loop)),
 Sync on for `mpc-iml clock` with MIDI Clock Type **Song**, and
 `uv run mpc-iml --preset ensemble --clock`:
 

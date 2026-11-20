@@ -146,7 +146,7 @@
 #X obj 160 770 spigot;
 #X obj 160 800 list trim;
 #X obj 160 830 route ensemble;
-#X obj 160 860 route bass melody-mode bass-loop loop progression bass-loops loops progressions octave melody-octave roles;
+#X obj 160 860 route bass melody-mode bass-loop loop progression bass-loops loops progressions octave melody-octave roles filter-cc melody-channel;
 #X obj 20 900 s mpciml-preset-ensemble-bass;
 #X obj 330 900 s mpciml-preset-ensemble-melody-mode;
 #X obj 640 900 s mpciml-preset-ensemble-bass-loop;
@@ -158,6 +158,8 @@
 #X obj 640 960 s mpciml-preset-ensemble-octave;
 #X obj 20 990 s mpciml-preset-ensemble-melody-octave;
 #X obj 330 990 s mpciml-preset-ensemble-roles;
+#X obj 640 990 s mpciml-preset-ensemble-filter-cc;
+#X obj 20 1020 s mpciml-preset-ensemble-melody-channel;
 #X connect 10 3 41 0;
 #X connect 41 0 42 0;
 #X connect 42 1 43 0;
@@ -183,6 +185,8 @@
 #X connect 51 8 60 0;
 #X connect 51 9 61 0;
 #X connect 51 10 62 0;
+#X connect 51 11 63 0;
+#X connect 51 12 64 0;
 #X restore 1140 325 pd osc;
 #N canvas 80 80 1240 900 controls 0;
 #X text 20 10 Buttons and fields of the main window -> control messages (ADR 0004 \, 0005 \, 0006). The buttons send to [r mpciml-<name>] \; every [oscformat] goes to [s mpciml-out]., f 120;
@@ -1204,6 +1208,13 @@
 #X msg 20 1060 \; mpciml-ensemble-role1 set \$1 \; mpciml-ensemble-role2 set \$2 \; mpciml-ensemble-role3 set \$3 \; mpciml-ensemble-role4 set \$4 \; mpciml-ensemble-role5 set \$5 \; mpciml-ensemble-role6 set \$6 \; mpciml-ensemble-role7 set \$7 \; mpciml-ensemble-role8 set \$8 \; mpciml-ensemble-role9 set \$9 \; mpciml-ensemble-role10 set \$10 \; mpciml-ensemble-role11 set \$11 \; mpciml-ensemble-role12 set \$12 \; mpciml-ensemble-role13 set \$13 \; mpciml-ensemble-role14 set \$14 \; mpciml-ensemble-role15 set \$15 \; mpciml-ensemble-role16 set \$16, f 60;
 #X obj 380 1120 r mpciml-preset;
 #X msg 380 1150 \; mpciml-preset-ensemble-bass list - - \; mpciml-preset-ensemble-melody-mode list - - \; mpciml-preset-ensemble-bass-loop list - \; mpciml-preset-ensemble-loop list - \; mpciml-preset-ensemble-progression list - \; mpciml-preset-ensemble-bass-loops list \; mpciml-preset-ensemble-loops list \; mpciml-preset-ensemble-progressions list \; mpciml-preset-ensemble-roles list - - - - - - - - - - - - - - - -, f 60;
+#X obj 1040 1120 r mpciml-ensemble-learn-cc;
+#X obj 1040 1150 oscformat mpciml preset ensemble learn-cc;
+#X obj 1040 1180 s mpciml-out;
+#X obj 1040 1240 r mpciml-preset-ensemble-filter-cc;
+#X msg 1040 1270 \; mpciml-ensemble-filter-cc-show set \$1, f 36;
+#X obj 1040 1330 r mpciml-preset-ensemble-melody-channel;
+#X msg 1040 1360 \; mpciml-ensemble-melody-channel-show set \$1, f 36;
 #X connect 1 0 2 0;
 #X connect 3 0 4 0;
 #X connect 5 0 6 0;
@@ -1282,6 +1293,10 @@
 #X connect 90 0 91 0;
 #X connect 91 0 92 0;
 #X connect 93 0 94 0;
+#X connect 95 0 96 0;
+#X connect 96 0 97 0;
+#X connect 98 0 99 0;
+#X connect 100 0 101 0;
 #X restore 1200 415 pd ensemble;
 #X text 1140 460 8 Ensemble;
 #X text 1235 460 changes start at the next bar line;
@@ -1336,3 +1351,6 @@
 #X floatatom 1420 636 2 0 3 0 - mpciml-ensemble-octave-show mpciml-ensemble-octave-entry 0;
 #X text 1420 662 melody octave, f 7;
 #X floatatom 1420 698 2 2 6 0 - mpciml-ensemble-melody-octave-show mpciml-ensemble-melody-octave-entry 0;
+#X obj 1245 728 bng 15 250 50 0 mpciml-ensemble-learn-cc empty learn_CC 19 7 0 12 #fcfcfc #000000 #000000;
+#X floatatom 1345 726 3 0 0 0 CC mpciml-ensemble-filter-cc-show - 0;
+#X floatatom 1400 726 2 0 0 0 ch mpciml-ensemble-melody-channel-show - 0;

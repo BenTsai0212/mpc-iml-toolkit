@@ -344,6 +344,7 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
             *(f"ensemble-{n}-show" for n in ["bass-loop", "loop", "progression"]),
             *(f"ensemble-role{k}" for k in range(1, 17)),
             "ensemble-octave-entry", "ensemble-melody-octave-entry",
+            "ensemble-learn-cc", "ensemble-filter-cc-show", "ensemble-melody-channel-show",
         ],
         9: ["clock-test"],
     }  # fmt: skip
@@ -658,7 +659,7 @@ def test_box_widths_are_read() -> None:
 
 ENSEMBLE_REPLIES = [
     "bass", "melody-mode", "bass-loop", "loop", "progression", "bass-loops", "loops",
-    "progressions", "octave", "melody-octave", "roles",
+    "progressions", "octave", "melody-octave", "roles", "filter-cc", "melody-channel",
 ]  # fmt: skip
 """The replies of `ensemble` that group 8 uses; the others are ignored."""
 
@@ -767,7 +768,7 @@ def test_ensemble_controls_send_what_the_preset_accepts() -> None:
             assert box.args[1:4] == ["mpciml", "preset", "ensemble"] and len(box.args) == 5
             assert box.args[4] in controls and reaches(ens, i, "s mpciml-out")
             found[box.args[4]] = ens.sources(i)
-    assert set(found) == {"bass", "melody-mode", "octave", "melody-octave"} | {
+    assert set(found) == {"bass", "melody-mode", "octave", "melody-octave", "learn-cc"} | {
         control for _, _, control in CHOOSERS
     }
     modes = [("bass", ["loop", "rule", "off"]), ("melody-mode", ["follow", "fixed", "off"])]
@@ -819,6 +820,8 @@ def test_ensemble_replies_reach_the_displays() -> None:
     }
     for name in ("bass-loop", "loop", "progression", "octave", "melody-octave"):
         shown[name] = {f"mpciml-ensemble-{name}-show": "$1"}
+    for name in ("filter-cc", "melody-channel"):
+        shown[name] = {f"mpciml-ensemble-{name}-show": "$1"}
     main_receivers = {gui_names(b)[1] for b in patch().boxes}
     for reply, expected in shown.items():
         assert sets_from(ens, f"r mpciml-preset-ensemble-{reply}") == expected, reply
@@ -855,3 +858,20 @@ def test_ensemble_displays_reset_when_a_preset_loads() -> None:
         f"{name}roles": ["list", *["-"] * 16],
     }, "the reply chains themselves, fed with empty replies"
     assert all(find(ens, f"r {target}") for target in sent)
+
+
+def test_learn_cc_button_sends_learn_cc_next_to_its_cc_and_channel() -> None:
+    """#159: `learn_CC` sends `learn-cc` with no arguments; next to it, in the same
+    row, the CC and the channel it sends on (replies `filter-cc`, `melody-channel`)."""
+    ens, gui = canvas("ensemble"), main_gui()
+    button = gui["ensemble-learn-cc"]
+    assert button.cls == "bng" and button.args[7] == "learn_CC"
+    (r,) = find(ens, "r mpciml-ensemble-learn-cc")
+    (send,) = ens.sinks(r)
+    assert ens.boxes[send].text == "oscformat mpciml preset ensemble learn-cc"
+    assert reaches(ens, send, "s mpciml-out")
+    cc, channel = gui["ensemble-filter-cc-show"], gui["ensemble-melody-channel-show"]
+    assert (cc.args[4], channel.args[4]) == ("CC", "ch")
+    assert button.x < cc.x < channel.x
+    assert abs(cc.y - button.y) <= 3 and cc.y == channel.y
+    assert button.y > gui["ensemble-role1"].y, "a new row under the roles"

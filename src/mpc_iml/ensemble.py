@@ -43,7 +43,10 @@ no bass; 0 turns it off), for `rule` only `immediate 0|1`, `bar 0|1` and
 loops), `melody-octave 2-6`, `melody-channel 1-16`, `filter-cc 0-127` (0 is off)
 and `melody-pad 0-16` (default 15: that pad cycles follow, fixed, off; follow and
 fixed apply to both loops, off only to the melody), and `melody-mode
-follow|fixed|off` (#153: `melody` and `follow` in one message). Bass mode and melody
+follow|fixed|off` (#153: `melody` and `follow` in one message), and `learn-cc` (#159,
+no arguments: sends only the brightness CC on the melody channel, `LEARN_CC_SWEEP`
+upwards and on the next call downwards, so a DAW in MIDI map mode learns the CC and
+not a note; refused while the clock is `running` and when `filter-cc` is 0). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
 
@@ -78,6 +81,7 @@ from mpc_iml.presets import ControlHandler, Preset
 __all__ = [
     "BASS_MODES",
     "DEFAULT_ROLES",
+    "LEARN_CC_SWEEP",
     "MELODY_MODES",
     "NO_CLOCK",
     "NOTE_SECONDS",
@@ -111,6 +115,10 @@ NOTE_SECONDS = 0.25
 
 STEPS_PER_BEAT = 4
 """The bass works on 16ths."""
+
+LEARN_CC_SWEEP = (0, 32, 64, 96, 127)
+"""The values `learn-cc` sends, upwards; the next call sends them downwards (as the
+engine's `/mpciml/midi/learn`, ADR 0005)."""
 
 
 @dataclass(frozen=True)
@@ -208,6 +216,7 @@ class Ensemble:
         self.melody_channel = 3
         self.filter_cc = 74
         self.melody_pad = 15
+        self._learn_down = False
         self._melody_playing = "follow"
         self._follower = Follower()
         self._melody_notes: list[Scheduled] = []
@@ -514,7 +523,25 @@ class Ensemble:
             "melody-pad": lambda a: self._set(
                 lambda: setattr(self, "melody_pad", _whole(a, 0, PADS))
             ),
+            "learn-cc": self._learn_cc,
         }
+
+    def _learn_cc(self, args: Sequence[float | int | str]) -> None:
+        """Send only the brightness CC, as a sweep, so a DAW can map it (#159)."""
+        if args:
+            raise ValueError(f"expected no arguments, got {list(args)}")
+        with self._lock:
+            if self._access is None:
+                raise ValueError("ensemble is not attached to the engine")
+            if self._running():
+                raise ValueError("the clock is running; stop the clock in the DAW first")
+            if not self.filter_cc:
+                raise ValueError("filter-cc is 0 (off)")
+            status = 0xB0 | (self.melody_channel - 1)
+            values = reversed(LEARN_CC_SWEEP) if self._learn_down else LEARN_CC_SWEEP
+            self._learn_down = not self._learn_down
+            messages = [bytes([status, self.filter_cc, value]) for value in values]
+            self._access.send_now(messages)
 
     def _set(self, change: Callable[[], None]) -> None:
         with self._lock:
