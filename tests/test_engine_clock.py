@@ -14,7 +14,7 @@ import pytest
 import test_engine
 from test_engine import TIMEOUT, Front
 
-from mpc_iml.clock import TEST_NOTES, TICKS_PER_BEAT, ClockAccess, GridHit, PadHit
+from mpc_iml.clock import TEST_NOTES, TICKS_PER_BEAT, BarStart, ClockAccess, GridHit, PadHit
 from mpc_iml.demo import PRESET as DEMO
 from mpc_iml.engine import Engine, build_parser
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
@@ -375,6 +375,74 @@ def test_notes_sent_at_once_end_on_stop_and_on_preset_load(start: Any) -> None:
         clock.send(TICK)
     assert bytes([0x91, 35, 90]) not in port.sent
     assert notes(port)[-1] == bytes([0x90, TEST_NOTES[0], 100])
+
+
+# ClockAccess.on_bar (#144)
+
+
+def test_on_bar_gets_the_hits_of_each_bar_from_a_replay(start: Any) -> None:
+    starts: list[BarStart] = []
+    done = threading.Event()
+
+    def hook(access: ClockAccess) -> None:
+        def on_bar(bar_start: BarStart) -> None:
+            starts.append(bar_start)
+            if bar_start.bar == 2:
+                done.set()
+
+        access.on_bar(on_bar)
+
+    events = bars(9)
+    events += [hit(10 * 6 * INTERVAL, note=36), hit((4 + 2) * TICKS_PER_BEAT * INTERVAL)]
+    clocked(start, sorted(events, key=lambda e: e.t), preset="synced", presets=with_hook(hook))
+    assert done.wait(TIMEOUT)
+    assert [(s.bar, s.complete) for s in starts[:3]] == [(0, False), (1, True), (2, True)]
+    assert [(h.bar, h.step, h.pad) for h in starts[1].hits] == [(0, 10, 0)]
+    assert [(h.bar, h.step, h.pad) for h in starts[2].hits] == [(1, 8, 1)]
+
+
+def test_notes_scheduled_on_bar_for_step_0_go_out_on_the_bar_line(start: Any) -> None:
+    FakeMidiOut.made = []
+    accesses: list[ClockAccess] = []
+
+    def hook(access: ClockAccess) -> None:
+        def on_bar(bar_start: BarStart) -> None:
+            assert access.scheduler is not None
+            access.scheduler.note(bar_start.bar, 0, 40 + bar_start.bar, channel=3)
+
+        access.on_bar(on_bar)
+        accesses.append(access)
+
+    front = clocked(start, preset="synced", presets=with_hook(hook), midi_backend=FakeMidiOut)
+    clock = daw()
+    clock.send(START)
+    clock.send(TICK)
+    (port,) = FakeMidiOut.made
+    assert notes(port) == [bytes([0x92, 40, 100])]
+    for _ in range(4 * TICKS_PER_BEAT - 1):
+        clock.send(TICK)
+    assert notes(port)[-1] == bytes([0x82, 40, 0])
+    clock.send(TICK)
+    assert notes(port)[-1] == bytes([0x92, 41, 100])
+    front.ask("/mpciml/preset/load", "demo")
+    for _ in range(4 * TICKS_PER_BEAT):
+        clock.send(TICK)
+    assert notes(port)[-1] == bytes([0x82, 41, 0])
+    assert len(accesses) == 1
+
+
+def test_on_bar_never_fires_without_clock(start: Any) -> None:
+    starts: list[BarStart] = []
+    pads: list[PadHit] = []
+    done = threading.Event()
+
+    def hook(access: ClockAccess) -> None:
+        access.on_bar(starts.append)
+        access.on_pad(lambda pad_hit: (pads.append(pad_hit), done.set()))
+
+    start([*bars(8), hit(4.5)], preset="synced", presets=with_hook(hook))
+    assert done.wait(TIMEOUT)
+    assert starts == []
 
 
 # Command line

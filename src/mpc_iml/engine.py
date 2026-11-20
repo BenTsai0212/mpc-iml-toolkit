@@ -1126,8 +1126,12 @@ class Engine:
             self._clock_changed(self._clock.feed(data, t), t)
 
     def _clock_changed(self, state: ClockState, t: float) -> None:
-        """Send the scheduled notes now due, then report `state` if its status changed
-        or, while running, its beat changed."""
+        """Call the preset's `on_bar` callbacks on a bar line, send the scheduled notes
+        now due, then report `state` if its status changed or, while running, its
+        beat changed."""
+        access = self._clock_access
+        if access is not None:
+            access.bar_line()
         if self._scheduler is not None:
             self._scheduler.update(t)
         bar, beat = _bar_beat(state) if state.status == "running" else (-1, -1)

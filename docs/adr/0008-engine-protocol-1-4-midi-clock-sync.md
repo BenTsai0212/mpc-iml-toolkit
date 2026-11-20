@@ -6,6 +6,7 @@
   ADR 0007, #130, #113 (Epic)
 - Amended: 2026-11-20, #138 (`Preset.clock` without sync, `on_pad`, `send_now`,
   scheduler cleared on a preset switch; see "Amendment for #138")
+- Amended: 2026-11-20, #144 (`on_bar` and `BarStart`; see "Amendment for #144")
 
 ## Context
 
@@ -162,7 +163,8 @@ New module `mpc_iml.clock` (standard library only):
   **provisional** like `controls`. The engine calls it when the preset loads, with
   or without `--clock` (amended for #138). `ClockAccess` is read-only apart from
   the note output: `state()`, `position(t)`, `on_hit(callback)` (tagged pad hits),
-  `on_pad(callback)` and `send_now(messages)` (#138), and `scheduler`.
+  `on_pad(callback)` and `send_now(messages)` (#138), `on_bar(callback)` (#144),
+  and `scheduler`.
 - Presets without the field see no change.
 
 ### Protocol 1.4
@@ -253,3 +255,31 @@ changes to the provisional plugin interface; the protocol stays 1.4.
   switch. A running test pattern (`clock/test`) carries on from the next bar.
 - Content formats and the protocol do not change; presets that do not use the new
   methods see no change, apart from the hook being called without `--clock`.
+
+## Amendment for #144
+
+The melody layer of `ensemble` (RFC 0005, #144) decides each bar from the whole bar
+before it, including a bar with no hits. `on_pad` cannot see an empty bar, and the
+scheduler only sends MIDI bytes. The decision on #144 allows this change to the
+provisional plugin interface; the protocol stays 1.4.
+
+- **C4: bar lines.** New `ClockAccess.on_bar(callback, ticks_per_step=SIXTEENTHS)`.
+  The callback receives `BarStart(bar, hits, complete, state)` once per bar, on the
+  first tick of the bar, while the clock is `running`: `bar` is the bar that starts
+  (from 0, so bar 0 right after Start, with no hits), `hits` are the `GridHit`s
+  placed in bar `bar - 1` on the requested grid in time order, `complete` is `False`
+  when the clock was not running through all of bar `bar - 1` (Start, Continue after
+  a Song Position Pointer, `lost`), and `state` is the `ClockState` on that tick. It
+  never fires while `waiting`, `stopped` or `lost`, or without `--clock`.
+- The engine calls `ClockAccess.bar_line()` after each clock message, **before**
+  `Scheduler.update`, so notes a callback schedules for step 0 of the new bar go out
+  on the bar line. With `--clock-lead-ms` above 0, those notes go out on the tick
+  itself, up to the lead later than notes scheduled earlier.
+- A hit is placed on its nearest step, so the hits of a bar are all known half a
+  step before its end; a hit that reaches the engine later than that is dropped from
+  `hits`. A hit just before the bar line belongs to the new bar.
+- Same thread and error rules as `on_hit`: the callback runs on the thread that fed
+  the clock message and must return quickly; an exception is logged. A new preset
+  gets a new `ClockAccess`, so callbacks of the previous preset stop.
+- Content formats and the protocol do not change; presets that do not call `on_bar`
+  see no change.
