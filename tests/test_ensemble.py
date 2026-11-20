@@ -55,9 +55,10 @@ class FakeTimer:
 
 
 class Rig:
-    """An `Ensemble` on a simulated DAW clock (or without one)."""
+    """An `Ensemble` on a simulated DAW clock (or without one); the melody layer is
+    off unless `melody` (its tests are in `test_melody.py`)."""
 
-    def __init__(self, clock: bool = True) -> None:
+    def __init__(self, clock: bool = True, melody: bool = False) -> None:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
         self.timers: list[FakeTimer] = []
@@ -65,6 +66,7 @@ class Rig:
         self.scheduler = Scheduler(self.clock, self.record) if self.clock else None
         self.access = ClockAccess(self.clock, self.log.append, self.scheduler, self.record)
         self.ensemble = Ensemble(self.log.append, self.timer)
+        self.ensemble.melody = melody
         self.ensemble.attach(self.access)
         self.t = 0.0
         self.next_tick = 0
@@ -79,6 +81,7 @@ class Rig:
     def send(self, data: bytes) -> None:
         assert self.clock is not None and self.scheduler is not None
         self.clock.feed(data, self.t)
+        self.access.bar_line()
         self.scheduler.update(self.t)
 
     def until(self, tick: int) -> None:
@@ -137,7 +140,7 @@ def test_only_kick_pads_play_in_any_bank_and_roles_change() -> None:
 
 def test_without_clock_first_chord_timed_note_off_and_one_log_line() -> None:
     rig = Rig(clock=False)
-    assert rig.log == ["ensemble: no MIDI clock (start with --clock); bar layer off"]
+    assert rig.log == ["ensemble: no MIDI clock (start with --clock); bar layer and melody off"]
     rig.ensemble.controls()["progression"](["minor-four"])
     rig.hit()
     rig.hit()
@@ -262,6 +265,6 @@ def test_registered_and_plays_through_the_engine(start: Any) -> None:
         midi_backend=Out,
     )
     assert sent.wait(TIMEOUT)
-    assert log == ["ensemble: no MIDI clock (start with --clock); bar layer off"]
+    assert log == ["ensemble: no MIDI clock (start with --clock); bar layer and melody off"]
     (port,) = FakeMidiOut.made
     assert (port.opened, port.sent[0]) == ("mpc-iml", bytes([0x91, 33, 120]))
