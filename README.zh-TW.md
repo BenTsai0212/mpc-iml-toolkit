@@ -432,11 +432,12 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 ## 演奏 preset ensemble
 
 內建的 preset `ensemble`（`src/mpc_iml/ensemble.py`，[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md)
-的第一步，#138）演奏跟隨 kick 的 bass。不用模型，也不需要訓練：照常在 MPC Sample 上打鼓，
-每一下打在 **kick** pad 上，就以固定和弦進行的根音帶出一個 bass 音符。bass 一次只發一個音，
-以 MIDI 音符送到虛擬 port `mpc-iml` 的 **channel 2**。有 `--clock` 時，同一組和弦上還會在
-**channel 3** 循環一段短旋律，你每一小節怎麼打，決定旋律的下一小節（#144，見[下文](#旋律-loop)）。
-engine 在任何狀態都會演奏，不需要按 `run`。
+的第一步，#138、#144、#148）演奏跟隨鼓的 bass 與旋律。不用模型，也不需要訓練：照常在
+MPC Sample 上打鼓。有 `--clock` 時，bass 在固定的和弦進行上循環一段 loop，你每一小節的
+**kick** 決定 loop 的下一小節（見[下文](#bass-loop)）。bass 一次只發一個音，以 MIDI 音符送到
+虛擬 port `mpc-iml` 的 **channel 2**。同一組和弦上還會在 **channel 3** 循環一段短旋律，你每一
+小節怎麼打，決定旋律的下一小節（見[下文](#旋律-loop)）。engine 在任何狀態都會演奏，不需要按
+`run`。
 
 每個 pad 有一個角色。預設是 boom-bap 的配置（pad 1 在左下；每個 bank 都一樣）：
 
@@ -446,10 +447,19 @@ engine 在任何狀態都會演奏，不需要按 `run`。
 | 5-8 | kick | snare（clap 或 rim） | hat | other |
 | 9-16 | other | other | other | other |
 
-目前只有 `kick` 會帶出 bass，所以請把 MPC program 的 kick 放在 pad 1 或 5。pad 16 用來切換
-兩層（見下文），不發出 bass；pad 15 用來切換旋律（見下文）。
+只有 `kick` 會帶出 bass，所以請把 MPC program 的 kick 放在 pad 1 或 5。pad 16 用來切換 bass
+的模式（見下文），不發出 bass；pad 15 用來切換旋律（見下文）。
 
-bass 有兩層，可以各自開關來比較：
+bass 有三種模式：
+
+- **loop**（預設，需要 `--clock`）：持續循環的 bass loop，每一小節的 kick 改變下一小節
+  （見 [bass loop](#bass-loop)）。
+- **rule**：#138 的規則式 bass，每個 kick 以和弦根音發出一個音符，分為兩層（見下文）。它是
+  拿來和 loop 比較的「只有因果」的 bass。
+- **off**：沒有 bass。
+
+rule bass 有兩層，可以用控制項 `immediate` 與 `bar`（見 [ensemble 的控制項](#ensemble-的控制項)）
+各自開關來比較：
 
 - **immediate**：kick 立刻發出一個 bass 音符，和弦取自該下打擊所在的小節。打得越重越大聲
   （velocity 1-127 變為 50-120）。音符在 2 個 16 分音符後結束（`length`），DAW 沒有播放時則
@@ -462,8 +472,8 @@ bass 有兩層，可以各自開關來比較：
   immediate 層；省略某個 kick 的地方，由上一小節的 kick 補上。
 
 和弦取自兩個和弦進行之一：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）與 `minor-four`
-（Dm7、Gm7、Bbmaj7、A7，各一小節）。bass 演奏各和弦在第 1 八度的根音（A1 是 MIDI 音符 33）。
-Live 的 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。
+（Dm7、Gm7、Bbmaj7、A7，各一小節）。bass 在第 1 八度演奏（A1 是 MIDI 音符 33）。Live 的
+MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。
 
 ### 為 bass 設定 Live
 
@@ -480,15 +490,47 @@ Live 的 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦�
 3. 新增一條 MIDI 軌並放上 bass 樂器（例如 Live 的 Drift 的 bass preset）。MIDI From 設為
    `mpc-iml`，下方的 channel 設為 **Ch. 2**，Monitor 設為 **In**。
 4. 在 Live 按 Play，以 pad 1 的 kick 打一個節奏。在 Live 按 Stop 會結束正在發聲的 bass 音符，
-   並取消尚未發出的回聲。
+   並取消尚未發出的音符。
 
-按 **pad 16** 依序切換 immediate → bar → both。終端機會顯示新的模式（`ensemble: immediate`、
-`ensemble: bar` 或 `ensemble: both`）。preset 從 both 開始。
+按 **pad 16** 依序切換 bass 的 loop → rule → off。終端機會顯示新的模式（`ensemble: bass loop`、
+`ensemble: bass rule` 或 `ensemble: bass off`），從下一個小節線開始生效（Live 停止時立即生效）。
+preset 從 loop 開始。
 
-沒有 `--clock` 時，`ensemble` 仍會載入，immediate 層照常演奏，但一律使用第一個和弦與
-0.25 秒的音符；bar 層關閉，engine 印出
-`ensemble: no MIDI clock (start with --clock); bar layer and melody off`。有 `--clock` 時，
-DAW 停止或尚未開始播放期間也是這樣演奏。
+沒有 `--clock` 時，`ensemble` 仍會載入，bass 在每個 kick 發出一個音符（immediate 層，loop 模式
+也一樣），一律使用第一個和弦與 0.25 秒的音符；bass loop、bar 層與旋律關閉，engine 印出
+`ensemble: no MIDI clock (start with --clock); bass loop, bar layer and melody off, bass plays on each kick`。
+有 `--clock` 時，DAW 停止或尚未開始播放期間，rule bass 也是這樣演奏，bass loop 則等 Live 開始
+播放。
+
+### bass loop
+
+有 `--clock` 且 Live 正在播放時，loop 模式的 bass 演奏以和弦音寫成的 loop（與旋律相同，見
+[下文](#旋律-loop)），所以會跟著和弦進行的每個和弦走。它的趨近音與經過音瞄準**下一個**小節的
+和弦：在下一個根音的半音或全音之下，帶進和弦的轉換。有兩個 loop：
+
+- `boom`（預設）：一小節、有休止的 boom-bap 線條：第 1 拍的根音與第 3 拍的五度、一個 ghost
+  note、高八度的根音，以及進入下一小節的趨近音。
+- `walk`：兩小節、動得更多的線條，有一個經過音與幾個趨近音。
+
+loop 的每個音符有 1-3 的層級：層級 1 是骨架（`boom` 是根音與五度，所以稀疏的小節聽起來仍是 bass
+線條），層級 2 與 3 把它填滿。
+
+**kick 每小節改變 loop 一次。** bass 只聽 **kick** pad。每到小節線，剛結束那一小節的 kick
+決定下一整個小節：
+
+| 你上一小節的 kick | bass 的下一小節 |
+| --- | --- |
+| kick 的數目 | **密度**：1-2 下只奏骨架，3-4 下加上層級 2，5 下以上奏出所有音符。 |
+| kick 的平均 velocity | **音量**：velocity 1-127 變為 50-120。 |
+| kick 的位置 | **重音**：離你打 kick 的位置在一個 16 分音符以內的 bass 音符保持完整的 velocity，其他音符以其 0.8 演奏，讓線條貼著你的 kick 節奏。 |
+
+不再打 kick 時，一個沒有 kick 的小節保留骨架，連續兩個則讓 bass 停止；下一個 kick 之後的小節
+bass 回來。只有 snare 與 hat 的小節算是沒有 kick 的小節，所以 breakdown 時 bass 變薄，旋律則
+繼續。在 Live 按 Start 之後，bass 會等你的第一個 kick。pad 15 與 16 的打擊不計入。
+
+pad 15（見下文）也會在 **follow** 與 **fixed** 之間切換 bass loop：fixed 不論 kick 怎麼打，都以
+velocity 100、不加重音奏出 loop 的所有音符。pad 15 的 **off** 只關掉旋律；bass loop 保持
+fixed，直到再按一次 pad 15 回到 follow。
 
 ### 旋律 loop
 
@@ -515,7 +557,8 @@ DAW 停止或尚未開始播放期間也是這樣演奏。
 小節旋律回來。在 Live 按 Start 之後，旋律會等你的第一下打擊。pad 15 與 16 的打擊不計入。
 
 按 **pad 15** 依序切換 follow → fixed → off。**fixed** 不論鼓怎麼打，都以 velocity 100 奏出
-loop 的所有音符，也不送 CC，可以拿來和 **follow** 比較。終端機會顯示新的模式
+旋律 loop 的所有音符、不送 CC，也以 velocity 100、不加重音奏出 bass loop 的所有音符，可以拿來
+和 **follow** 比較。**off** 只關掉旋律（bass loop 保持 fixed）。終端機會顯示新的模式
 （`ensemble: melody follow`、`ensemble: melody fixed` 或 `ensemble: melody off`），從下一個
 小節線開始生效。preset 從 follow 開始。
 
@@ -531,17 +574,19 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 
 | 訊息 | 值 | 預設 | 意義 |
 | --- | --- | --- | --- |
-| `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | immediate 層 |
-| `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | bar 層 |
+| `/mpciml/preset/ensemble/bass` | `loop`、`rule` 或 `off` | `loop` | bass 的模式 |
+| `/mpciml/preset/ensemble/bass-loop` | `boom` 或 `walk` | `boom` | bass 的 loop |
+| `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | rule bass 的 immediate 層 |
+| `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | rule bass 的 bar 層 |
 | `/mpciml/preset/ensemble/progression` | `minor-two` 或 `minor-four` | `minor-two` | 和弦進行 |
 | `/mpciml/preset/ensemble/octave` | 0-3 | 1 | bass 的八度（1 時為 A1） |
-| `/mpciml/preset/ensemble/length` | 1-16 | 2 | 音符長度（16 分音符數） |
+| `/mpciml/preset/ensemble/length` | 1-16 | 2 | rule bass 的音符長度（16 分音符數） |
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
 | `/mpciml/preset/ensemble/role` | pad 1-16，再接 `kick`、`snare`、`hat` 或 `other` | 上表 | 一個 pad 的角色，所有 bank 都適用 |
-| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換兩層的 pad；0 表示不使用 |
+| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換 bass 模式的 pad；0 表示不使用 |
 | `/mpciml/preset/ensemble/melody` | 0 或 1 | 1 | 旋律；0 時也取消尚未發出的音符 |
 | `/mpciml/preset/ensemble/loop` | `keys` 或 `pluck` | `keys` | 旋律的 loop |
-| `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 loop；0：fixed |
+| `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | 旋律的八度（4 時為 A4） |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | 亮度的 CC；0 表示不送 |
@@ -549,15 +594,17 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 
 engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時
 得到 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
-`inactive_preset`。旋律的控制項從下一個小節線開始生效。
+`inactive_preset`。bass 的模式與旋律的控制項從下一個小節線開始生效。
 
 ### 比較兩層
 
 #138 的人工檢查，使用 MPC Sample、依上文設定好的 Live，速度約 90 BPM：
 
-1. 以 boom-bap 節奏（pad 1 為 kick、pad 2 為 snare、pad 3 為 hat）在每個模式各演奏 5 分鐘：
-   只有 **immediate**、只有 **bar**、**both**。以 pad 16 切換，並在終端機確認模式。
-2. 每個模式結束後寫一列：
+1. 按一次 pad 16，讓終端機顯示 `ensemble: bass rule`。
+2. 以 boom-bap 節奏（pad 1 為 kick、pad 2 為 snare、pad 3 為 hat）在每種設定各演奏 5 分鐘：
+   只有 **immediate**（送 `bar 0`）、只有 **bar**（`immediate 0`、`bar 1`）、**both**
+   （`immediate 1`、`bar 1`），以上文的控制項切換。
+3. 每一段結束後寫一列：
 
    | 模式 | 好玩（1-5） | 像我（1-5） | 備註 |
    | --- | --- | --- | --- |
@@ -565,7 +612,7 @@ engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine
    | bar | | | |
    | both | | | |
 
-3. bass 正在發聲時在 Live 按 Stop，確認沒有音符持續發聲。
+4. bass 正在發聲時在 Live 按 Stop，確認沒有音符持續發聲。
 
 ### 檢查旋律
 
@@ -584,6 +631,33 @@ Ch. 3 並把 CC 74 對應到濾波器）、為 `mpc-iml clock` 打開 Sync 且 M
    | fixed | | | |
 
 4. 兩者都在發聲時在 Live 按 Stop，確認兩個 channel 都沒有音符持續發聲。
+
+### 檢查 bass loop
+
+#148 的人工檢查：bass 與旋律有鼓所帶動的音樂內容時，音樂家是否覺得自己在帶領樂團？比較
+**兩者**（內容與因果）、**只有內容**（loop 固定）與**只有因果**（rule bass）。依
+[檢查旋律](#檢查旋律)設定 MPC Sample 與 Live，執行 `uv run mpc-iml --preset ensemble --clock`，
+速度約 90 BPM。
+
+每一段都用同樣的 boom-bap 節奏，各約 5 分鐘：稀疏的小節（只有 kick 與 snare）、忙碌的小節
+（16 分音符的 hat、4-5 個 kick、重擊），再停打一小節與兩小節。
+
+| 段落 | 設定 | 比較 |
+| --- | --- | --- |
+| 1. 兩者 | 預設：`ensemble: bass loop`、`ensemble: melody follow` | 內容**與**因果 |
+| 2. 只有內容 | 按一次 pad 15：`ensemble: melody fixed`（兩個 loop 都固定） | 沒有因果的內容 |
+| 3. 只有因果 | 按一次 pad 16：`ensemble: bass rule`；再按一次 pad 15：`ensemble: melody off` | 只有 #138 的 bass |
+
+1. 依序演奏三段，每次按 pad 後確認終端機。
+2. 每一段結束後寫一列：
+
+   | 段落 | 好玩（1-5） | 像我（1-5） | 備註 |
+   | --- | --- | --- | --- |
+   | 兩者 | | | 是否覺得自己在帶領樂團？bass 的密度、音量與重音，聽起來是 kick 造成的嗎？沒有 kick 的小節 bass 變薄恰當嗎？ |
+   | 只有內容 | | | |
+   | 只有因果 | | | |
+
+3. bass 與旋律都在發聲時在 Live 按 Stop，確認 channel 2 與 3 都沒有音符持續發聲。
 
 ## Ableton Live 入門 set
 
@@ -642,7 +716,7 @@ rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應
 | 對應遺失或錯誤 | 按 `stop` 讓 `state` 顯示 `idle`，再用 `l1`-`l8` 一次對應一個 CC，做法見[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)。使用 Live 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應。 |
 | patch 沒有反應 | 按 `connect`。仍沒有反應時，關閉 patch，在終端機按 Ctrl-C 停止 engine，再執行一次 `uv run mpc-iml`。 |
 | engine 停止了，或 MPC Sample 沒有反應 | 重新插上 USB 線，以 Ctrl-C 停止 `uv run mpc-iml` 再重新啟動，然後按 preset（例如 `pressure`），載入 kit，再按 `run`。 |
-| `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。pad 16 可能已切換到 bar 層，它需要 `--clock` 且 Live 正在播放；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
+| `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。bass loop 需要 `--clock` 且 Live 正在播放，按 Start 後會等你的第一個 kick，連續兩個沒有 kick 的小節後會停止。pad 16 可能已把 bass 切換到 `rule` 或 `off`（終端機顯示 `ensemble: bass …`）；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
 | `ensemble` 沒有發出旋律 | engine 以 `--clock` 執行，Live 正在播放且為 `mpc-iml clock` 打開 Sync。鍵盤軌的 MIDI From 是 `mpc-iml`、**Ch. 3**。按 Start 後旋律會等你的第一下打擊，連續兩個空小節後會停止。pad 15 可能已把它關掉（終端機顯示 `ensemble: melody off`）；見[旋律 loop](#旋律-loop)。 |
 | 修改 module 或 `amount` 後狀態列顯示 `wrong_state` | 重新訓練正在進行；稍等一下再試。 |
 | 輕輕按住或快速輕敲時聲音幾乎不變 | 見[演奏 preset pressure](#演奏-preset-pressure) 中[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 最後的輕觸一端說明（#76）。 |
