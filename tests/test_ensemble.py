@@ -66,15 +66,22 @@ class Rig:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
         self.timers: list[FakeTimer] = []
+        self.reports: list[dict[str, list[Any]]] = []
+        """The state at each `ClockAccess.report()` (#153)."""
         self.clock = MidiClock() if clock else None
         self.scheduler = Scheduler(self.clock, self.record) if self.clock else None
-        self.access = ClockAccess(self.clock, self.log.append, self.scheduler, self.record)
+        self.access = ClockAccess(
+            self.clock, self.log.append, self.scheduler, self.record, report=self.report
+        )
         self.ensemble = Ensemble(self.log.append, self.timer)
         self.ensemble.melody = melody
         self.ensemble.controls()["bass"]([bass])
         self.ensemble.attach(self.access)
         self.t = 0.0
         self.next_tick = 0
+
+    def report(self, access: ClockAccess) -> None:
+        self.reports.append({name: list(args) for name, args in self.ensemble.state()})
 
     def timer(self, seconds: float, action: Callable[[], None]) -> FakeTimer:
         self.timers.append(FakeTimer(seconds, action))
