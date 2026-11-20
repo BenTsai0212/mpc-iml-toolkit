@@ -6,8 +6,10 @@ import pytest
 
 from mpc_iml.clock import (
     EIGHTHS,
+    LOST_AFTER,
     SIXTEENTH_TRIPLETS,
     TICKS_PER_BEAT,
+    BarStart,
     ClockAccess,
     GridHit,
     MidiClock,
@@ -290,3 +292,169 @@ def test_a_failing_pad_callback_is_logged_and_others_still_run() -> None:
     assert "broken" in lines[0]
     with pytest.raises(ValueError):
         access.on_pad(pads.append, ticks_per_step=5)
+
+
+# ClockAccess.on_bar (#144)
+
+BAR = 4 * TICKS_PER_BEAT
+
+
+class Engine:
+    """Feeds a clock and calls `bar_line` after each message, as the engine does."""
+
+    def __init__(self, beats_per_bar: int = 4) -> None:
+        self.clock = MidiClock(beats_per_bar)
+        self.daw = Daw(120.0, jitter=0.0)
+        self.lines: list[str] = []
+        self.access = ClockAccess(self.clock, log=self.lines.append)
+        self.bars: list[BarStart] = []
+
+    def send(self, data: bytes) -> None:
+        self.daw.send(self.clock, data)
+        self.access.bar_line()
+
+    def tick(self, count: int = 1) -> None:
+        """Send `count` ticks (the first tick after Start is tick 0)."""
+        for _ in range(count):
+            self.daw.ticks(self.clock, 1)
+            self.access.bar_line()
+
+    def hit(self, ticks_ahead: float, note: int = 37, velocity: int = 100) -> None:
+        """A pad hit `ticks_ahead` ticks after the last tick sent."""
+        t = self.daw.t - self.daw.interval + ticks_ahead * self.daw.interval
+        self.access.deliver(note_on(t, note=note, velocity=velocity))
+
+
+def test_on_bar_fires_once_per_bar_with_the_hits_of_the_bar_that_ended() -> None:
+    engine = Engine()
+    engine.access.on_bar(engine.bars.append)
+    engine.access.bar_line()
+    engine.send(START)
+    assert engine.bars == []
+    engine.tick()
+    (first,) = engine.bars
+    assert (first.bar, first.hits, first.complete) == (0, (), False)
+    assert (first.state.status, first.state.tick) == ("running", 0)
+    engine.tick(30)
+    engine.hit(0, note=36, velocity=80)
+    engine.access.bar_line()
+    engine.tick(BAR - 32)
+    engine.hit(-2, note=38)
+    engine.tick()
+    assert len(engine.bars) == 1
+    engine.hit(0.5, note=40)
+    engine.tick()
+    second = engine.bars[1]
+    assert (second.bar, second.complete, second.state.tick) == (1, True, BAR)
+    assert [(h.bar, h.step, h.pad, h.velocity) for h in second.hits] == [
+        (0, 5, 0, 80),
+        (0, 15, 2, 100),
+    ]
+    engine.tick(BAR)
+    third = engine.bars[2]
+    assert third.bar == 2
+    assert [(h.bar, h.step, h.pad) for h in third.hits] == [(1, 0, 4)]
+    assert len(engine.bars) == 3
+
+
+def test_on_bar_uses_the_callbacks_grid_and_time_order() -> None:
+    engine = Engine()
+    sixteenths: list[BarStart] = []
+    eighths: list[BarStart] = []
+    engine.access.on_bar(sixteenths.append)
+    engine.access.on_bar(eighths.append, ticks_per_step=EIGHTHS)
+    engine.send(START)
+    engine.tick(20)
+    engine.hit(0)
+    engine.hit(-8)
+    engine.tick(BAR - 19)
+    assert [h.step for h in sixteenths[1].hits] == [2, 3]
+    assert [h.step for h in eighths[1].hits] == [1, 2]
+    with pytest.raises(ValueError):
+        engine.access.on_bar(eighths.append, ticks_per_step=5)
+
+
+def test_on_bar_follows_the_meter() -> None:
+    engine = Engine(beats_per_bar=3)
+    engine.access.on_bar(engine.bars.append)
+    engine.send(START)
+    engine.tick(2 * 3 * TICKS_PER_BEAT + 1)
+    assert [(b.bar, b.state.tick) for b in engine.bars] == [(0, 0), (1, 72), (2, 144)]
+
+
+def test_on_bar_never_fires_while_stopped_waiting_or_lost() -> None:
+    engine = Engine()
+    engine.access.on_bar(engine.bars.append)
+    engine.tick(BAR + 1)
+    assert engine.clock.state().status == "stopped"
+    engine.send(START)
+    engine.tick(10)
+    engine.hit(0)
+    engine.send(STOP)
+    engine.access.deliver(note_on(engine.daw.t))
+    engine.tick(BAR)
+    assert [b.bar for b in engine.bars] == [0]
+    engine.send(CONTINUE)
+    engine.tick(2 * BAR - 9)
+    assert [b.bar for b in engine.bars] == [0, 1, 2]
+    assert engine.bars[1].complete is False
+    assert engine.bars[1].hits == ()
+    engine.clock.check(engine.daw.t + LOST_AFTER + 0.1)
+    engine.access.bar_line()
+    assert engine.clock.state().status == "lost"
+    assert len(engine.bars) == 3
+
+
+def test_on_bar_after_lost_or_a_jump_is_not_complete() -> None:
+    engine = Engine()
+    engine.access.on_bar(engine.bars.append)
+    engine.send(START)
+    engine.tick(BAR + 10)
+    engine.clock.check(engine.daw.t + LOST_AFTER + 0.1)
+    engine.access.bar_line()
+    engine.daw.t += LOST_AFTER + 0.2
+    engine.tick(BAR - 9)
+    assert [(b.bar, b.complete) for b in engine.bars] == [(0, False), (1, True), (2, False)]
+    engine.send(STOP)
+    engine.send(song_position(5 * 16))
+    engine.send(CONTINUE)
+    engine.tick(2 * BAR)
+    assert [(b.bar, b.complete) for b in engine.bars[3:]] == [(5, False), (6, True)]
+    engine.send(START)
+    engine.tick()
+    assert (engine.bars[-1].bar, engine.bars[-1].complete) == (0, False)
+
+
+def test_start_drops_the_hits_of_the_last_run() -> None:
+    engine = Engine()
+    engine.access.on_bar(engine.bars.append)
+    engine.send(START)
+    engine.tick(BAR - 2)
+    engine.hit(-10)
+    engine.send(START)
+    engine.tick(BAR + 1)
+    assert [(b.bar, b.hits) for b in engine.bars[1:]] == [(0, ()), (1, ())]
+
+
+def test_on_bar_without_sync_never_fires() -> None:
+    bars: list[BarStart] = []
+    access = ClockAccess(None)
+    access.on_bar(bars.append)
+    access.deliver(note_on(0.0))
+    access.bar_line()
+    assert bars == []
+
+
+def test_a_failing_bar_callback_is_logged_and_others_still_run() -> None:
+    engine = Engine()
+
+    def fail(start: BarStart) -> None:
+        raise RuntimeError("broken")
+
+    engine.access.on_bar(fail)
+    engine.access.on_bar(engine.bars.append)
+    engine.send(START)
+    engine.tick()
+    assert len(engine.bars) == 1
+    assert "bar callback failed" in engine.lines[0]
+    assert "broken" in engine.lines[0]

@@ -20,7 +20,8 @@ plays the engine's test pattern (`/mpciml/clock/test`).
 `ClockAccess` is what a preset's provisional `Preset.clock` hook receives from the
 engine: read-only access to the clock, every pad hit (placed on the grid while the
 clock runs), the scheduler, and a path for notes sent at once. The engine calls the
-hook with sync off too, with no clock and no scheduler (#138).
+hook with sync off too, with no clock and no scheduler (#138). `on_bar` calls a
+preset at each bar line with the hits of the bar that just ended (#144).
 
 `tag_recording` places the pad hits of a recording made with `record --clock` on
 the grid after the fact, with the same `MidiClock` the engine uses live (#139).
@@ -43,6 +44,8 @@ __all__ = [
     "SIXTEENTHS",
     "TEST_NOTES",
     "TICKS_PER_BEAT",
+    "BarCallback",
+    "BarStart",
     "ClockAccess",
     "ClockState",
     "ClockStatus",
@@ -317,6 +320,27 @@ PadCallback = Callable[[PadHit], None]
 """Receives every pad hit (`ClockAccess.on_pad`)."""
 
 
+@dataclass(frozen=True)
+class BarStart:
+    """A bar line (`ClockAccess.on_bar`).
+
+    `bar` is the bar that starts now (from 0). `hits` are the pad hits placed in bar
+    `bar - 1` on the callback's grid, in time order. `complete` is `False` when the
+    clock was not running through all of bar `bar - 1` (Start, Continue after a
+    Song Position Pointer, or `lost` during it, and always for bar 0 after Start),
+    so `hits` may miss some. `state` is the clock at the bar line.
+    """
+
+    bar: int
+    hits: tuple[GridHit, ...]
+    complete: bool
+    state: ClockState
+
+
+BarCallback = Callable[[BarStart], None]
+"""Receives each bar line (`ClockAccess.on_bar`)."""
+
+
 class ClockAccess:
     """Access to the engine's clock and note output for one loaded preset (ADR 0008).
 
@@ -343,6 +367,12 @@ class ClockAccess:
         self._beats_per_bar = clock.beats_per_bar if clock is not None else beats_per_bar
         self._hits: list[tuple[HitCallback, int]] = []
         self._pads: list[tuple[PadCallback, int]] = []
+        self._bars: list[tuple[BarCallback, int]] = []
+        self._bar_lock = threading.Lock()
+        self._bar_hits: dict[int, list[GridHit]] = {}
+        self._last_tick = -1
+        self._heard_from: int | None = None
+        self._fired: int | None = None
 
     def state(self) -> ClockState:
         """The clock's current snapshot (`off` without sync)."""
@@ -373,6 +403,23 @@ class ClockAccess:
         _check_step(ticks_per_step)
         self._pads.append((callback, ticks_per_step))
 
+    def on_bar(self, callback: BarCallback, ticks_per_step: int = SIXTEENTHS) -> None:
+        """Call `callback` with a `BarStart` on the first tick of every bar.
+
+        It fires once per bar while the clock is `running`, including bar 0 right
+        after Start, and never while it is `waiting`, `stopped` or `lost`, or without
+        sync. The engine calls it before it sends the scheduled messages due on that
+        tick, so notes the callback schedules for step 0 of the new bar go out on the
+        bar line itself. A hit is placed on its nearest step, so every hit of the bar
+        that ended is in `hits`, unless it reaches the engine more than half a step
+        late; a hit just before the bar line belongs to the new bar and comes with
+        the next call. Runs on the clock thread; same error rules as `on_hit`.
+        """
+        _check_step(ticks_per_step)
+        with self._bar_lock:
+            self._bars.append((callback, ticks_per_step))
+            self._bar_hits.setdefault(ticks_per_step, [])
+
     def send_now(self, messages: Sequence[bytes]) -> None:
         """Send raw MIDI `messages` at once, in order, on the engine's note path.
 
@@ -392,7 +439,8 @@ class ClockAccess:
                 self._log(f"MIDI message not sent: {error!r}")
 
     def deliver(self, event: Event) -> None:
-        """Pass a pad hit to every `on_pad` and `on_hit` callback (called by the engine)."""
+        """Pass a pad hit to every `on_pad` and `on_hit` callback, and keep it for
+        `on_bar` while the clock runs (called by the engine)."""
         if not (
             isinstance(event, MidiEvent)
             and event.kind == "note_on"
@@ -408,6 +456,11 @@ class ClockAccess:
                 tags[ticks_per_step] = clock.tag(event, ticks_per_step) if clock else None
             return tags[ticks_per_step]
 
+        with self._bar_lock:
+            for ticks_per_step, hits in self._bar_hits.items():
+                hit = tag(ticks_per_step)
+                if hit is not None:
+                    hits.append(hit)
         bank, pad = note_to_bank_pad(event.note)
         for pad_callback, ticks_per_step in list(self._pads):
             self._call(pad_callback, PadHit(event.t, pad, bank, event.value, tag(ticks_per_step)))
@@ -415,6 +468,43 @@ class ClockAccess:
             hit = tag(ticks_per_step)
             if hit is not None:
                 self._call(hit_callback, hit)
+
+    def bar_line(self) -> None:
+        """Call the `on_bar` callbacks if the clock is on the first tick of a bar
+        not yet reported (called by the engine after each clock message)."""
+        if self._clock is None:
+            return
+        calls: list[tuple[BarCallback, BarStart]] = []
+        with self._bar_lock:
+            state = self._clock.state()
+            tick = state.tick
+            if state.status != "running" or tick < 0:
+                self._heard_from = self._fired = None
+                for hits in self._bar_hits.values():
+                    hits.clear()
+                return
+            if self._heard_from is None or not self._last_tick <= tick <= self._last_tick + 1:
+                self._heard_from, self._fired = tick, None
+            self._last_tick = tick
+            ticks_per_bar = self._beats_per_bar * TICKS_PER_BEAT
+            if tick % ticks_per_bar or tick == self._fired:
+                return
+            self._fired = tick
+            bar = tick // ticks_per_bar
+            complete = self._heard_from <= (bar - 1) * ticks_per_bar
+            ended: dict[int, tuple[GridHit, ...]] = {}
+            for ticks_per_step, hits in self._bar_hits.items():
+                ended[ticks_per_step] = tuple(
+                    sorted((h for h in hits if h.bar == bar - 1), key=lambda h: h.t)
+                )
+                hits[:] = [h for h in hits if h.bar >= bar]
+            for callback, ticks_per_step in self._bars:
+                calls.append((callback, BarStart(bar, ended[ticks_per_step], complete, state)))
+        for callback, start in calls:
+            try:
+                callback(start)
+            except Exception as error:
+                self._log(f"clock bar callback failed: {error!r}")
 
     def _call(self, callback: Callable[[_H], None], hit: _H) -> None:
         try:
