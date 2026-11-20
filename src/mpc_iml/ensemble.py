@@ -6,10 +6,11 @@ on the `mpc-iml` port, channel 2 by default, over a fixed progression
 (`PROGRESSIONS`), in one of three modes (`bass`):
 
 - `loop` (default, #148, needs `--clock`): a bass loop of chord tones (`bass`) that
-  keeps playing; at each bar line the kicks of the bar that ended set the next bar:
-  their number its density, their average velocity its loudness and their positions
-  its accents (`bass.kick_density`, `bass.accent`, its own `melody.Follower`).
-  Without a running clock it falls back to the immediate layer below;
+  keeps playing; at each bar line the kicks of the bar that ended set the next bar
+  (#158): their positions choose the variation and the accents, their number whether
+  the ornaments play, their average velocity the loudness (`bass.bass_variation`,
+  `bass.bass_ornaments`, `bass.accent`, its own `melody.Follower`). Without a
+  running clock it falls back to the immediate layer below;
 - `rule` (#138): the root of the current chord, in two layers that can be switched
   on and off on their own, to compare them;
 - `off`: no bass.
@@ -30,9 +31,18 @@ sounded, the kick plays no bass.
 
 A melody layer (#144, needs `--clock`) loops a few bars of chord tones (`melody`)
 on channel 3 by default. At each bar line (`ClockAccess.on_bar`) the drums of the
-bar that ended set the next bar: the number of hits its density, their average
+bar that ended set the next bar: the hits its variation (below), their average
 velocity its loudness and the hat hits a brightness CC (`melody.Follower`). Hits on
 the layer pad and the melody pad do not count.
+
+Both loops follow by variation (#158): the drums choose one of three complete lines
+of the loop (`melody.melody_variation`, `bass.bass_variation`) and whether its
+ornaments play, so a sparse bar never drops to a skeleton. Bars without drums
+(without kicks, for the bass) follow `no-drums`: `lead` (default) plays the
+melody's `open` line with ornaments and the bass's `home` line, `hold` keeps the
+last choice, both at the last velocity until `fade-bars` empty bars (the last two
+fade), and `thin` is #144's rule (the skeleton after one empty bar, silence after
+two).
 
 Controls (provisional preset controls, ADR 0004; defaults return when the preset is
 built again): `bass loop|rule|off`, `bass-loop <name>`,
@@ -46,7 +56,9 @@ fixed apply to both loops, off only to the melody), and `melody-mode
 follow|fixed|off` (#153: `melody` and `follow` in one message), and `learn-cc` (#159,
 no arguments: sends only the brightness CC on the melody channel, `LEARN_CC_SWEEP`
 upwards and on the next call downwards, so a DAW in MIDI map mode learns the CC and
-not a note; refused while the clock is `running` and when `filter-cc` is 0). Bass mode and melody
+not a note; refused while the clock is `running` and when `filter-cc` is 0), and for
+both loops `no-drums lead|hold|thin` and `fade-bars 0-32` (default 8, 0: never
+stop; #158). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
 
@@ -54,7 +66,8 @@ State replies (`Preset.state`, ADR 0009, #153): `bass` and `melody-mode` give th
 mode asked for (next) and the one playing, the other replies the current settings
 (`Ensemble.state`). The preset asks the engine to send them again
 (`ClockAccess.report()`) after a press of the layer pad or the melody pad, and at a
-bar line where the playing bass or melody mode changes.
+bar line where the playing bass or melody mode or a playing variation (the reply
+`variation`, #158) changes.
 """
 
 import sys
@@ -64,7 +77,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from mpc_iml import __version__
-from mpc_iml.bass import BASS_LOOPS, bass_note_velocity, kick_density
+from mpc_iml.bass import BASS_LOOPS, bass_note_velocity, bass_ornaments, bass_variation
 from mpc_iml.clock import (
     SIXTEENTHS,
     TICKS_PER_BEAT,
@@ -75,7 +88,17 @@ from mpc_iml.clock import (
     Scheduled,
 )
 from mpc_iml.frames import PADS
-from mpc_iml.melody import LOOPS, Follower, chord_note, loop_pitch
+from mpc_iml.melody import (
+    LOOPS,
+    NO_DRUMS,
+    ORNAMENTS,
+    Follower,
+    brightness,
+    chord_note,
+    loop_pitch,
+    melody_ornaments,
+    melody_variation,
+)
 from mpc_iml.presets import ControlHandler, Preset
 
 __all__ = [
@@ -199,7 +222,7 @@ class Ensemble:
         self.bass = "loop"
         self._bass_active = "loop"
         self.bass_loop = BASS_LOOPS["boom"]
-        self._bass_follower = Follower(kick_density)
+        self._bass_follower = Follower(("home", 1))
         self._bass_notes: list[Scheduled] = []
         self.immediate = True
         self.bar = True
@@ -218,7 +241,10 @@ class Ensemble:
         self.melody_pad = 15
         self._learn_down = False
         self._melody_playing = "follow"
-        self._follower = Follower()
+        self._follower = Follower(("open", ORNAMENTS))
+        self.no_drums = "lead"
+        self.fade_bars = 8
+        self._variations = ("-", "-")
         self._melody_notes: list[Scheduled] = []
         self._log = log
         self._timer = timer
@@ -272,12 +298,13 @@ class Ensemble:
 
     def on_bar(self, start: BarStart) -> None:
         """Plan the bass loop and the melody of the bar that starts now from the drums
-        of the last one; report when the playing bass or melody mode changes."""
+        of the last one; report when the playing bass or melody mode or a playing
+        variation changes."""
         with self._lock:
-            playing = (self._bass_active, self._melody_playing)
+            playing = (self._bass_active, self._melody_playing, self._variations)
             self._plan(start)
             self._melody_playing = self._melody_mode()
-            changed = playing != (self._bass_active, self._melody_playing)
+            changed = playing != (self._bass_active, self._melody_playing, self._variations)
         if changed:
             self._report()
 
@@ -291,45 +318,64 @@ class Ensemble:
             self._apply_bass()
             skip = {p - 1 for p in (self.layer_pad, self.melody_pad) if p}
             drums = [h for h in start.hits if h.pad not in skip]
-            self._plan_bass(start, [h for h in drums if self.roles[h.pad] == "kick"])
-            hats = sum(self.roles[h.pad] == "hat" for h in drums)
-            velocities = [h.velocity for h in drums]
-            plan = self._follower.plan_bar(velocities, hats, start.complete, self.follow)
-            scheduler = self._access.scheduler if self._access else None
-            if scheduler is None or not self.melody:
-                return
-            last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
-            self._melody_notes = [h for h in self._melody_notes if h.tick >= last_bar]
-            channel = self.melody_channel
-            if plan.cc is not None and self.filter_cc:
-                cc = bytes([0xB0 | (channel - 1), self.filter_cc, plan.cc])
-                self._melody_notes.append(scheduler.at(start.bar, 0, [cc]))
-            chord = self.progression.chord(start.bar)
-            pitch_class = self.progression.tonic + chord.root
-            steps = start.state.beats_per_bar * STEPS_PER_BEAT
-            for note in self.loop.bar_notes(start.bar, plan.level):
-                if note.step >= steps:
-                    continue
-                pitch = chord_note(pitch_class, chord.quality, note.tone, self.melody_octave)
-                velocity = min(max(round(plan.velocity * note.velocity), 1), 127)
-                self._melody_notes.append(
-                    scheduler.note(
-                        start.bar,
-                        note.step,
-                        pitch + 12 * note.octave,
-                        velocity,
-                        note.length,
-                        channel,
-                    )
-                )
+            bass = self._plan_bass(start, [h for h in drums if self.roles[h.pad] == "kick"])
+            self._variations = (bass, self._plan_melody(start, drums))
 
-    def _plan_bass(self, start: BarStart, kicks: Sequence[GridHit]) -> None:
-        """Schedule the bass loop's notes of the bar that starts now."""
-        velocities = [h.velocity for h in kicks]
-        plan = self._bass_follower.plan_bar(velocities, 0, start.complete, self.follow)
+    def _plan_melody(self, start: BarStart, drums: Sequence[GridHit]) -> str:
+        """Schedule the melody's notes of the bar that starts now; the variation it
+        plays (`-`: none)."""
+        hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
+        chosen = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
+        plan = self._follower.plan_bar(
+            [h.velocity for h in drums],
+            chosen,
+            brightness(len(hats)),
+            start.complete,
+            self.follow,
+            self.no_drums,
+            self.fade_bars,
+        )
+        scheduler = self._access.scheduler if self._access else None
+        if scheduler is None or not self.melody:
+            return "-"
+        last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
+        self._melody_notes = [h for h in self._melody_notes if h.tick >= last_bar]
+        channel = self.melody_channel
+        if plan.cc is not None and self.filter_cc:
+            cc = bytes([0xB0 | (channel - 1), self.filter_cc, plan.cc])
+            self._melody_notes.append(scheduler.at(start.bar, 0, [cc]))
+        chord = self.progression.chord(start.bar)
+        pitch_class = self.progression.tonic + chord.root
+        steps = start.state.beats_per_bar * STEPS_PER_BEAT
+        for note in plan.notes(self.loop, start.bar):
+            if note.step >= steps:
+                continue
+            pitch = chord_note(pitch_class, chord.quality, note.tone, self.melody_octave)
+            velocity = min(max(round(plan.velocity * note.velocity), 1), 127)
+            self._melody_notes.append(
+                scheduler.note(
+                    start.bar, note.step, pitch + 12 * note.octave, velocity, note.length, channel
+                )
+            )
+        return plan.variation or "-"
+
+    def _plan_bass(self, start: BarStart, kicks: Sequence[GridHit]) -> str:
+        """Schedule the bass loop's notes of the bar that starts now; the variation it
+        plays (`-`: none)."""
+        steps_hit = [h.step for h in kicks]
+        chosen = (bass_variation(steps_hit), bass_ornaments(len(kicks)))
+        plan = self._bass_follower.plan_bar(
+            [h.velocity for h in kicks],
+            chosen,
+            None,
+            start.complete,
+            self.follow,
+            self.no_drums,
+            self.fade_bars,
+        )
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or self._bass_active != "loop":
-            return
+            return "-"
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._bass_notes = [h for h in self._bass_notes if h.tick >= last_bar]
         progression, bar = self.progression, start.bar
@@ -338,9 +384,11 @@ class Ensemble:
             (progression.tonic + now.root, now.quality),
             (progression.tonic + following.root, following.quality),
         )
-        accents = [h.step for h in kicks] if self.follow else None
+        # Without kicks the notes keep the last bar's velocity; thin keeps #148's rule.
+        accented = self.follow and (bool(kicks) or self.no_drums == "thin")
+        accents = steps_hit if accented else None
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
-        for note in self.bass_loop.bar_notes(bar, plan.level):
+        for note in plan.notes(self.bass_loop, bar):
             if note.step >= steps:
                 continue
             pitch = loop_pitch(note, *chords, self.octave)
@@ -349,6 +397,7 @@ class Ensemble:
             self._bass_notes.append(
                 scheduler.note(bar, note.step, pitch, velocity, length, self.channel)
             )
+        return plan.variation or "-"
 
     def _set_bass(self, mode: str) -> None:
         """Ask for a bass mode: it starts at the next bar line, or at once while the
@@ -524,7 +573,15 @@ class Ensemble:
                 lambda: setattr(self, "melody_pad", _whole(a, 0, PADS))
             ),
             "learn-cc": self._learn_cc,
+            "no-drums": self._set_no_drums,
+            "fade-bars": lambda a: self._set(lambda: setattr(self, "fade_bars", _whole(a, 0, 32))),
         }
+
+    def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
+        if len(args) != 1 or args[0] not in NO_DRUMS:
+            raise ValueError(f"expected one of {', '.join(NO_DRUMS)}, got {list(args)}")
+        with self._lock:
+            self.no_drums = str(args[0])
 
     def _learn_cc(self, args: Sequence[float | int | str]) -> None:
         """Send only the brightness CC, as a sweep, so a DAW can map it (#159)."""
@@ -618,6 +675,9 @@ class Ensemble:
                 ("immediate", [int(self.immediate)]),
                 ("bar", [int(self.bar)]),
                 ("roles", list(self.roles)),
+                ("no-drums", [self.no_drums]),
+                ("fade-bars", [self.fade_bars]),
+                ("variation", list(self._variations if scheduler is not None else ("-", "-"))),
             ]
 
     def _set_loop(self, args: Sequence[float | int | str]) -> None:

@@ -5,18 +5,15 @@ A bass loop is written in the same chord-tone form as the melody loops
 take the chord of the next bar (`chord` 1) with a chromatic offset (`semitones`).
 Notes never overlap, so the loop plays on a monophonic bass.
 
-The bass listens to the kick only. Once per bar, at the bar line, the kicks of the
-bar that ended decide the next bar: their number sets the density
-(`kick_density`, through its own `melody.Follower`, which also gives the no-kick
-rules), their average velocity the loudness, and their positions the accents
-(`accent`): a note within one step of a kick keeps its full velocity, the others
-play at `OFF_KICK` of it.
-
-Variations (#158, not used by `ensemble` yet): every bass loop also holds three
-named variations (`melody.Loop.variations`), each a complete, monophonic line whose
-level 1 is never a skeleton; `home` is the loop itself re-levelled. The kick
-positions of the last bar choose the variation (`bass_variation`) and the kick count
-whether the ornaments play (`bass_ornaments`).
+The bass listens to the kick only. Every bass loop holds three named variations
+(#158, `melody.Loop.variations`), each a complete, monophonic line whose level 1 is
+never a skeleton; `home` is the loop itself re-levelled. Once per bar, at the bar
+line, the kicks of the bar that ended decide the next bar (through its own
+`melody.Follower`, which also gives the no-kick rules): their positions choose the
+variation (`bass_variation`) and the accents (`accent`: a note within one step of a
+kick keeps its full velocity, the others play at `OFF_KICK` of it), their number
+whether the ornaments play (`bass_ornaments`) and their average velocity the
+loudness.
 """
 
 from collections.abc import Sequence
@@ -31,7 +28,6 @@ __all__ = [
     "bass_note_velocity",
     "bass_ornaments",
     "bass_variation",
-    "kick_density",
 ]
 
 BASS_VARIATIONS = ("home", "push", "drive")
@@ -157,12 +153,6 @@ motion, a passing note a whole step below the next root and approach notes.
 Variations (#158): `push` answers off-beat kicks with anticipations (notes a 16th
 early, a pushed approach); `drive` answers busy kicks with 8ths (`boom`) or a
 quarter-note walk with 8th passing notes as ornaments (`walk`)."""
-
-
-def kick_density(kicks: int) -> int:
-    """The highest level after a bar with `kicks` kicks (1 or more): 1-2 is the
-    skeleton, 3-4 adds level 2, 5 or more plays everything."""
-    return 1 if kicks <= 2 else 2 if kicks <= 4 else 3
 
 
 def bass_variation(kicks: Sequence[int]) -> str:

@@ -3,7 +3,7 @@
 - Status: Proposed
 - Date: 2026-11-20
 - Related: ADR 0004, ADR 0005, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed),
-  #138, #144, #148, #153, #159, #113 (Epic)
+  #138, #144, #148, #153, #158, #159, #113 (Epic)
 
 ## Context
 
@@ -153,6 +153,30 @@ The engine's `/mpciml/midi/learn` (ADR 0005) does not apply: `ensemble` declares
 - No core message, reply, error code or protocol version changes. Reusing
   `/mpciml/midi/learn` for preset CCs would need a plugin-interface field and
   protocol 1.6; it can be decided when another preset needs it.
+
+## Amendment: follow by variation (#158)
+
+The `## Decision` on #158 (2026-11-20) accepts this amendment. The loops follow the
+drums by choosing one of three complete variations of each loop instead of
+dropping notes, and keep playing when the drums stop (`no-drums`).
+
+- New `ensemble` controls (preset version): `no-drums lead|hold|thin` (default
+  `lead`) and `fade-bars` 0-32 (default 8, 0: never stop). Both are read at each bar
+  line.
+- New replies after `roles`, in this order:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `no-drums` | `s` value |
+  | `fade-bars` | `i` value |
+  | `variation` | `s` bass variation playing, `s` melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
+
+- `ensemble` calls `report()` at a bar line when the playing bass or melody mode
+  **or a playing variation** changed there (instead of "only when the playing bass
+  or melody mode changed"); at most one report per bar line.
+- Group 8 and the Max for Live device do not change: the new replies are dropped by
+  the group's `route`, and the new controls are OSC only.
+- No core message, error code or protocol version changes; the protocol stays 1.5.
 
 ## Consequences
 

@@ -7,25 +7,27 @@ it falls in, through the chord's quality (`QUALITIES`). Each note has a `level`
 also take the chord of the next bar (`chord` 1) and a chromatic offset
 (`semitones`), for approach and passing notes (the bass loops of #148, `bass`).
 
-Once per bar, at the bar line, `plan_bar` decides the next bar from the drum hits of
-the bar that just ended (RFC 0005, causality first): the number of hits sets the
-density (which levels play), their average velocity the loudness, and the hits on
-`hat` pads the brightness CC.
+Variations (#158): every loop also holds three named variations
+(`Loop.variations`), each a complete line with two levels: level 1 is the full line,
+level 2 adds ornaments. The first, `home`, is the loop itself re-levelled
+(`relevel`), so it plays the same notes.
 
-Variations (#158, not used by `ensemble` yet): every loop also holds three named
-variations (`Loop.variations`), each a complete line with two levels: level 1 is the
-full line, level 2 adds ornaments. The first, `home`, is the loop itself re-levelled
-(`relevel`), so it plays the same notes. The drums of the last bar choose the
-melody's variation (`melody_variation`) and whether its ornaments play
-(`melody_ornaments`), so a sparse bar changes the line instead of thinning it.
+Once per bar, at the bar line, a `Follower` decides the next bar from the drum hits
+of the bar that just ended (RFC 0005, causality first): the hits choose the
+variation (`melody_variation`) and whether its ornaments play (`melody_ornaments`),
+so a sparse bar changes the line instead of thinning it; their average velocity
+sets the loudness and the hits on `hat` pads the brightness CC. Bars without drums
+follow the `no-drums` rule (`NO_DRUMS`).
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 __all__ = [
+    "FADE",
     "LOOPS",
     "MELODY_VARIATIONS",
+    "NO_DRUMS",
     "ORNAMENTS",
     "QUALITIES",
     "BarPlan",
@@ -34,7 +36,6 @@ __all__ = [
     "LoopNote",
     "brightness",
     "chord_note",
-    "density",
     "loop_pitch",
     "melody_ornaments",
     "melody_variation",
@@ -53,6 +54,12 @@ ORNAMENTS = 2
 
 MELODY_VARIATIONS = ("home", "open", "busy")
 """The variations of every melody loop, in order (`home` is the loop itself)."""
+
+NO_DRUMS = ("lead", "hold", "thin")
+"""What the loops play in bars without drums (`Follower`); `lead` is the default."""
+
+FADE = (0.4, 0.7)
+"""Velocity weights of the last and the second-to-last bar before the loops stop."""
 
 
 @dataclass(frozen=True)
@@ -221,11 +228,6 @@ def loop_pitch(
     return chord_note(pitch_class, quality, note.tone, octave + note.octave) + note.semitones
 
 
-def density(hits: int) -> int:
-    """The highest level that plays after a bar with `hits` drum hits (1 or more)."""
-    return 1 if hits <= 4 else 2 if hits <= 10 else 3
-
-
 def melody_velocity(average: float) -> int:
     """An average hit velocity 1-127 mapped linearly to 50-120 (as the bass)."""
     return round(50 + (min(max(average, 1.0), 127.0) - 1) * 70 / 126)
@@ -253,45 +255,79 @@ def brightness(hats: int) -> int:
 
 @dataclass(frozen=True)
 class BarPlan:
-    """What the melody plays in one bar: notes up to `level` (0 is silence), at
-    `velocity`, after sending the brightness CC `cc` (`None`: no CC)."""
+    """What a loop plays in one bar: variation `variation` up to `level` (`None`:
+    silence), at `velocity`, after sending the brightness CC `cc` (`None`: no CC).
+    `skeleton` (`no-drums thin`) plays the loop's own level 1 instead (#144)."""
 
+    variation: str | None
     level: int
     velocity: int
     cc: int | None
+    skeleton: bool = False
+
+    def notes(self, loop: Loop, bar: int) -> tuple[LoopNote, ...]:
+        """The notes of `loop` this plan plays in song bar `bar`."""
+        if self.variation is None:
+            return ()
+        if self.skeleton:
+            return loop.bar_notes(bar, 1)
+        return loop.variation(self.variation).bar_notes(bar, self.level)
 
 
 class Follower:
-    """Decides each bar from the drums of the bar before (no drums: option A, #144).
+    """Decides each bar of a loop from the drums of the bar before (#158).
 
-    The melody stays silent until the first drum hit after Start; then one empty bar
-    plays the skeleton only, two empty bars in a row are silence, and the loop comes
-    back at the bar after the next hit. A bar the clock did not run through
-    (`complete` false) with no hits counts as a new start. `density` maps the number
-    of hits to the highest level (the bass passes its kick thresholds, #148).
+    A bar with drums plays the variation and level its drums chose (the caller's
+    `melody_variation` and `melody_ornaments`, or the bass's). The loop stays silent
+    until the first drum hit after Start; a bar the clock did not run through
+    (`complete` false) with no hits counts as a new start. Bars without drums follow
+    `no_drums` (`NO_DRUMS`): `lead` plays the loop's `lead` variation and level
+    (the melody's `open` with ornaments, the bass's `home` line), `hold` keeps the
+    last bar's choice, both at the last velocity, for `fade_bars` empty bars (0:
+    never stop), the last two at `FADE` of it; `thin` is #144's rule, the skeleton
+    after one empty bar and silence after two. A bar that does not follow
+    (`follow` false) plays `home` at all levels at `FIXED_VELOCITY`.
     """
 
-    def __init__(self, density: Callable[[int], int] = density) -> None:
-        self._density = density
+    def __init__(self, lead: tuple[str, int]) -> None:
+        self._lead = lead
+        self._last = ("home", 1)
         self._empty: int | None = None
         self._velocity = FIXED_VELOCITY
 
     def plan_bar(
-        self, velocities: Sequence[int], hats: int, complete: bool, follow: bool
+        self,
+        velocities: Sequence[int],
+        chosen: tuple[str, int],
+        cc: int | None,
+        complete: bool,
+        follow: bool,
+        no_drums: str = "lead",
+        fade_bars: int = 8,
     ) -> BarPlan:
         """The plan for the bar that starts now, from the drum hits of the bar that
-        ended (`velocities` of all counted hits, `hats` of them on hat pads)."""
+        ended: `velocities` of all counted hits, the variation and level they
+        `chosen`, and the brightness `cc` they set."""
         if velocities:
             self._empty = 0
             self._velocity = melody_velocity(sum(velocities) / len(velocities))
+            self._last = chosen
         elif not complete:
             self._empty = None
         elif self._empty is not None:
             self._empty += 1
         if not follow:
-            return BarPlan(3, FIXED_VELOCITY, None)
+            return BarPlan("home", ORNAMENTS, FIXED_VELOCITY, None)
         if velocities:
-            return BarPlan(self._density(len(velocities)), self._velocity, brightness(hats))
-        if self._empty == 1:
-            return BarPlan(1, self._velocity, None)
-        return BarPlan(0, self._velocity, None)
+            return BarPlan(*chosen, self._velocity, cc)
+        empty = self._empty
+        if empty is None or (no_drums == "thin" and empty > 1):
+            return BarPlan(None, 0, self._velocity, None)
+        if no_drums == "thin":
+            return BarPlan("home", 1, self._velocity, None, skeleton=True)
+        if fade_bars and empty > fade_bars:
+            return BarPlan(None, 0, self._velocity, None)
+        left = fade_bars - empty if fade_bars else len(FADE)
+        weight = FADE[left] if left < len(FADE) else 1.0
+        velocity = max(round(self._velocity * weight), 1)
+        return BarPlan(*(self._lead if no_drums == "lead" else self._last), velocity, None)

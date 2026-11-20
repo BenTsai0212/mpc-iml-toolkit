@@ -1,5 +1,5 @@
 """The bass loops and kick rules in `mpc_iml.bass`, and the `melody` fields they use
-(`LoopNote.chord` and `semitones`, `Follower(density=…)`) (#148)."""
+(`LoopNote.chord` and `semitones`) (#148), and the bass variations (#158)."""
 
 import pytest
 
@@ -11,14 +11,11 @@ from mpc_iml.bass import (
     bass_note_velocity,
     bass_ornaments,
     bass_variation,
-    kick_density,
 )
 from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.melody import (
     LOOPS,
     ORNAMENTS,
-    BarPlan,
-    Follower,
     LoopNote,
     chord_note,
     loop_pitch,
@@ -110,10 +107,6 @@ def test_bass_ornaments_join_with_three_kicks() -> None:
     assert [bass_ornaments(n) for n in range(6)] == [1, 1, 1, 2, 2, 2]
 
 
-def test_kick_density() -> None:
-    assert [kick_density(n) for n in range(1, 8)] == [1, 1, 2, 2, 3, 3, 3]
-
-
 def test_accents_land_with_the_kicks() -> None:
     assert [accent(s, [0, 7]) for s in (0, 1, 2, 6, 8, 9)] == [1, 1, OFF_KICK, 1, 1, OFF_KICK]
     assert accent(0, []) == OFF_KICK
@@ -123,14 +116,3 @@ def test_accents_land_with_the_kicks() -> None:
     assert bass_note_velocity(ghost, 100, [3]) == 70
     assert bass_note_velocity(ghost, 100, None) == 70
     assert bass_note_velocity(root, 1, [8]) == 1
-
-
-def test_follower_with_kick_density() -> None:
-    follower = Follower(density=kick_density)
-    assert follower.plan_bar([], 0, True, True).level == 0
-    assert follower.plan_bar([127, 127], 0, True, True).level == 1
-    assert follower.plan_bar([127] * 3, 0, True, True).level == 2
-    assert follower.plan_bar([1] * 5, 0, True, True) == BarPlan(3, 50, 40)
-    assert follower.plan_bar([], 0, True, True) == BarPlan(1, 50, None)
-    assert follower.plan_bar([], 0, True, True) == BarPlan(0, 50, None)
-    assert Follower().plan_bar([127] * 3, 0, True, True).level == 1

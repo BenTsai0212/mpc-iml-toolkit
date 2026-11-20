@@ -1,4 +1,5 @@
-"""`ensemble`'s state replies and the control `melody-mode` (ADR 0009, #153).
+"""`ensemble`'s state replies and the control `melody-mode` (ADR 0009, #153), with
+`no-drums`, `fade-bars` and `variation` (#158).
 
 The preset runs on the simulated DAW clock of `test_ensemble.py`; its `Rig` records
 the state each time the preset calls `ClockAccess.report()`.
@@ -9,7 +10,8 @@ from typing import Any
 import pytest
 import test_engine
 from test_engine_preset_state import installed
-from test_ensemble import BAR, LAYER, START, STEP, STOP, Rig
+from test_ensemble import BAR, KICK, LAYER, START, STEP, STOP, Rig
+from test_melody import play_bar
 
 from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_CC_SWEEP, Ensemble, make_preset
 
@@ -40,6 +42,9 @@ NAMES = [
     "immediate",
     "bar",
     "roles",
+    "no-drums",
+    "fade-bars",
+    "variation",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -82,6 +87,9 @@ def test_the_state_after_build() -> None:
         "immediate": [1],
         "bar": [1],
         "roles": list(DEFAULT_ROLES),
+        "no-drums": ["lead"],
+        "fade-bars": [8],
+        "variation": ["-", "-"],
     }
 
 
@@ -107,6 +115,9 @@ def test_the_preset_has_the_state_hook() -> None:
         ("melody-pad", [9], "melody-pad", [9]),
         ("immediate", [0], "immediate", [0]),
         ("bar", [0], "bar", [0]),
+        ("no-drums", ["thin"], "no-drums", ["thin"]),
+        ("fade-bars", [0], "fade-bars", [0]),
+        ("fade-bars", [32], "fade-bars", [32]),
     ],
 )
 def test_each_control_shows_in_the_state(
@@ -115,6 +126,34 @@ def test_each_control_shows_in_the_state(
     ensemble = Ensemble()
     ensemble.controls()[control](args)
     assert state(ensemble)[name] == value
+
+
+@pytest.mark.parametrize(
+    ("control", "args"),
+    [("no-drums", ["stop"]), ("no-drums", []), ("fade-bars", [33]), ("fade-bars", [-1])],
+)
+def test_bad_no_drums_and_fade_bars_are_rejected(control: str, args: list[Any]) -> None:
+    ensemble = Ensemble()
+    with pytest.raises(ValueError):
+        ensemble.controls()[control](args)
+    assert state(ensemble)["no-drums"] == ["lead"] and state(ensemble)["fade-bars"] == [8]
+
+
+def test_the_bar_line_reports_when_a_playing_variation_changes() -> None:
+    rig = running()
+    play_bar(rig, 1, [(0, KICK), (8, KICK)])
+    rig.until(2 * BAR + 1)
+    assert [r["variation"] for r in rig.reports] == [["home", "open"]]
+    play_bar(rig, 2, [(0, KICK), (8, KICK)])
+    rig.until(3 * BAR + 1)
+    assert len(rig.reports) == 1
+    play_bar(rig, 3, [(0, KICK), (10, KICK)])
+    rig.until(4 * BAR + 1)
+    assert [r["variation"] for r in rig.reports][1:] == [["push", "open"]]
+    rig.ensemble.controls()["bass"](["off"])
+    rig.ensemble.controls()["melody-mode"](["fixed"])
+    rig.until(5 * BAR + 1)
+    assert rig.reports[-1]["variation"] == ["-", "home"]
 
 
 def test_role_shows_in_the_roles() -> None:

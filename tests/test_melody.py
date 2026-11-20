@@ -11,6 +11,7 @@ from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 
 from mpc_iml.ensemble import NO_CLOCK, Ensemble
 from mpc_iml.melody import (
+    FADE,
     LOOPS,
     MELODY_VARIATIONS,
     ORNAMENTS,
@@ -19,7 +20,6 @@ from mpc_iml.melody import (
     Loop,
     brightness,
     chord_note,
-    density,
     melody_ornaments,
     melody_variation,
     melody_velocity,
@@ -64,8 +64,7 @@ def test_chord_tones_follow_the_quality() -> None:
     assert [chord_note(2 + 7, "7", t, 3) for t in range(4)] == [57, 61, 64, 67]
 
 
-def test_density_velocity_and_brightness() -> None:
-    assert [density(n) for n in (1, 4, 5, 10, 11, 30)] == [1, 1, 2, 2, 3, 3]
+def test_velocity_and_brightness() -> None:
     assert (melody_velocity(1), melody_velocity(127), melody_velocity(200)) == (50, 120, 120)
     assert (brightness(0), brightness(8), brightness(16), brightness(40)) == (40, 84, 127, 127)
 
@@ -142,27 +141,67 @@ def test_melody_ornaments_join_with_eight_hits() -> None:
     assert [melody_ornaments(n) for n in (0, 1, 7, 8, 30)] == [1, 1, 1, 2, 2]
 
 
-def test_follower_no_drums() -> None:
-    follower = Follower()
-    assert follower.plan_bar([], 0, True, True) == BarPlan(0, 100, None)
-    assert follower.plan_bar([127] * 6, 4, True, True) == BarPlan(2, 120, brightness(4))
-    assert follower.plan_bar([], 0, True, True) == BarPlan(1, 120, None)
-    assert follower.plan_bar([], 0, True, True).level == 0
-    assert follower.plan_bar([], 0, True, True).level == 0
-    assert follower.plan_bar([1], 0, True, True) == BarPlan(1, 50, 40)
-    assert follower.plan_bar([], 0, False, True).level == 0
-    assert follower.plan_bar([], 0, True, True).level == 0
-    assert follower.plan_bar([], 0, True, False) == BarPlan(3, 100, None)
+def test_follower_plays_the_chosen_variation() -> None:
+    follower = Follower(("open", ORNAMENTS))
+    assert follower.plan_bar([], ("busy", 2), 90, True, True) == BarPlan(None, 0, 100, None)
+    assert follower.plan_bar([127] * 6, ("home", 1), 60, True, True) == BarPlan("home", 1, 120, 60)
+    assert follower.plan_bar([1], ("busy", 2), 40, True, True) == BarPlan("busy", 2, 50, 40)
+    assert follower.plan_bar([], ("home", 1), 40, True, False) == BarPlan(
+        "home", ORNAMENTS, 100, None
+    )
 
 
-def test_silent_until_the_first_hit_then_a_sparse_bar_plays_the_skeleton() -> None:
+def empty_bars(follower: Follower, bars: int, no_drums: str, fade: int) -> list[BarPlan]:
+    """The plans of `bars` bars without drums after one bar of `busy` at 120."""
+    follower.plan_bar([127] * 9, ("busy", 2), 80, True, True)
+    return [follower.plan_bar([], ("home", 1), 40, True, True, no_drums, fade) for _ in range(bars)]
+
+
+def test_no_drums_lead_plays_the_lead_variation_then_fades_and_stops() -> None:
+    plans = empty_bars(Follower(("open", ORNAMENTS)), 10, "lead", 8)
+    assert {(p.variation, p.level, p.cc) for p in plans[:8]} == {("open", ORNAMENTS, None)}
+    assert [p.velocity for p in plans[:8]] == [120] * 6 + [round(120 * FADE[1]), 48]
+    assert [p.variation for p in plans[8:]] == [None, None]
+
+
+def test_no_drums_hold_keeps_the_last_choice_and_fade_bars_zero_never_stops() -> None:
+    plans = empty_bars(Follower(("open", ORNAMENTS)), 40, "hold", 0)
+    assert {(p.variation, p.level, p.velocity) for p in plans} == {("busy", 2, 120)}
+    assert empty_bars(Follower(("open", ORNAMENTS)), 2, "hold", 1)[0].velocity == 48
+
+
+def test_no_drums_thin_is_the_skeleton_then_silence() -> None:
+    plans = empty_bars(Follower(("open", ORNAMENTS)), 3, "thin", 8)
+    assert plans[0] == BarPlan("home", 1, 120, None, skeleton=True)
+    assert [p.variation for p in plans[1:]] == [None, None]
+    keys = LOOPS["keys"]
+    assert plans[0].notes(keys, 0) == keys.bar_notes(0, 1)
+    assert len(plans[0].notes(keys, 0)) == 2
+
+
+def test_an_incomplete_empty_bar_is_a_new_start() -> None:
+    follower = Follower(("open", ORNAMENTS))
+    follower.plan_bar([100], ("home", 1), 40, True, True)
+    assert follower.plan_bar([], ("home", 1), 40, False, True).variation is None
+    assert follower.plan_bar([], ("home", 1), 40, True, True).variation is None
+
+
+def test_silent_until_the_first_hit_then_a_sparse_bar_plays_the_open_line() -> None:
     rig = started()
     play_bar(rig, 0, [])
     play_bar(rig, 1, [(0, KICK), (8, SNARE)])
     assert melody_on(rig) == []
     rig.until(3 * BAR)
-    assert melody_on(rig) == [(2 * BAR, 65, 120), (2 * BAR + 10 * STEP, 76, 120)]
-    assert melody_off(rig) == [(2 * BAR + 4 * STEP, 65)]
+    assert melody_on(rig) == [
+        (2 * BAR, 69, 120),
+        (2 * BAR + 4 * STEP, 72, 108),
+        (2 * BAR + 8 * STEP, 76, 120),
+    ]
+    assert melody_off(rig) == [
+        (2 * BAR + 3 * STEP, 69),
+        (2 * BAR + 7 * STEP, 72),
+        (2 * BAR + 14 * STEP, 76),
+    ]
     assert ccs(rig) == [(2 * BAR, 74, 40)]
     assert rig.sent[[m for _, m in rig.sent].index(bytes([0xB2, 74, 40])) + 1][1][0] == 0x92
 
@@ -183,15 +222,32 @@ def test_a_busy_bar_plays_every_level_louder_softer_and_brighter() -> None:
     assert ccs(rig) == [(2 * BAR, 74, brightness(6))]
 
 
-def test_one_empty_bar_keeps_the_skeleton_two_stop_it() -> None:
+def test_empty_bars_lead_with_the_open_line() -> None:
     rig = started(loop=["pluck"])
     play_bar(rig, 0, [(s, HAT) for s in range(0, 16, 2)])
     play_bar(rig, 1, [])
     play_bar(rig, 2, [])
     rig.until(4 * BAR)
     bars = [t // BAR for t, _, _ in melody_on(rig)]
-    assert bars == [1] * 6 + [2] * 4
+    assert bars == [1] * 6 + [2] * 5 + [3] * 5
     assert len(ccs(rig)) == 1
+
+
+def test_thin_keeps_the_skeleton_one_empty_bar_two_stop_it() -> None:
+    rig = started(loop=["pluck"], no_drums=["thin"])
+    play_bar(rig, 0, [(s, HAT) for s in range(0, 16, 2)])
+    play_bar(rig, 1, [])
+    play_bar(rig, 2, [])
+    rig.until(4 * BAR)
+    bars = [t // BAR for t, _, _ in melody_on(rig)]
+    assert bars == [1] * 6 + [2] * 4
+
+
+def test_sixteenth_hats_choose_busy() -> None:
+    rig = started(loop=["pluck"])
+    play_bar(rig, 0, [(0, KICK), (3, HAT), (8, SNARE)])
+    rig.until(2 * BAR)
+    assert [(t - BAR) // STEP for t, _, _ in melody_on(rig)] == list(range(0, 16, 2))
 
 
 def test_follow_off_plays_everything_from_velocity_100_without_cc() -> None:
@@ -206,7 +262,7 @@ def test_controls_octave_channel_and_filter_cc() -> None:
     play_bar(rig, 0, [])
     play_bar(rig, 1, [(0, KICK)])
     rig.until(3 * BAR)
-    assert [m[1] for _, m in rig.sent if m[0] == 0x94] == [53, 60, 60, 60]
+    assert [m[1] for _, m in rig.sent if m[0] == 0x94] == [53, 60, 65, 64]
     assert melody_on(rig) == ccs(rig) == []
 
 
