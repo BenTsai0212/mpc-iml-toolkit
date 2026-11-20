@@ -44,6 +44,7 @@ NAMES = [
     "roles",
     "no-drums",
     "fade-bars",
+    "surprise",
     "variation",
 ]
 """The replies, in the order of ADR 0009."""
@@ -89,6 +90,7 @@ def test_the_state_after_build() -> None:
         "roles": list(DEFAULT_ROLES),
         "no-drums": ["lead"],
         "fade-bars": [8],
+        "surprise": [1],
         "variation": ["-", "-"],
     }
 

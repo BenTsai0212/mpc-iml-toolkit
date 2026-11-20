@@ -17,6 +17,7 @@ loudness.
 """
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from mpc_iml.melody import ORNAMENTS, Loop, LoopNote, with_variations
 
@@ -25,6 +26,7 @@ __all__ = [
     "BASS_VARIATIONS",
     "OFF_KICK",
     "accent",
+    "bass_fill",
     "bass_note_velocity",
     "bass_ornaments",
     "bass_variation",
@@ -162,6 +164,20 @@ def bass_variation(kicks: Sequence[int]) -> str:
     if len(kicks) >= 5:
         return "drive"
     return "push" if any(step % 4 for step in kicks) else "home"
+
+
+def bass_fill(notes: Sequence[LoopNote], bar: int, steps: int = 16) -> tuple[LoopNote, ...]:
+    """The surprise `fill` (#158): `notes` of loop bar `bar` (a bar of `steps` 16ths)
+    with the last beat replaced by a 16th run: root, fifth, octave and the approach
+    note into the next bar. Notes before the last beat end by its start."""
+    start = steps - 4
+    kept = tuple(replace(n, length=min(n.length, start - n.step)) for n in notes if n.step < start)
+    return kept + (
+        N(bar, start, 0, 1, 1, velocity=0.9),
+        N(bar, start + 1, 2, 1, 1, velocity=0.8),
+        N(bar, start + 2, 0, 1, 1, octave=1, velocity=0.9),
+        N(bar, start + 3, length=1, level=1, **APPROACH),
+    )
 
 
 def bass_ornaments(kicks: int) -> int:

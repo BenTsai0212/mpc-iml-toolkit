@@ -18,8 +18,14 @@ variation (`melody_variation`) and whether its ornaments play (`melody_ornaments
 so a sparse bar changes the line instead of thinning it; their average velocity
 sets the loudness and the hits on `hat` pads the brightness CC. Bars without drums
 follow the `no-drums` rule (`NO_DRUMS`).
+
+A little surprise (#158): at the last bar of each 4-bar phrase, with probability
+`SURPRISE_CHANCE`, one change the musician did not ask for (`surprise`): a bass fill
+(`bass.bass_fill`), the melody an octave up (`octave_up`) or a passing note into the
+next bar (`passing`). The choice comes from a seeded `random.Random`.
 """
 
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
@@ -29,6 +35,9 @@ __all__ = [
     "MELODY_VARIATIONS",
     "NO_DRUMS",
     "ORNAMENTS",
+    "PHRASE",
+    "SURPRISES",
+    "SURPRISE_CHANCE",
     "QUALITIES",
     "BarPlan",
     "Follower",
@@ -40,7 +49,10 @@ __all__ = [
     "melody_ornaments",
     "melody_variation",
     "melody_velocity",
+    "octave_up",
+    "passing",
     "relevel",
+    "surprise",
 ]
 
 QUALITIES = {"m7": (0, 3, 7, 10), "maj7": (0, 4, 7, 11), "7": (0, 4, 7, 10)}
@@ -60,6 +72,15 @@ NO_DRUMS = ("lead", "hold", "thin")
 
 FADE = (0.4, 0.7)
 """Velocity weights of the last and the second-to-last bar before the loops stop."""
+
+SURPRISES = ("fill", "octave", "passing")
+"""The surprises: a bass fill, the melody an octave up, a passing note."""
+
+PHRASE = 4
+"""Bars per phrase; a surprise can come in the last bar of each phrase."""
+
+SURPRISE_CHANCE = 0.5
+"""The probability of a surprise at the end of a phrase."""
 
 
 @dataclass(frozen=True)
@@ -253,17 +274,45 @@ def brightness(hats: int) -> int:
     return round(40 + min(hats, 16) * 87 / 16)
 
 
+def surprise(rng: random.Random, bar: int, candidates: Sequence[str]) -> str | None:
+    """The surprise of song bar `bar`, one of `candidates` (the `SURPRISES` that can
+    sound now), or `None`: only in the last bar of a phrase, with probability
+    `SURPRISE_CHANCE`, drawn from `rng`."""
+    if bar % PHRASE != PHRASE - 1 or not candidates:
+        return None
+    if rng.random() >= SURPRISE_CHANCE:
+        return None
+    return rng.choice(list(candidates))
+
+
+def octave_up(notes: Sequence[LoopNote]) -> tuple[LoopNote, ...]:
+    """`notes` an octave up (the surprise `octave`)."""
+    return tuple(replace(n, octave=n.octave + 1) for n in notes)
+
+
+def passing(notes: Sequence[LoopNote]) -> tuple[LoopNote, ...]:
+    """`notes` with the last one replaced by a passing note half a step below the same
+    chord tone of the next bar's chord (the surprise `passing`)."""
+    if not notes:
+        return tuple(notes)
+    last = max(notes, key=lambda n: n.step)
+    return tuple(replace(n, chord=1, semitones=-1) if n is last else n for n in notes)
+
+
 @dataclass(frozen=True)
 class BarPlan:
     """What a loop plays in one bar: variation `variation` up to `level` (`None`:
     silence), at `velocity`, after sending the brightness CC `cc` (`None`: no CC).
-    `skeleton` (`no-drums thin`) plays the loop's own level 1 instead (#144)."""
+    `skeleton` (`no-drums thin`) plays the loop's own level 1 instead (#144).
+    `surprise` is whether the bar may carry a surprise: it follows the drums or keeps
+    playing without them, not fixed, `thin`, fading or silent."""
 
     variation: str | None
     level: int
     velocity: int
     cc: int | None
     skeleton: bool = False
+    surprise: bool = False
 
     def notes(self, loop: Loop, bar: int) -> tuple[LoopNote, ...]:
         """The notes of `loop` this plan plays in song bar `bar`."""
@@ -319,7 +368,7 @@ class Follower:
         if not follow:
             return BarPlan("home", ORNAMENTS, FIXED_VELOCITY, None)
         if velocities:
-            return BarPlan(*chosen, self._velocity, cc)
+            return BarPlan(*chosen, self._velocity, cc, surprise=True)
         empty = self._empty
         if empty is None or (no_drums == "thin" and empty > 1):
             return BarPlan(None, 0, self._velocity, None)
@@ -330,4 +379,5 @@ class Follower:
         left = fade_bars - empty if fade_bars else len(FADE)
         weight = FADE[left] if left < len(FADE) else 1.0
         velocity = max(round(self._velocity * weight), 1)
-        return BarPlan(*(self._lead if no_drums == "lead" else self._last), velocity, None)
+        chosen = self._lead if no_drums == "lead" else self._last
+        return BarPlan(*chosen, velocity, None, surprise=weight == 1.0)

@@ -58,7 +58,10 @@ no arguments: sends only the brightness CC on the melody channel, `LEARN_CC_SWEE
 upwards and on the next call downwards, so a DAW in MIDI map mode learns the CC and
 not a note; refused while the clock is `running` and when `filter-cc` is 0), and for
 both loops `no-drums lead|hold|thin` and `fade-bars 0-32` (default 8, 0: never
-stop; #158). Bass mode and melody
+stop; #158), and `surprise 0|1` (default 1, #158: at the last bar of each 4-bar
+phrase, with probability 1/2, a bass fill, the melody an octave up or a passing
+note, only in bars that follow the drums or keep playing without them; seeded with
+`Ensemble(seed=…)`, a fresh seed in each `make_preset`). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
 
@@ -70,6 +73,7 @@ bar line where the playing bass or melody mode or a playing variation (the reply
 `variation`, #158) changes.
 """
 
+import random
 import sys
 import threading
 from collections.abc import Callable, Sequence
@@ -77,7 +81,13 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from mpc_iml import __version__
-from mpc_iml.bass import BASS_LOOPS, bass_note_velocity, bass_ornaments, bass_variation
+from mpc_iml.bass import (
+    BASS_LOOPS,
+    bass_fill,
+    bass_note_velocity,
+    bass_ornaments,
+    bass_variation,
+)
 from mpc_iml.clock import (
     SIXTEENTHS,
     TICKS_PER_BEAT,
@@ -92,12 +102,15 @@ from mpc_iml.melody import (
     LOOPS,
     NO_DRUMS,
     ORNAMENTS,
+    BarPlan,
     Follower,
     brightness,
-    chord_note,
     loop_pitch,
     melody_ornaments,
     melody_variation,
+    octave_up,
+    passing,
+    surprise,
 )
 from mpc_iml.presets import ControlHandler, Preset
 
@@ -218,6 +231,7 @@ class Ensemble:
         self,
         log: Callable[[str], None] = lambda line: print(line, file=sys.stderr),
         timer: TimerFactory = threading.Timer,
+        seed: int | None = None,
     ) -> None:
         self.bass = "loop"
         self._bass_active = "loop"
@@ -244,6 +258,8 @@ class Ensemble:
         self._follower = Follower(("open", ORNAMENTS))
         self.no_drums = "lead"
         self.fade_bars = 8
+        self.surprise = True
+        self._random = random.Random(seed)
         self._variations = ("-", "-")
         self._melody_notes: list[Scheduled] = []
         self._log = log
@@ -318,23 +334,47 @@ class Ensemble:
             self._apply_bass()
             skip = {p - 1 for p in (self.layer_pad, self.melody_pad) if p}
             drums = [h for h in start.hits if h.pad not in skip]
-            bass = self._plan_bass(start, [h for h in drums if self.roles[h.pad] == "kick"])
-            self._variations = (bass, self._plan_melody(start, drums))
+            kicks = [h for h in drums if self.roles[h.pad] == "kick"]
+            hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
+            bass_plan = self._bass_follower.plan_bar(
+                [h.velocity for h in kicks],
+                (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks))),
+                None,
+                start.complete,
+                self.follow,
+                self.no_drums,
+                self.fade_bars,
+            )
+            melody_plan = self._follower.plan_bar(
+                [h.velocity for h in drums],
+                (melody_variation(len(drums), hats), melody_ornaments(len(drums))),
+                brightness(len(hats)),
+                start.complete,
+                self.follow,
+                self.no_drums,
+                self.fade_bars,
+            )
+            extra = self._surprise(start.bar, bass_plan, melody_plan)
+            bass = self._plan_bass(start, bass_plan, kicks, extra == "fill")
+            self._variations = (bass, self._plan_melody(start, melody_plan, extra))
 
-    def _plan_melody(self, start: BarStart, drums: Sequence[GridHit]) -> str:
-        """Schedule the melody's notes of the bar that starts now; the variation it
-        plays (`-`: none)."""
-        hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
-        chosen = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
-        plan = self._follower.plan_bar(
-            [h.velocity for h in drums],
-            chosen,
-            brightness(len(hats)),
-            start.complete,
-            self.follow,
-            self.no_drums,
-            self.fade_bars,
-        )
+    def _surprise(self, bar: int, bass: BarPlan, melody: BarPlan) -> str | None:
+        """The surprise of `bar`, among those that can sound in it (#158)."""
+        if not self.surprise or self._access is None or self._access.scheduler is None:
+            return None
+        candidates = []
+        if bass.surprise and self._bass_active == "loop":
+            candidates.append("fill")
+        if melody.surprise and self.melody:
+            candidates += ["octave", "passing"]
+        chosen = surprise(self._random, bar, candidates)
+        if chosen is not None:
+            self._log(f"ensemble: surprise {chosen} in bar {bar}")
+        return chosen
+
+    def _plan_melody(self, start: BarStart, plan: BarPlan, extra: str | None) -> str:
+        """Schedule the melody's notes of the bar that starts now, with the surprise
+        `extra` if it is the melody's; the variation it plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or not self.melody:
             return "-"
@@ -344,53 +384,51 @@ class Ensemble:
         if plan.cc is not None and self.filter_cc:
             cc = bytes([0xB0 | (channel - 1), self.filter_cc, plan.cc])
             self._melody_notes.append(scheduler.at(start.bar, 0, [cc]))
-        chord = self.progression.chord(start.bar)
-        pitch_class = self.progression.tonic + chord.root
+        chords = self._chords(start.bar)
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
-        for note in plan.notes(self.loop, start.bar):
-            if note.step >= steps:
-                continue
-            pitch = chord_note(pitch_class, chord.quality, note.tone, self.melody_octave)
+        notes = tuple(n for n in plan.notes(self.loop, start.bar) if n.step < steps)
+        if extra == "octave":
+            notes = octave_up(notes)
+        elif extra == "passing":
+            notes = passing(notes)
+        for note in notes:
+            pitch = loop_pitch(note, *chords, self.melody_octave)
             velocity = min(max(round(plan.velocity * note.velocity), 1), 127)
             self._melody_notes.append(
-                scheduler.note(
-                    start.bar, note.step, pitch + 12 * note.octave, velocity, note.length, channel
-                )
+                scheduler.note(start.bar, note.step, pitch, velocity, note.length, channel)
             )
         return plan.variation or "-"
 
-    def _plan_bass(self, start: BarStart, kicks: Sequence[GridHit]) -> str:
-        """Schedule the bass loop's notes of the bar that starts now; the variation it
-        plays (`-`: none)."""
-        steps_hit = [h.step for h in kicks]
-        chosen = (bass_variation(steps_hit), bass_ornaments(len(kicks)))
-        plan = self._bass_follower.plan_bar(
-            [h.velocity for h in kicks],
-            chosen,
-            None,
-            start.complete,
-            self.follow,
-            self.no_drums,
-            self.fade_bars,
+    def _chords(self, bar: int) -> tuple[tuple[int, str], tuple[int, str]]:
+        """The (pitch class, quality) of the chords of `bar` and of the next bar."""
+        progression = self.progression
+        now, following = progression.chord(bar), progression.chord(bar + 1)
+        return (
+            (progression.tonic + now.root, now.quality),
+            (progression.tonic + following.root, following.quality),
         )
+
+    def _plan_bass(
+        self, start: BarStart, plan: BarPlan, kicks: Sequence[GridHit], fill: bool
+    ) -> str:
+        """Schedule the bass loop's notes of the bar that starts now, with the surprise
+        `fill`; the variation it plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or self._bass_active != "loop":
             return "-"
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._bass_notes = [h for h in self._bass_notes if h.tick >= last_bar]
-        progression, bar = self.progression, start.bar
-        now, following = progression.chord(bar), progression.chord(bar + 1)
-        chords = (
-            (progression.tonic + now.root, now.quality),
-            (progression.tonic + following.root, following.quality),
-        )
+        bar = start.bar
+        chords = self._chords(bar)
+        steps_hit = [h.step for h in kicks]
         # Without kicks the notes keep the last bar's velocity; thin keeps #148's rule.
         accented = self.follow and (bool(kicks) or self.no_drums == "thin")
         accents = steps_hit if accented else None
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
-        for note in plan.notes(self.bass_loop, bar):
-            if note.step >= steps:
-                continue
+        notes = tuple(n for n in plan.notes(self.bass_loop, bar) if n.step < steps)
+        if fill:
+            notes = bass_fill(notes, bar % self.bass_loop.bars, steps)
+        for note in notes:
             pitch = loop_pitch(note, *chords, self.octave)
             velocity = bass_note_velocity(note, plan.velocity, accents)
             length = min(note.length, steps - note.step)
@@ -575,6 +613,7 @@ class Ensemble:
             "learn-cc": self._learn_cc,
             "no-drums": self._set_no_drums,
             "fade-bars": lambda a: self._set(lambda: setattr(self, "fade_bars", _whole(a, 0, 32))),
+            "surprise": lambda a: self._set(lambda: setattr(self, "surprise", _flag(a))),
         }
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
@@ -677,6 +716,7 @@ class Ensemble:
                 ("roles", list(self.roles)),
                 ("no-drums", [self.no_drums]),
                 ("fade-bars", [self.fade_bars]),
+                ("surprise", [int(self.surprise)]),
                 ("variation", list(self._variations if scheduler is not None else ("-", "-"))),
             ]
 
@@ -723,7 +763,8 @@ def _flag(args: Sequence[float | int | str]) -> bool:
 
 
 def make_preset(log: Callable[[str], None] | None = None) -> Preset:
-    """The built-in preset `ensemble`, with fresh settings and bass state."""
+    """The built-in preset `ensemble`, with fresh settings and bass state (and a fresh
+    random seed for the surprises)."""
     ensemble = Ensemble(log) if log is not None else Ensemble()
     return Preset(
         name="ensemble",

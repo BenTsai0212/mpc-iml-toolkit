@@ -169,6 +169,7 @@ dropping notes, and keep playing when the drums stop (`no-drums`).
   | --- | --- |
   | `no-drums` | `s` value |
   | `fade-bars` | `i` value |
+  | `surprise` | `i` 0 or 1 (PR 3, below) |
   | `variation` | `s` bass variation playing, `s` melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
 
 - `ensemble` calls `report()` at a bar line when the playing bass or melody mode
@@ -177,6 +178,13 @@ dropping notes, and keep playing when the drums stop (`no-drums`).
 - Group 8 and the Max for Live device do not change: the new replies are dropped by
   the group's `route`, and the new controls are OSC only.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
+- A little surprise (PR 3 of #158): the control `surprise 0|1` (default 1) and the
+  reply `surprise` (`i` value) between `fade-bars` and `variation`. At the last bar of
+  each 4-bar phrase, with probability 1/2, `ensemble` plays a bass fill, the melody an
+  octave up or a passing note, only in bars that follow the drums or keep playing
+  without them (not fixed, `bass rule`, `thin` or a fade). The draw is seeded
+  (`Ensemble(seed=…)`, a fresh seed in each build); a surprise does not change the
+  `variation` reply and does not call `report()`. Group 8 does not change.
 
 ## Consequences
 

@@ -60,9 +60,17 @@ class FakeTimer:
 
 class Rig:
     """An `Ensemble` on a simulated DAW clock (or without one); the melody layer is
-    off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`."""
+    off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`.
+    The surprises (#158) are off unless `surprise`, with the fixed seed `seed`."""
 
-    def __init__(self, clock: bool = True, melody: bool = False, bass: str = "rule") -> None:
+    def __init__(
+        self,
+        clock: bool = True,
+        melody: bool = False,
+        bass: str = "rule",
+        surprise: bool = False,
+        seed: int = 0,
+    ) -> None:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
         self.timers: list[FakeTimer] = []
@@ -73,7 +81,8 @@ class Rig:
         self.access = ClockAccess(
             self.clock, self.log.append, self.scheduler, self.record, report=self.report
         )
-        self.ensemble = Ensemble(self.log.append, self.timer)
+        self.ensemble = Ensemble(self.log.append, self.timer, seed=seed)
+        self.ensemble.surprise = surprise
         self.ensemble.melody = melody
         self.ensemble.controls()["bass"]([bass])
         self.ensemble.attach(self.access)
