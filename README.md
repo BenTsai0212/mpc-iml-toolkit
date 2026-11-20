@@ -566,8 +566,10 @@ The built-in preset `ensemble` (`src/mpc_iml/ensemble.py`, the first step of
 your kick drum. There is no model and nothing to train: you play drums on the
 MPC Sample as usual, and each hit on a **kick** pad drives a bass note on the root of
 a fixed chord progression. The bass plays one note at a time, as MIDI notes on
-**channel 2** of the virtual port `mpc-iml`. It plays in any engine state; you do
-not need to click `run`.
+**channel 2** of the virtual port `mpc-iml`. With `--clock`, a short melodic loop
+also plays over the same chords on **channel 3**, and how you play each bar shapes
+the next bar of the loop (#144, [below](#the-melody-loop)). It plays in any engine
+state; you do not need to click `run`.
 
 Each pad has a role. The defaults are a boom-bap layout (pad 1 is bottom left; the
 same in every bank):
@@ -579,7 +581,8 @@ same in every bank):
 | 9-16 | other | other | other | other |
 
 Only `kick` drives the bass for now, so put the kick on pad 1 or 5 of your MPC
-program. Pad 16 switches between the layers (below) and plays no bass.
+program. Pad 16 switches between the layers (below) and plays no bass; pad 15
+switches the melody (below).
 
 The bass has two layers, and you can turn each one on or off to compare them:
 
@@ -628,8 +631,50 @@ both.
 
 Without `--clock`, `ensemble` still loads and the immediate layer plays, always
 with the first chord and 0.25 s notes; the bar layer is off and the engine prints
-`ensemble: no MIDI clock (start with --clock); bar layer off`. With `--clock`, it
-plays the same way while the DAW is stopped or before it starts.
+`ensemble: no MIDI clock (start with --clock); bar layer and melody off`. With
+`--clock`, it plays the same way while the DAW is stopped or before it starts.
+
+### The melody loop
+
+With `--clock` and Live playing, `ensemble` loops a short melody over the chord
+progression, as MIDI notes on **channel 3** of `mpc-iml`
+(`src/mpc_iml/melody.py`). The notes are written as chord tones (root, third,
+fifth, seventh), so the loop follows each chord, also when it changes from minor to
+major. There are two loops:
+
+- `keys` (default): a sparse 2-bar keys riff.
+- `pluck`: a 1-bar 8th-note arpeggio.
+
+The melody starts in octave 4 (A4 is MIDI note 69). Each note of a loop has a level
+1-3: level 1 notes are the loop's skeleton, levels 2 and 3 fill it in.
+
+**The drums change the loop once per bar.** At each bar line, the hits of the bar
+that just ended set the whole next bar; nothing changes in the middle of a bar.
+Three things in your playing each change one thing you can hear:
+
+| Your last bar | The next bar of the melody |
+| --- | --- |
+| Number of hits (all pads) | **Density**: 1-4 hits play the skeleton only, 5-10 add level 2, 11 or more play every note. Kick and snare give the skeleton; add 8th hats to fill the loop in. |
+| Average velocity | **Loudness**: velocity 1-127 becomes 50-120, as for the bass. |
+| Hits on `hat` pads | **Brightness**: CC 74 on channel 3 at the bar line, from 40 with no hats to 127 with 16 or more. Map it to a filter or brightness knob in Live. |
+
+When you stop playing, one empty bar keeps the skeleton under the break, and two
+empty bars in a row stop the melody; it comes back at the bar after your next hit.
+After Start in Live, the melody waits for your first hit. Hits on pads 15 and 16
+do not count.
+
+Press **pad 15** to cycle follow → fixed → off. **fixed** plays every note of the
+loop at velocity 100 and sends no CC, whatever the drums do, so you can compare it
+with **follow**. The terminal shows the new mode (`ensemble: melody follow`,
+`ensemble: melody fixed` or `ensemble: melody off`), and it applies from the next
+bar line. The preset starts in follow.
+
+To hear the melody in Live, add a second MIDI track with a keys instrument (for
+example an electric piano or a pluck preset of Drift). Set MIDI From to `mpc-iml`,
+the channel to **Ch. 3**, and Monitor to **In**. Map CC 74 to the instrument's
+filter cutoff: click **MIDI** at the top right, click the filter knob, hit pads on
+`hat` pads with Live playing (the CC goes out at the next bar line), and click
+**MIDI** again. Stop in Live ends the melody notes that are sounding.
 
 ### Ensemble controls
 
@@ -646,11 +691,18 @@ Data patch has no group for them yet, so send them from any OSC client:
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
 | `/mpciml/preset/ensemble/role` | pad 1-16, then `kick`, `snare`, `hat` or `other` | the table above | The role of one pad, in every bank |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the layers; 0 for none |
+| `/mpciml/preset/ensemble/melody` | 0 or 1 | 1 | The melody; 0 also drops the notes still to come |
+| `/mpciml/preset/ensemble/loop` | `keys` or `pluck` | `keys` | The melody loop |
+| `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the loop; 0: fixed |
+| `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | Octave of the melody (A4 at 4) |
+| `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
+| `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
+| `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | The pad that cycles the melody; 0 for none |
 
 The engine does not reply with these settings. They go back to the defaults when
 `ensemble` is loaded again or the engine starts. Bad values get
 `/mpciml/error bad_arguments`, and messages for `ensemble` while another preset is
-loaded get `inactive_preset`.
+loaded get `inactive_preset`. The melody controls apply from the next bar line.
 
 ### Compare the layers
 
@@ -670,6 +722,27 @@ around 90 BPM:
 
 3. Press Stop in Live while the bass is playing, and check that no note keeps
    sounding.
+
+### Check the melody
+
+The manual check for #144, with the MPC Sample, Live set up for the bass and the
+melody as above (bass on Ch. 2, keys on Ch. 3 with CC 74 mapped to its filter),
+Sync on for `mpc-iml clock` with MIDI Clock Type **Song**, and
+`uv run mpc-iml --preset ensemble --clock`:
+
+1. 5 minutes with the melody **following** (the terminal shows
+   `ensemble: melody follow`): alternate sparse bars (kick and snare only) and busy
+   bars (8th or 16th hats, hard hits), and drop out for one bar and for two bars.
+2. 5 minutes with the melody **fixed** (pad 15 once), with the same patterns.
+3. After each, write one row:
+
+   | Melody | Fun (1-5) | Sounds like me (1-5) | Notes |
+   | --- | --- | --- | --- |
+   | follow | | | Were the density, loudness and brightness changes heard as caused by the drums? Did the one-bar delay feel natural? Did stopping after two empty bars feel right? |
+   | fixed | | | |
+
+4. Press Stop in Live while both play, and check that no note keeps sounding on
+   either channel.
 
 ## Ableton Live starter set
 
@@ -730,12 +803,13 @@ engine appear on the status line in group 8 **Messages** of the patch.
 
 | Symptom | What to check |
 | --- | --- |
-| No sound | The DAW track's MIDI input is the MPC Sample (or All Ins), not `mpc-iml`: that port sends only CCs and the `ensemble` bass, not the drums. The track's Monitor is In or Auto. On the MPC Sample, **MIDI Port** is **USB** and **Pad MIDI Out** is **Always** (step 3 of the [reference example](#reference-example)). |
+| No sound | The DAW track's MIDI input is the MPC Sample (or All Ins), not `mpc-iml`: that port sends only CCs and the `ensemble` bass and melody, not the drums. The track's Monitor is In or Auto. On the MPC Sample, **MIDI Port** is **USB** and **Pad MIDI Out** is **Always** (step 3 of the [reference example](#reference-example)). |
 | Sound, but the parameters or macros do not move | The engine is running and the front end's `state` shows `running` (click `run`). In Live, `mpc-iml` has **Remote** on in Settings > Tempo & MIDI. If the DAW was opened before the engine, the port `mpc-iml` did not exist yet: after starting the engine, restart the DAW (or turn the port off and on again in its MIDI settings). |
 | Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
 | The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
 | The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
 | `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. Pad 16 may have switched to the bar layer, which needs `--clock` and Live playing; see [Play the ensemble preset](#play-the-ensemble-preset). |
+| `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and stops after two empty bars. Pad 15 may have switched it off (the terminal shows `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
 | `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
 | A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
 

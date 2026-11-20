@@ -434,7 +434,9 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 內建的 preset `ensemble`（`src/mpc_iml/ensemble.py`，[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md)
 的第一步，#138）演奏跟隨 kick 的 bass。不用模型，也不需要訓練：照常在 MPC Sample 上打鼓，
 每一下打在 **kick** pad 上，就以固定和弦進行的根音帶出一個 bass 音符。bass 一次只發一個音，
-以 MIDI 音符送到虛擬 port `mpc-iml` 的 **channel 2**。engine 在任何狀態都會演奏，不需要按 `run`。
+以 MIDI 音符送到虛擬 port `mpc-iml` 的 **channel 2**。有 `--clock` 時，同一組和弦上還會在
+**channel 3** 循環一段短旋律，你每一小節怎麼打，決定旋律的下一小節（#144，見[下文](#旋律-loop)）。
+engine 在任何狀態都會演奏，不需要按 `run`。
 
 每個 pad 有一個角色。預設是 boom-bap 的配置（pad 1 在左下；每個 bank 都一樣）：
 
@@ -445,7 +447,7 @@ Pd 合成器，以 `--outputs-port <埠>` 啟動 engine，讓合成器接收該�
 | 9-16 | other | other | other | other |
 
 目前只有 `kick` 會帶出 bass，所以請把 MPC program 的 kick 放在 pad 1 或 5。pad 16 用來切換
-兩層（見下文），不發出 bass。
+兩層（見下文），不發出 bass；pad 15 用來切換旋律（見下文）。
 
 bass 有兩層，可以各自開關來比較：
 
@@ -485,8 +487,42 @@ Live 的 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦�
 
 沒有 `--clock` 時，`ensemble` 仍會載入，immediate 層照常演奏，但一律使用第一個和弦與
 0.25 秒的音符；bar 層關閉，engine 印出
-`ensemble: no MIDI clock (start with --clock); bar layer off`。有 `--clock` 時，DAW 停止或尚未
-開始播放期間也是這樣演奏。
+`ensemble: no MIDI clock (start with --clock); bar layer and melody off`。有 `--clock` 時，
+DAW 停止或尚未開始播放期間也是這樣演奏。
+
+### 旋律 loop
+
+有 `--clock` 且 Live 正在播放時，`ensemble` 在和弦進行上循環一段短旋律，以 MIDI 音符送到
+`mpc-iml` 的 **channel 3**（`src/mpc_iml/melody.py`）。音符以和弦音（根音、三度、五度、七度）
+寫成，所以 loop 會跟著每個和弦走，和弦從小調換成大調時也一樣。有兩個 loop：
+
+- `keys`（預設）：稀疏的兩小節鍵盤 riff。
+- `pluck`：一小節的 8 分音符琶音。
+
+旋律從第 4 八度開始（A4 是 MIDI 音符 69）。loop 的每個音符有 1-3 的層級：層級 1 是 loop 的
+骨架，層級 2 與 3 把它填滿。
+
+**鼓每小節改變 loop 一次。** 每到小節線，剛結束那一小節的打擊決定下一整個小節；小節中間不會
+改變。你的演奏中有三件事，各自改變一件聽得到的事：
+
+| 你的上一小節 | 旋律的下一小節 |
+| --- | --- |
+| 打擊數（所有 pad） | **密度**：1-4 下只奏骨架，5-10 下加上層級 2，11 下以上奏出所有音符。kick 與 snare 帶出骨架；加上 8 分音符的 hat 就把 loop 填滿。 |
+| 平均 velocity | **音量**：velocity 1-127 變為 50-120，與 bass 相同。 |
+| `hat` pad 的打擊 | **亮度**：在小節線於 channel 3 送出 CC 74，沒有 hat 時為 40，16 下以上為 127。在 Live 中把它對應到濾波器或亮度旋鈕。 |
+
+停止打鼓時，一個空小節會在 break 底下保留骨架，連續兩個空小節則讓旋律停止；下一次打擊之後的
+小節旋律回來。在 Live 按 Start 之後，旋律會等你的第一下打擊。pad 15 與 16 的打擊不計入。
+
+按 **pad 15** 依序切換 follow → fixed → off。**fixed** 不論鼓怎麼打，都以 velocity 100 奏出
+loop 的所有音符，也不送 CC，可以拿來和 **follow** 比較。終端機會顯示新的模式
+（`ensemble: melody follow`、`ensemble: melody fixed` 或 `ensemble: melody off`），從下一個
+小節線開始生效。preset 從 follow 開始。
+
+要在 Live 聽到旋律，新增第二條 MIDI 軌並放上鍵盤樂器（例如電鋼琴，或 Drift 的 pluck preset）。
+MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。把 CC 74 對應到樂器的
+濾波器 cutoff：按右上角的 **MIDI**，點選濾波器旋鈕，在 Live 播放時打 `hat` pad（CC 在下一個
+小節線送出），再按一次 **MIDI**。在 Live 按 Stop 會結束正在發聲的旋律音符。
 
 ### ensemble 的控制項
 
@@ -503,10 +539,17 @@ Live 的 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦�
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
 | `/mpciml/preset/ensemble/role` | pad 1-16，再接 `kick`、`snare`、`hat` 或 `other` | 上表 | 一個 pad 的角色，所有 bank 都適用 |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換兩層的 pad；0 表示不使用 |
+| `/mpciml/preset/ensemble/melody` | 0 或 1 | 1 | 旋律；0 時也取消尚未發出的音符 |
+| `/mpciml/preset/ensemble/loop` | `keys` 或 `pluck` | `keys` | 旋律的 loop |
+| `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 loop；0：fixed |
+| `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | 旋律的八度（4 時為 A4） |
+| `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
+| `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | 亮度的 CC；0 表示不送 |
+| `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | 切換旋律的 pad；0 表示不使用 |
 
 engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時
 得到 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
-`inactive_preset`。
+`inactive_preset`。旋律的控制項從下一個小節線開始生效。
 
 ### 比較兩層
 
@@ -523,6 +566,24 @@ engine 不會回覆這些設定。再次載入 `ensemble` 或重新啟動 engine
    | both | | | |
 
 3. bass 正在發聲時在 Live 按 Stop，確認沒有音符持續發聲。
+
+### 檢查旋律
+
+#144 的人工檢查，使用 MPC Sample、依上文為 bass 與旋律設定好的 Live（bass 在 Ch. 2，鍵盤在
+Ch. 3 並把 CC 74 對應到濾波器）、為 `mpc-iml clock` 打開 Sync 且 MIDI Clock Type 為 **Song**，
+並執行 `uv run mpc-iml --preset ensemble --clock`：
+
+1. 旋律 **follow**（終端機顯示 `ensemble: melody follow`）演奏 5 分鐘：稀疏的小節（只有 kick 與
+   snare）與忙碌的小節（8 或 16 分音符的 hat、重擊）交替，並停打一小節與兩小節。
+2. 旋律 **fixed**（按一次 pad 15）以同樣的節奏演奏 5 分鐘。
+3. 每一段結束後寫一列：
+
+   | 旋律 | 好玩（1-5） | 像我（1-5） | 備註 |
+   | --- | --- | --- | --- |
+   | follow | | | 密度、音量與亮度的變化，聽起來是鼓造成的嗎？晚一小節的反應自然嗎？兩個空小節後停止恰當嗎？ |
+   | fixed | | | |
+
+4. 兩者都在發聲時在 Live 按 Stop，確認兩個 channel 都沒有音符持續發聲。
 
 ## Ableton Live 入門 set
 
@@ -576,12 +637,13 @@ rack `mpc-iml-starter.adg` 可以拖進其他 set，但不帶 CC 對應：對應
 
 | 症狀 | 要檢查的事 |
 | --- | --- |
-| 沒有聲音 | DAW 音軌的 MIDI 輸入是 MPC Sample（或 All Ins），不是 `mpc-iml`：這個 port 只送 CC 與 `ensemble` 的 bass，不送鼓的音符。音軌的 Monitor 是 In 或 Auto。MPC Sample 的 **MIDI Port** 設為 **USB**、**Pad MIDI Out** 設為 **Always**（[參考範例](#參考範例)第 3 步）。 |
+| 沒有聲音 | DAW 音軌的 MIDI 輸入是 MPC Sample（或 All Ins），不是 `mpc-iml`：這個 port 只送 CC 與 `ensemble` 的 bass 和旋律，不送鼓的音符。音軌的 Monitor 是 In 或 Auto。MPC Sample 的 **MIDI Port** 設為 **USB**、**Pad MIDI Out** 設為 **Always**（[參考範例](#參考範例)第 3 步）。 |
 | 有聲音，但參數或 macro 不動 | engine 正在執行，前端的 `state` 顯示 `running`（按 `run`）。在 Live 中，Settings > Tempo & MIDI 已為 `mpc-iml` 開啟 **Remote**。DAW 比 engine 先開啟時，port `mpc-iml` 當時還不存在：啟動 engine 後重新開啟 DAW（或在 DAW 的 MIDI 設定中把這個 port 關掉再開啟）。 |
 | 對應遺失或錯誤 | 按 `stop` 讓 `state` 顯示 `idle`，再用 `l1`-`l8` 一次對應一個 CC，做法見[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc)。使用 Live 時，[Ableton Live 入門 set](#ableton-live-入門-set) 已經做好對應。 |
 | patch 沒有反應 | 按 `connect`。仍沒有反應時，關閉 patch，在終端機按 Ctrl-C 停止 engine，再執行一次 `uv run mpc-iml`。 |
 | engine 停止了，或 MPC Sample 沒有反應 | 重新插上 USB 線，以 Ctrl-C 停止 `uv run mpc-iml` 再重新啟動，然後按 preset（例如 `pressure`），載入 kit，再按 `run`。 |
 | `ensemble` 沒有發出 bass | bass 軌的 MIDI From 是 `mpc-iml`、**Ch. 2**，且 Live 設定中輸入 `mpc-iml` 的 **Track** 已打開。kick 在 pad 1 或 5。pad 16 可能已切換到 bar 層，它需要 `--clock` 且 Live 正在播放；見[演奏 preset ensemble](#演奏-preset-ensemble)。 |
+| `ensemble` 沒有發出旋律 | engine 以 `--clock` 執行，Live 正在播放且為 `mpc-iml clock` 打開 Sync。鍵盤軌的 MIDI From 是 `mpc-iml`、**Ch. 3**。按 Start 後旋律會等你的第一下打擊，連續兩個空小節後會停止。pad 15 可能已把它關掉（終端機顯示 `ensemble: melody off`）；見[旋律 loop](#旋律-loop)。 |
 | 修改 module 或 `amount` 後狀態列顯示 `wrong_state` | 重新訓練正在進行；稍等一下再試。 |
 | 輕輕按住或快速輕敲時聲音幾乎不變 | 見[演奏 preset pressure](#演奏-preset-pressure) 中[在 DAW 對應 MIDI CC](#在-daw-對應-midi-cc) 最後的輕觸一端說明（#76）。 |
 
