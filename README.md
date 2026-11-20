@@ -562,14 +562,15 @@ patch has no group for them yet, so send them from any OSC client:
 ## Play the ensemble preset
 
 The built-in preset `ensemble` (`src/mpc_iml/ensemble.py`, the first step of
-[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md), #138) plays a bass line that follows
-your kick drum. There is no model and nothing to train: you play drums on the
-MPC Sample as usual, and each hit on a **kick** pad drives a bass note on the root of
-a fixed chord progression. The bass plays one note at a time, as MIDI notes on
-**channel 2** of the virtual port `mpc-iml`. With `--clock`, a short melodic loop
-also plays over the same chords on **channel 3**, and how you play each bar shapes
-the next bar of the loop (#144, [below](#the-melody-loop)). It plays in any engine
-state; you do not need to click `run`.
+[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md), #138, #144, #148) plays a bass and a
+melody that follow your drums. There is no model and nothing to train: you play
+drums on the MPC Sample as usual. With `--clock`, a bass loop plays over a fixed
+chord progression, and your **kicks** in each bar shape the next bar of the loop
+([below](#the-bass-loop)). The bass plays one note at a time, as MIDI notes on
+**channel 2** of the virtual port `mpc-iml`. A short melodic loop also plays over the
+same chords on **channel 3**, and how you play each bar shapes the next bar of the
+melody ([below](#the-melody-loop)). It plays in any engine state; you do not need to
+click `run`.
 
 Each pad has a role. The defaults are a boom-bap layout (pad 1 is bottom left; the
 same in every bank):
@@ -580,11 +581,21 @@ same in every bank):
 | 5-8 | kick | snare (clap or rim) | hat | other |
 | 9-16 | other | other | other | other |
 
-Only `kick` drives the bass for now, so put the kick on pad 1 or 5 of your MPC
-program. Pad 16 switches between the layers (below) and plays no bass; pad 15
-switches the melody (below).
+Only `kick` drives the bass, so put the kick on pad 1 or 5 of your MPC program.
+Pad 16 switches the bass mode (below) and plays no bass; pad 15 switches the
+melody (below).
 
-The bass has two layers, and you can turn each one on or off to compare them:
+The bass has three modes:
+
+- **loop** (the default, needs `--clock`): a bass loop that keeps playing, and the
+  kicks of each bar change the next bar ([The bass loop](#the-bass-loop)).
+- **rule**: the rule-based bass of #138, one note on the root of the chord for each
+  kick, in two layers (below). It is the "cause only" bass to compare the loop with.
+- **off**: no bass.
+
+The rule bass has two layers, and you can turn each one on or off with the
+controls `immediate` and `bar` ([Ensemble controls](#ensemble-controls)) to compare
+them:
 
 - **immediate**: a kick plays a bass note at once, with the chord of the bar it
   falls in. A harder hit plays louder (velocity 1-127 becomes 50-120). The note
@@ -601,9 +612,8 @@ The bass has two layers, and you can turn each one on or off to compare them:
 
 The chords come from one of two progressions: `minor-two` (default: Am7 for
 2 bars, then Fmaj7 for 2 bars) and `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
-each). The bass plays each chord's root in octave 1 (A1 is MIDI note 33). With
-Live's MIDI Clock Type set to **Song**, Live's bar 1 is the start of the
-progression.
+each). The bass plays in octave 1 (A1 is MIDI note 33). With Live's MIDI Clock Type
+set to **Song**, Live's bar 1 is the start of the progression.
 
 ### Set up Live for the bass
 
@@ -623,16 +633,55 @@ progression.
    Drift). Set MIDI From to `mpc-iml` and the channel below it to **Ch. 2**, and
    set Monitor to **In**.
 4. Press Play in Live and play a pattern with the kick on pad 1. Stop in Live ends
-   the bass note that is sounding and drops the echoes still to come.
+   the bass note that is sounding and drops the notes still to come.
 
-Press **pad 16** to cycle immediate → bar → both. The terminal shows the new mode
-(`ensemble: immediate`, `ensemble: bar` or `ensemble: both`). The preset starts in
-both.
+Press **pad 16** to cycle the bass loop → rule → off. The terminal shows the new
+mode (`ensemble: bass loop`, `ensemble: bass rule` or `ensemble: bass off`), and it
+applies from the next bar line (at once while Live is stopped). The preset starts
+in loop.
 
-Without `--clock`, `ensemble` still loads and the immediate layer plays, always
-with the first chord and 0.25 s notes; the bar layer is off and the engine prints
-`ensemble: no MIDI clock (start with --clock); bar layer and melody off`. With
-`--clock`, it plays the same way while the DAW is stopped or before it starts.
+Without `--clock`, `ensemble` still loads and the bass plays a note on each kick
+(the immediate layer, also in loop mode), always with the first chord and 0.25 s
+notes; the bass loop, the bar layer and the melody are off, and the engine prints
+`ensemble: no MIDI clock (start with --clock); bass loop, bar layer and melody off, bass plays on each kick`.
+With `--clock`, the rule bass plays the same way while the DAW is stopped or before
+it starts, and the bass loop waits for Live to play.
+
+### The bass loop
+
+With `--clock` and Live playing, the bass in loop mode plays a loop written in
+chord tones, like the melody ([below](#the-melody-loop)), so it follows each chord of
+the progression. Its approach and passing notes aim at the **next** bar's chord: a
+half step or a whole step below the next root, leading into the chord change. There
+are two loops:
+
+- `boom` (default): a 1-bar boom-bap line with rests: the root on beat 1 and the
+  fifth on beat 3, a ghost note, the root an octave up and an approach note into
+  the next bar.
+- `walk`: a 2-bar line with more motion, a passing note and approach notes.
+
+Each note of a loop has a level 1-3: level 1 notes are the skeleton (in `boom`, the
+root and the fifth, so even a sparse bar sounds like a bass line), levels 2 and 3 fill it in.
+
+**The kick changes the loop once per bar.** The bass listens to **kick** pads only.
+At each bar line, the kicks of the bar that just ended set the whole next bar:
+
+| Your kicks in the last bar | The next bar of the bass |
+| --- | --- |
+| Number of kicks | **Density**: 1-2 kicks play the skeleton only, 3-4 add level 2, 5 or more play every note. |
+| Average kick velocity | **Loudness**: velocity 1-127 becomes 50-120. |
+| Positions of the kicks | **Accents**: a bass note within one 16th of where you played a kick keeps its full velocity; the other notes play at 0.8 of it, so the line locks to your kick pattern. |
+
+When you stop playing kicks, one bar without kicks keeps the skeleton, and two in a
+row stop the bass; it comes back at the bar after your next kick. A bar of only
+snare and hats counts as a bar without kicks, so the bass thins out under a
+breakdown while the melody keeps playing. After Start in Live, the bass waits for
+your first kick. Hits on pads 15 and 16 do not count.
+
+Pad 15 (below) also switches the bass loop between **follow** and **fixed**: fixed
+plays every note of the loop at velocity 100 with no accents, whatever the kicks
+do. Pad 15's **off** turns off only the melody; the bass loop stays fixed until
+the next press of pad 15 brings back follow.
 
 ### The melody loop
 
@@ -664,10 +713,12 @@ After Start in Live, the melody waits for your first hit. Hits on pads 15 and 16
 do not count.
 
 Press **pad 15** to cycle follow → fixed → off. **fixed** plays every note of the
-loop at velocity 100 and sends no CC, whatever the drums do, so you can compare it
-with **follow**. The terminal shows the new mode (`ensemble: melody follow`,
-`ensemble: melody fixed` or `ensemble: melody off`), and it applies from the next
-bar line. The preset starts in follow.
+melody loop at velocity 100 and sends no CC, and every note of the bass loop at
+velocity 100 with no accents, whatever the drums do, so you can compare it with
+**follow**. **off** turns off the melody only (the bass loop stays fixed). The
+terminal shows the new mode (`ensemble: melody follow`, `ensemble: melody fixed` or
+`ensemble: melody off`), and it applies from the next bar line. The preset starts
+in follow.
 
 To hear the melody in Live, add a second MIDI track with a keys instrument (for
 example an electric piano or a pluck preset of Drift). Set MIDI From to `mpc-iml`,
@@ -683,17 +734,19 @@ Data patch has no group for them yet, so send them from any OSC client:
 
 | Message | Values | Default | Meaning |
 | --- | --- | --- | --- |
-| `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer |
-| `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer |
+| `/mpciml/preset/ensemble/bass` | `loop`, `rule` or `off` | `loop` | The bass mode |
+| `/mpciml/preset/ensemble/bass-loop` | `boom` or `walk` | `boom` | The bass loop |
+| `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer of the rule bass |
+| `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer of the rule bass |
 | `/mpciml/preset/ensemble/progression` | `minor-two` or `minor-four` | `minor-two` | The chord progression |
 | `/mpciml/preset/ensemble/octave` | 0-3 | 1 | Octave of the bass (A1 at 1) |
-| `/mpciml/preset/ensemble/length` | 1-16 | 2 | Note length in 16ths |
+| `/mpciml/preset/ensemble/length` | 1-16 | 2 | Note length of the rule bass in 16ths |
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
 | `/mpciml/preset/ensemble/role` | pad 1-16, then `kick`, `snare`, `hat` or `other` | the table above | The role of one pad, in every bank |
-| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the layers; 0 for none |
+| `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the bass mode; 0 for none |
 | `/mpciml/preset/ensemble/melody` | 0 or 1 | 1 | The melody; 0 also drops the notes still to come |
 | `/mpciml/preset/ensemble/loop` | `keys` or `pluck` | `keys` | The melody loop |
-| `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the loop; 0: fixed |
+| `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | Octave of the melody (A4 at 4) |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
@@ -702,17 +755,20 @@ Data patch has no group for them yet, so send them from any OSC client:
 The engine does not reply with these settings. They go back to the defaults when
 `ensemble` is loaded again or the engine starts. Bad values get
 `/mpciml/error bad_arguments`, and messages for `ensemble` while another preset is
-loaded get `inactive_preset`. The melody controls apply from the next bar line.
+loaded get `inactive_preset`. The bass mode and the melody controls apply from the
+next bar line.
 
 ### Compare the layers
 
 The manual check for #138, with the MPC Sample, Live set up as above, and a tempo
 around 90 BPM:
 
-1. Play a boom-bap pattern (kick on pad 1, snare on pad 2, hats on pad 3) for
-   5 minutes in each mode: **immediate** only, **bar** only, and **both**. Switch
-   with pad 16 and check the mode in the terminal.
-2. After each mode, write one row:
+1. Press pad 16 once, so the terminal shows `ensemble: bass rule`.
+2. Play a boom-bap pattern (kick on pad 1, snare on pad 2, hats on pad 3) for
+   5 minutes in each layer setting: **immediate** only (send `bar 0`), **bar** only
+   (`immediate 0`, `bar 1`), and **both** (`immediate 1`, `bar 1`), with the
+   controls above.
+3. After each, write one row:
 
    | Mode | Fun (1-5) | Sounds like me (1-5) | Notes |
    | --- | --- | --- | --- |
@@ -720,7 +776,7 @@ around 90 BPM:
    | bar | | | |
    | both | | | |
 
-3. Press Stop in Live while the bass is playing, and check that no note keeps
+4. Press Stop in Live while the bass is playing, and check that no note keeps
    sounding.
 
 ### Check the melody
@@ -743,6 +799,36 @@ Sync on for `mpc-iml clock` with MIDI Clock Type **Song**, and
 
 4. Press Stop in Live while both play, and check that no note keeps sounding on
    either channel.
+
+### Check the bass loop
+
+The manual check for #148: does the musician lead the band when the bass and the
+melody have musical content that the drums steer? It compares **both** (content and
+cause), **content only** (the loops fixed) and **cause only** (the rule bass). Set up
+the MPC Sample and Live as for [Check the melody](#check-the-melody) and run
+`uv run mpc-iml --preset ensemble --clock`, at a tempo around 90 BPM.
+
+Use the same boom-bap patterns in each trial, about 5 minutes each: sparse bars
+(kick and snare only), busy bars (16th hats, 4-5 kicks, hard hits), then one bar and
+two bars without drums.
+
+| Trial | Setting | Compares |
+| --- | --- | --- |
+| 1. Both | The defaults: `ensemble: bass loop`, `ensemble: melody follow` | Content **and** cause |
+| 2. Content only | Pad 15 once: `ensemble: melody fixed` (both loops fixed) | Content without cause |
+| 3. Cause only | Pad 16 once: `ensemble: bass rule`; pad 15 once more: `ensemble: melody off` | The #138 bass alone |
+
+1. Play the three trials in order and check the terminal after each pad press.
+2. After each, write one row:
+
+   | Trial | Fun (1-5) | Sounds like me (1-5) | Notes |
+   | --- | --- | --- | --- |
+   | both | | | Did you feel you were leading the band? Were the bass's density, loudness and accents heard as caused by the kick? Did the bass thinning on a bar without kicks feel right? |
+   | content only | | | |
+   | cause only | | | |
+
+3. Press Stop in Live while the bass and the melody play, and check that no note
+   keeps sounding on channel 2 or 3.
 
 ## Ableton Live starter set
 
@@ -808,7 +894,7 @@ engine appear on the status line in group 8 **Messages** of the patch.
 | Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
 | The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
 | The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
-| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. Pad 16 may have switched to the bar layer, which needs `--clock` and Live playing; see [Play the ensemble preset](#play-the-ensemble-preset). |
+| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. The bass loop needs `--clock` and Live playing, waits for your first kick after Start and stops after two bars without kicks. Pad 16 may have switched the bass to `rule` or `off` (the terminal shows `ensemble: bass …`); see [Play the ensemble preset](#play-the-ensemble-preset). |
 | `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and stops after two empty bars. Pad 15 may have switched it off (the terminal shows `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
 | `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
 | A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
