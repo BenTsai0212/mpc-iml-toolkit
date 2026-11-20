@@ -3,7 +3,9 @@
 A loop is a few bars of notes written as chord tones (`tone` 0-3 is the root,
 third, fifth or seventh), so it fits any chord: each note takes the chord of the bar
 it falls in, through the chord's quality (`QUALITIES`). Each note has a `level`
-1-3: level 1 notes are the loop's skeleton, levels 2 and 3 fill it in.
+1-3: level 1 notes are the loop's skeleton, levels 2 and 3 fill it in. A note can
+also take the chord of the next bar (`chord` 1) and a chromatic offset
+(`semitones`), for approach and passing notes (the bass loops of #148, `bass`).
 
 Once per bar, at the bar line, `plan_bar` decides the next bar from the drum hits of
 the bar that just ended (RFC 0005, causality first): the number of hits sets the
@@ -11,7 +13,7 @@ density (which levels play), their average velocity the loudness, and the hits o
 `hat` pads the brightness CC.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 __all__ = [
@@ -24,6 +26,7 @@ __all__ = [
     "brightness",
     "chord_note",
     "density",
+    "loop_pitch",
     "melody_velocity",
 ]
 
@@ -38,7 +41,9 @@ FIXED_VELOCITY = 100
 class LoopNote:
     """A note of a loop: `step` (16ths) of the loop's `bar`, a chord `tone` 0-3,
     `octave` above the melody octave, `length` in 16ths, `level` 1-3 and a velocity
-    weight 0-1."""
+    weight 0-1. `chord` 0 takes the chord of the note's own bar, 1 the chord of the
+    next bar; `semitones` is added after the tone (an approach note half a step
+    below the next root is `tone=0, chord=1, semitones=-1`)."""
 
     bar: int
     step: int
@@ -47,6 +52,8 @@ class LoopNote:
     level: int
     octave: int = 0
     velocity: float = 1.0
+    chord: int = 0
+    semitones: int = 0
 
 
 @dataclass(frozen=True)
@@ -102,6 +109,15 @@ def chord_note(pitch_class: int, quality: str, tone: int, octave: int) -> int:
     return 12 * (octave + 1) + pitch_class % 12 + QUALITIES[quality][tone]
 
 
+def loop_pitch(
+    note: LoopNote, now: tuple[int, str], following: tuple[int, str], octave: int
+) -> int:
+    """The MIDI note of `note` in base `octave`, given the (pitch class, quality) of
+    the chord of its bar (`now`) and of the next bar (`following`)."""
+    pitch_class, quality = following if note.chord else now
+    return chord_note(pitch_class, quality, note.tone, octave + note.octave) + note.semitones
+
+
 def density(hits: int) -> int:
     """The highest level that plays after a bar with `hits` drum hits (1 or more)."""
     return 1 if hits <= 4 else 2 if hits <= 10 else 3
@@ -133,10 +149,12 @@ class Follower:
     The melody stays silent until the first drum hit after Start; then one empty bar
     plays the skeleton only, two empty bars in a row are silence, and the loop comes
     back at the bar after the next hit. A bar the clock did not run through
-    (`complete` false) with no hits counts as a new start.
+    (`complete` false) with no hits counts as a new start. `density` maps the number
+    of hits to the highest level (the bass passes its kick thresholds, #148).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, density: Callable[[int], int] = density) -> None:
+        self._density = density
         self._empty: int | None = None
         self._velocity = FIXED_VELOCITY
 
@@ -155,7 +173,7 @@ class Follower:
         if not follow:
             return BarPlan(3, FIXED_VELOCITY, None)
         if velocities:
-            return BarPlan(density(len(velocities)), self._velocity, brightness(hats))
+            return BarPlan(self._density(len(velocities)), self._velocity, brightness(hats))
         if self._empty == 1:
             return BarPlan(1, self._velocity, None)
         return BarPlan(0, self._velocity, None)
