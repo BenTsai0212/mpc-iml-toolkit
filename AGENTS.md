@@ -68,6 +68,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 ## 7. 已知陷阱
 <!-- 本專案實際踩到的坑才寫進來，附來源。 -->
 - Markdown 的 shell 程式碼區塊（`bash`、`sh`、`zsh`、`shell`）不加 `#` 註解，說明寫在區塊外：macOS 的 zsh 預設不把互動輸入的 `#` 當成註解，照著複製會出錯。`tools/workflow/doc-commands.test.mjs` 會檢查。〔文件中的 `git switch -c … # 例如 …`（BenTsai0212/dev-workflow-template#43）｜不刪〕
+- PR 描述中，關閉關鍵字（`close`、`closes`、`closed`、`fix`、`fixes`、`fixed`、`resolve`、`resolves`、`resolved`，不分大小寫）後面接 `#N` 只寫在連結行，而且只在這個 PR 要關閉該 Issue 時寫。其他地方（包括說明這個 PR 為什麼不關閉它的句子）提到 Issue 時，編號旁不放關鍵字，例如寫「PR 3 會關閉這張 Issue」。不論句子的意思為何，GitHub 都會在合併時關閉該 Issue。〔#151 提早關閉了 #148；#156、#167、#169 重複同樣的寫法｜`check-pr-body.mjs` 對這種文字檢查失敗時（#164）〕
 
 ## 8. 維護本文件
 因規則缺漏而卡住、做錯或需要人提醒時，在同一個 PR 補充本文件，並附來源與可刪條件。過時的規則一併刪除。
