@@ -89,7 +89,9 @@ class LoopNote:
     `octave` above the melody octave, `length` in 16ths, `level` 1-3 and a velocity
     weight 0-1. `chord` 0 takes the chord of the note's own bar, 1 the chord of the
     next bar; `semitones` is added after the tone (an approach note half a step
-    below the next root is `tone=0, chord=1, semitones=-1`)."""
+    below the next root is `tone=0, chord=1, semitones=-1`). `offset` is how far
+    the note sits from its step, a fraction of a 16th from -0.5 to 0.5 (loop files,
+    ADR 0010)."""
 
     bar: int
     step: int
@@ -100,6 +102,7 @@ class LoopNote:
     velocity: float = 1.0
     chord: int = 0
     semitones: int = 0
+    offset: float = 0.0
 
 
 @dataclass(frozen=True)
