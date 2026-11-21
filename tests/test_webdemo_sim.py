@@ -94,3 +94,18 @@ def test_the_same_grid_gives_the_same_song() -> None:
 def test_bad_input_is_refused(grid: list[dict[str, list[int]]], settings: Settings) -> None:
     with pytest.raises(ValueError):
         simulate(grid, settings)
+
+
+def test_surprises_are_seeded_and_shown_in_the_rows() -> None:
+    grid = [SPARSE] * 8
+    plain, fill, passing = (simulate(grid, Settings(seed=seed)) for seed in (0, 1, 3))
+    assert [r.surprise for r in plain.rows] == [None] * 8
+    assert [r.surprise for r in fill.rows] == [None, None, "fill", None] + [
+        None,
+        None,
+        "octave",
+        None,
+    ]
+    assert passing.rows[2].surprise == "passing"
+    assert band(fill, 3) != band(plain, 3) and band(fill, 2) == band(plain, 2)
+    assert simulate(grid, Settings(seed=1)) == fill

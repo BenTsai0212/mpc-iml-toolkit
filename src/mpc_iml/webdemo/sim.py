@@ -10,9 +10,12 @@ from it.
 The drums are pads 1 (kick), 2 (snare) and 3 (hat) of bank A, as in
 `ensemble.DEFAULT_ROLES`. The song is the grid and one more bar, since the band
 answers each bar in the bar after it (RFC 0005). The bass plays the bass loop
-(`bass loop`); the other settings go through the preset's controls.
+(`bass loop`); the other settings go through the preset's controls. The surprises
+(#158) are drawn from `Settings.seed`, so the same grid and settings always give
+the same song.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -54,6 +57,8 @@ _PARTS = {2: "bass", 3: "keys"}
 """The `ensemble` channels in the song, by default setting."""
 
 _START, _TICK = b"\xfa", b"\xf8"
+_SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
+"""The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 
 
@@ -68,6 +73,8 @@ class Settings:
     melody_mode: str = "follow"
     no_drums: str = "lead"
     fade_bars: int = 8
+    seed: int = 0
+    """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
 
 
 @dataclass(frozen=True)
@@ -89,7 +96,8 @@ class BarRow:
     `velocity` their average (`None`: no hits); `chord` is the next bar's chord;
     `bass` and `melody` are the plans `ensemble` made (`None`: it does not play),
     `rule` says why: `drums`, `fixed`, or the `no-drums` setting for a bar without
-    drums (without kicks, for the bass)."""
+    drums (without kicks, for the bass); `surprise` is the surprise the band played
+    in the bar after it (`fill`, `octave` or `passing`; `None`: none, #158)."""
 
     bar: int
     kicks: tuple[int, ...]
@@ -101,6 +109,7 @@ class BarRow:
     bass_rule: str
     melody: BarPlan | None
     melody_rule: str
+    surprise: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,11 +161,20 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
     if not low <= settings.tempo <= high:
         raise ValueError(f"tempo must be {low:g}-{high:g}, got {settings.tempo:g}")
     log: list[str] = []
+    surprises: dict[int, str] = {}
+
+    def ensemble_log(line: str) -> None:
+        match = _SURPRISE.fullmatch(line)
+        if match:
+            surprises[int(match[2])] = match[1]
+        else:
+            log.append(line)
+
     clock = MidiClock(BEATS_PER_BAR)
     sent: list[tuple[int, bytes]] = []
     scheduler = Scheduler(clock, lambda m: sent.append((clock.state().tick, m)))
     access = ClockAccess(clock, log.append, scheduler)
-    ensemble = Ensemble(log.append)
+    ensemble = Ensemble(ensemble_log, seed=settings.seed)
     controls = ensemble.controls()
     controls["bass"](["loop"])
     controls["bass-loop"]([settings.bass_loop])
@@ -186,7 +204,7 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
 
     notes = _drum_notes(hits) + _band_notes(sent, total)
     brightness = tuple((tick, m[2]) for tick, m in sent if m[0] & 0xF0 == 0xB0 and m[0] & 0x0F == 2)
-    rows = tuple(_row(b, *bars[b + 1], settings) for b in range(len(grid)))
+    rows = tuple(_row(b, *bars[b + 1], settings, surprises.get(b + 1)) for b in range(len(grid)))
     return Song(
         settings,
         song_bars,
@@ -250,7 +268,13 @@ def _band_notes(sent: Sequence[tuple[int, bytes]], end: int) -> list[Note]:
     return notes
 
 
-def _row(bar: int, start: BarStart, plans: Mapping[str, BarPlan | None], s: Settings) -> BarRow:
+def _row(
+    bar: int,
+    start: BarStart,
+    plans: Mapping[str, BarPlan | None],
+    s: Settings,
+    surprise: str | None,
+) -> BarRow:
     roles = [DEFAULT_ROLES[h.pad] for h in start.hits]
     kicks = tuple(h.step for h, r in zip(start.hits, roles, strict=True) if r == "kick")
     hats = tuple(h.step for h, r in zip(start.hits, roles, strict=True) if r == "hat")
@@ -271,4 +295,5 @@ def _row(bar: int, start: BarStart, plans: Mapping[str, BarPlan | None], s: Sett
         rule(bool(kicks)),
         plans["melody"],
         rule(bool(start.hits)),
+        surprise,
     )
