@@ -119,6 +119,7 @@ def test_the_page_builds() -> None:
         "Checkbox",
         "Number",
         "File",
+        "Image",
         "Tab",
     }
 
