@@ -137,9 +137,17 @@ triplet bars, or a pitch fixed regardless of the chord.
   approaches its next chord from step 10, so `import` writes those notes as tones
   of their own bar (`chord` 0), which sound the same over that progression and
   differ over another. `skeleton` marks are not in a clip either.
-- The mapping is `mpc_iml.loop_midi` (`from_midi`, `to_midi`; no file I/O).
+- The mapping is `mpc_iml.loop_midi` (`from_midi`, `to_midi`; no file I/O), which
+  also holds the commands. `import` writes new files into
+  `./mpc-iml-data/loops/` by default (`--out`), refuses to overwrite one without
+  `--force`, and starts a new file with `home`; other variations are added with
+  `--into`. Replacing `home` with `--into` drops its `skeleton` marks, so `thin`
+  plays its level 1. Files are written with one note per line and the defaults
+  left out, as the built-in files. `export` takes a loop name (built-in, installed
+  or in `--data`'s `loops/`) or a file.
 - A new core module `mpc_iml.smf` reads and writes Standard MIDI Files with the
-  standard library; the #166 MIDI download uses its writer.
+  standard library; the #166 MIDI download (`webdemo.midifile`) builds its format
+  1 file with its `track`, `tempo` and `file`.
 
 ### Unchanged
 
