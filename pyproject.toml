@@ -29,6 +29,12 @@ pressure = "mpc_iml.pressure:make_preset"
 [project.entry-points."mpc_iml.content"]
 pressure-content = "mpc_iml.pressure:CONTENT"
 
+[project.optional-dependencies]
+demo = [
+    "gradio>=6.0,<7",
+    "numpy>=2.0",
+]
+
 [dependency-groups]
 dev = ["mypy", "pytest", "ruff"]
 

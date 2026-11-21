@@ -73,6 +73,9 @@ class Settings:
     melody_mode: str = "follow"
     no_drums: str = "lead"
     fade_bars: int = 8
+    surprise: bool = True
+    """Whether the band plays the phrase-end surprises (#158), on by default as in the
+    instrument."""
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
 
@@ -183,6 +186,7 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
     controls["melody-mode"]([settings.melody_mode])
     controls["no-drums"]([settings.no_drums])
     controls["fade-bars"]([settings.fade_bars])
+    controls["surprise"]([int(settings.surprise)])
     ensemble.attach(access)
     bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
     access.on_bar(lambda start: bars.__setitem__(start.bar, (start, ensemble.plans)))
