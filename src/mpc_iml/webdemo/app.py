@@ -199,7 +199,9 @@ def build() -> "gr.Blocks":
         with gr.Row():
             bars = gr.Slider(*BARS, value=BARS[1], step=1, label="bars")
             tempo = gr.Slider(*TEMPO_RANGE, value=default.tempo, step=1, label="tempo")
-            progression = gr.Dropdown(list(PROGRESSIONS), value=default.progression)
+            progression = gr.Dropdown(
+                list(PROGRESSIONS), value=default.progression, label="progression"
+            )
             bass_loop = gr.Dropdown(list(BASS_LOOPS), value=default.bass_loop, label="bass loop")
             loop = gr.Dropdown(list(LOOPS), value=default.loop, label="melody loop")
         with gr.Row():
