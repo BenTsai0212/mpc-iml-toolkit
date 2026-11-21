@@ -3,7 +3,8 @@
 `read` takes the notes of a format 0 or 1 file (running status, a Note On with
 velocity 0 as a Note Off; meta and sysex events are skipped) and `write` writes notes
 as a format 0 file. Times are ticks; `division` is ticks per quarter note (SMPTE
-division is refused). Used by `python -m mpc_iml.loops import` and `export`.
+division is refused). For the loop import and export of #173 and the #166 MIDI
+download.
 """
 
 from collections import defaultdict, deque

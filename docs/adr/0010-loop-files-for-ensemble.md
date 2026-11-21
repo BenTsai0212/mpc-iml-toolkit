@@ -122,22 +122,10 @@ triplet bars, or a pitch fixed regardless of the chord.
 - Each pitch becomes the nearest chord tone over the progression and start bar the
   musician names (ties to the lower tone), with the rest in `semitones`. A
   non-chord tone in a bar's last 2 steps within 2 semitones of a tone of the next
-  bar's chord becomes `chord` 1; there a tie goes to the higher tone, because an
-  approach resolves upwards (G♯ before Am7 is the root − 1, not the seventh + 1).
-  Steps are rounded to 16ths and the remainder is kept in `offset`, rounded to 1/6
-  of a 16th. Velocities become weights relative to the loudest note;
-  `--ornament-below` makes quiet notes level 2. `export` writes the offsets back,
-  so a round trip keeps them.
-- `export` writes ornaments (level 2) on MIDI channel 2 and `import` reads notes on
-  channel 2 as level 2, because the built-in loops have ornaments as loud as their
-  full line, so velocity alone cannot carry the level. A clip from Live is on
-  channel 1, so this does not change an import from Live.
-- A round trip keeps what is heard over the progression it was exported on, but
-  not always how a note is written: a clip holds pitches, not intent. `walk`
-  approaches its next chord from step 10, so `import` writes those notes as tones
-  of their own bar (`chord` 0), which sound the same over that progression and
-  differ over another. `skeleton` marks are not in a clip either.
-- The mapping is `mpc_iml.loop_midi` (`from_midi`, `to_midi`; no file I/O).
+  bar's chord becomes `chord` 1. Steps are rounded to 16ths and the remainder is
+  kept in `offset`, rounded to 1/6 of a 16th. Velocities become weights relative to
+  the loudest note; `--ornament-below` makes quiet notes level 2. `export` writes
+  the offsets back, so a round trip keeps them.
 - A new core module `mpc_iml.smf` reads and writes Standard MIDI Files with the
   standard library; the #166 MIDI download uses its writer.
 
