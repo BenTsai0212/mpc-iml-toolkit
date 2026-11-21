@@ -1,0 +1,51 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "keys",
+  "title": "Keys",
+  "description": "A sparse 2-bar keys riff. open asks a question in its first bar and answers an octave up ending on the root; busy stabs the off-8ths with 16th pickups as ornaments.",
+  "preset": "ensemble",
+  "part": "melody",
+  "bars": 2,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 4, "skeleton": true},
+      {"bar": 0, "step": 3, "tone": 1, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 0, "step": 6, "tone": 2, "length": 2, "velocity": 0.9},
+      {"bar": 0, "step": 10, "tone": 3, "length": 6, "skeleton": true},
+      {"bar": 1, "step": 0, "tone": 1, "length": 4, "skeleton": true},
+      {"bar": 1, "step": 6, "tone": 3, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 1, "step": 8, "tone": 2, "length": 2, "velocity": 0.9},
+      {"bar": 1, "step": 12, "tone": 0, "length": 4, "level": 2, "octave": 1}
+    ],
+    "open": [
+      {"bar": 0, "step": 0, "tone": 1, "length": 3},
+      {"bar": 0, "step": 3, "tone": 2, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 0, "step": 4, "tone": 2, "length": 3, "velocity": 0.9},
+      {"bar": 0, "step": 8, "tone": 3, "length": 6},
+      {"bar": 0, "step": 14, "tone": 0, "length": 2, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 1, "step": 0, "tone": 2, "length": 4, "octave": 1},
+      {"bar": 1, "step": 4, "tone": 1, "length": 3, "octave": 1, "velocity": 0.9},
+      {"bar": 1, "step": 7, "tone": 2, "length": 1, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 1, "step": 8, "tone": 0, "length": 8, "octave": 1}
+    ],
+    "busy": [
+      {"bar": 0, "step": 1, "tone": 0, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 2, "tone": 0, "length": 2},
+      {"bar": 0, "step": 5, "tone": 2, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 6, "tone": 2, "length": 2},
+      {"bar": 0, "step": 9, "tone": 1, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 10, "tone": 1, "length": 2},
+      {"bar": 0, "step": 13, "tone": 3, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 14, "tone": 3, "length": 2},
+      {"bar": 1, "step": 1, "tone": 1, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 2, "tone": 1, "length": 2},
+      {"bar": 1, "step": 5, "tone": 3, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 6, "tone": 3, "length": 2},
+      {"bar": 1, "step": 9, "tone": 2, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 10, "tone": 2, "length": 2},
+      {"bar": 1, "step": 13, "tone": 0, "length": 1, "level": 2, "octave": 1, "velocity": 0.75},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "octave": 1}
+    ]
+  }
+}

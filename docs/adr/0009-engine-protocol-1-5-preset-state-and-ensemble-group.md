@@ -96,7 +96,7 @@ The reply name is the control name where a control exists.
 | `bass` | `s` next, `s` playing (`loop`, `rule`, `off`) |
 | `melody-mode` | `s` next, `s` playing (`follow`, `fixed`, `off`) |
 | `bass-loop`, `loop`, `progression` | `s` selected name |
-| `bass-loops`, `loops`, `progressions` | `s`… the names to choose from, in the order of the built-in tables |
+| `bass-loops`, `loops`, `progressions` | `s`… the names to choose from, in the order of the built-in tables (loop files since #173, ADR 0010: built-in first, then installed, each by name) |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | `i` value |
 | `roles` | 16 × `s`, pads 1-16 |
 
