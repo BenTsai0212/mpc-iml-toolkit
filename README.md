@@ -790,6 +790,56 @@ a fading bar. With the rule bass there is no fill, and with the melody off only 
 fill. `surprise 0` turns them off. The choice is
 random, with a new seed each time `ensemble` is loaded.
 
+### Write your own bass line
+
+The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
+in, and you can add your own without changing the toolkit (#173). Write a line in
+Live, turn it into a loop file, and play it:
+
+1. In Live, make a MIDI clip of 1, 2 or 4 bars that starts on a bar line, and write
+   the bass line in it over the chords of `minor-two`: **Am7** for 2 bars, then
+   **Fmaj7** for 2 bars (or `minor-four`: Dm7, Gm7, B♭maj7, A7, one bar each). Write
+   it around A1 (MIDI note 33), the bass's default octave; the melody's is A4. Play
+   it as you like: notes off the grid, ghost notes and notes outside the chord are
+   kept.
+2. Right-click the clip and choose **Export MIDI Clip…**, for example `my-boom.mid`.
+3. In the toolkit folder, turn it into a loop file. The name is lower case letters,
+   digits and hyphens:
+
+   ```bash
+   uv run python -m mpc_iml.loops import my-boom.mid --part bass --name my-boom
+   ```
+
+   This writes `mpc-iml-data/loops/my-boom.json`, the data folder of
+   `uv run mpc-iml`, and prints how the notes were read: chord tones, approach notes
+   into the next chord, other notes, and notes off the grid (kept as an `offset`).
+   Each note is stored as a chord tone, so the line follows the chords when you
+   change the progression. Add `--progression minor-four` if you wrote it over
+   `minor-four`, `--start-bar 2` if the clip starts on the Fmaj7, and
+   `--ornament-below 60` to make notes quieter than velocity 60 ornaments (played
+   only when you play busier drums).
+4. The clip is the `home` variation. To add the variations for pushed kicks and for
+   busy kicks, write two more clips and add them to the same file:
+
+   ```bash
+   uv run python -m mpc_iml.loops import my-boom-push.mid --variation push --into mpc-iml-data/loops/my-boom.json
+   uv run python -m mpc_iml.loops import my-boom-drive.mid --variation drive --into mpc-iml-data/loops/my-boom.json
+   ```
+
+   A variation you leave out plays `home`. A melody uses `--part melody` and the
+   variations `open` and `busy`.
+5. Click **reload** in group 8 **Ensemble** ([below](#the-ensemble-group-in-pure-data))
+   and choose the line with `<` `>` next to `bass loop`. The engine also reads the
+   folder each time `ensemble` is loaded. A file that cannot be used is skipped: the
+   terminal names the file and the reason, and `errors` in group 8 counts the
+   skipped files. `uv run python -m mpc_iml.loops check mpc-iml-data/loops/my-boom.json`
+   checks a file without the engine.
+
+To start from a built-in line, export it as a clip, drag it into Live and change it:
+`uv run python -m mpc_iml.loops export boom boom.mid` (add `--variation push` for
+another variation). The kick rules, the ornaments and the bass fill work on your
+lines as on the built-in ones.
+
 ### The Ensemble group in Pure Data
 
 Group 8 **Ensemble** of the patch (`src/mpc_iml/patches/mpc-iml.pd`, ADR 0009), in
@@ -802,7 +852,8 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | --- | --- |
 | `bass`: `loop`, `rule`, `off` | Sets the bass mode. `now` shows the mode playing, `next` the one asked for. |
 | `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. |
-| `bass loop`, `melody loop` | Up to 4 buttons, labelled with the loops the engine lists (`boom`, `walk`; `keys`, `pluck`); the box under them shows the one selected. |
+| `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (`boom`, `walk`; `keys`, `pluck`; then installed and your own loops), and the box under them shows the one selected. |
+| `reload`, `errors` | `reload` reads your loop files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line)); `errors` shows how many were skipped (`loop-errors`). |
 | `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
 | `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
 | `roles` | The role of each pad, read only, 4 rows of 4 like the pads (13-16 on top). |
@@ -830,7 +881,8 @@ sends the most used ones; send the others from any OSC client:
 | Message | Values | Default | Meaning |
 | --- | --- | --- | --- |
 | `/mpciml/preset/ensemble/bass` | `loop`, `rule` or `off` | `loop` | The bass mode |
-| `/mpciml/preset/ensemble/bass-loop` | `boom` or `walk` | `boom` | The bass loop |
+| `/mpciml/preset/ensemble/bass-loop` | a bass loop's name (`boom`, `walk` or your own) | `boom` | The bass loop |
+| `/mpciml/preset/ensemble/bass-loop-step` | 1 or -1 | - | The next or previous bass loop of `bass-loops`, wrapping around |
 | `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer of the rule bass |
 | `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer of the rule bass |
 | `/mpciml/preset/ensemble/progression` | `minor-two` or `minor-four` | `minor-two` | The chord progression |
@@ -841,7 +893,9 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the bass mode; 0 for none |
 | `/mpciml/preset/ensemble/melody-mode` | `follow`, `fixed` or `off` | `follow` | The melody mode in one message (sets `melody` and `follow`); `off` also drops the notes still to come |
 | `/mpciml/preset/ensemble/melody` | 0 or 1 | 1 | The melody; 0 also drops the notes still to come |
-| `/mpciml/preset/ensemble/loop` | `keys` or `pluck` | `keys` | The melody loop |
+| `/mpciml/preset/ensemble/loop` | a melody loop's name (`keys`, `pluck` or your own) | `keys` | The melody loop |
+| `/mpciml/preset/ensemble/loop-step` | 1 or -1 | - | The next or previous melody loop of `loops`, wrapping around |
+| `/mpciml/preset/ensemble/reload-loops` | none | - | Reads the loop files in `<data folder>/loops/` again; a changed loop plays from the next bar line |
 | `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | Octave of the melody (A4 at 4) |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
@@ -868,12 +922,13 @@ melody mode or a playing variation changes:
 | `bass` | next and playing mode (`loop`, `rule`, `off`) |
 | `melody-mode` | next and playing mode (`follow`, `fixed`, `off`) |
 | `bass-loop`, `loop`, `progression` | the selected name |
-| `bass-loops`, `loops`, `progressions` | the names to choose from |
+| `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name) |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
 | `roles` | 16 roles, pads 1-16 |
 | `no-drums` | the value (`lead`, `hold`, `thin`) |
 | `fade-bars`, `surprise` | the value (`surprise` as 0 or 1) |
 | `variation` | the bass variation and the melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `loop-errors` | how many of your loop files were skipped at the last read |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 

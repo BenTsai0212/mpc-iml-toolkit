@@ -617,6 +617,45 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 沒有 fill，旋律關掉時只有 fill。`surprise 0` 關掉它。抽選是隨機的，每次載入 `ensemble` 都用新的
 種子。
 
+### 寫自己的 bass 線條
+
+loop 是 loop 檔案（ADR 0010）：`boom`、`walk`、`keys` 與 `pluck` 是內建的，你也可以不修改工具包
+就加入自己的 loop（#173）。在 Live 寫一段線條，轉成 loop 檔案，然後演奏：
+
+1. 在 Live 建立一個 1、2 或 4 小節、從小節線開始的 MIDI clip，在 `minor-two` 的和弦上寫 bass
+   線條：**Am7** 2 小節，再 **Fmaj7** 2 小節（或 `minor-four`：Dm7、Gm7、B♭maj7、A7，各 1 小節）。
+   寫在 A1（MIDI note 33）附近，這是 bass 預設的八度；旋律是 A4。照你想要的方式演奏：不在格線上的
+   音、ghost note 與和弦外音都會保留。
+2. 在 clip 上按右鍵，選 **Export MIDI Clip…**，例如存成 `my-boom.mid`。
+3. 在工具包的資料夾把它轉成 loop 檔案。名稱由小寫英文字母、數字與連字號組成：
+
+   ```bash
+   uv run python -m mpc_iml.loops import my-boom.mid --part bass --name my-boom
+   ```
+
+   這會寫出 `mpc-iml-data/loops/my-boom.json`（`uv run mpc-iml` 的資料夾），並印出音符如何被讀取：
+   和弦音、進入下一個和弦的趨近音、其他音，以及不在格線上的音（保留為 `offset`）。每個音都存成和弦音，
+   所以換和弦進行時線條會跟著和弦走。在 `minor-four` 上寫的話加 `--progression minor-four`；clip 從
+   Fmaj7 開始時加 `--start-bar 2`；加 `--ornament-below 60` 會把 velocity 低於 60 的音當作裝飾音
+   （只在鼓打得較密時演奏）。
+4. 這個 clip 是 `home` 變奏。要加入給往前推的 kick 與密集 kick 的變奏，再寫兩個 clip，加到同一個
+   檔案：
+
+   ```bash
+   uv run python -m mpc_iml.loops import my-boom-push.mid --variation push --into mpc-iml-data/loops/my-boom.json
+   uv run python -m mpc_iml.loops import my-boom-drive.mid --variation drive --into mpc-iml-data/loops/my-boom.json
+   ```
+
+   沒有寫的變奏會演奏 `home`。旋律用 `--part melody`，變奏是 `open` 與 `busy`。
+5. 在第 8 組 **Ensemble**（見[下文](#pure-data-的-ensemble-群組)）按 **reload**，再以 `bass loop`
+   旁的 `<` `>` 選擇這段線條。每次載入 `ensemble` 時，engine 也會讀取這個資料夾。無法使用的檔案會被
+   略過：終端機顯示檔名與原因，第 8 組的 `errors` 顯示略過的檔案數。
+   `uv run python -m mpc_iml.loops check mpc-iml-data/loops/my-boom.json` 不需要 engine 就能檢查檔案。
+
+要從內建的線條開始，把它匯出成 clip，拖進 Live 再修改：
+`uv run python -m mpc_iml.loops export boom boom.mid`（其他變奏加 `--variation push`）。kick 的規則、
+裝飾音與 bass 的 fill 對你的線條與內建的線條一樣有效。
+
 ### Pure Data 的 Ensemble 群組
 
 patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 位於第 7 組
@@ -628,7 +667,8 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | --- | --- |
 | `bass`：`loop`、`rule`、`off` | 設定 bass 的模式。`now` 顯示正在演奏的模式，`next` 顯示要求的模式。 |
 | `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。 |
-| `bass loop`、`melody loop` | 最多 4 個按鈕，標示 engine 列出的 loop（`boom`、`walk`；`keys`、`pluck`）；下方的方塊顯示選擇的 loop。 |
+| `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（`boom`、`walk`；`keys`、`pluck`；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
+| `reload`、`errors` | `reload` 重新讀取你的 loop 檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)）；`errors` 顯示略過的檔案數（`loop-errors`）。 |
 | `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
 | `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
 | `roles` | 每個 pad 的角色，唯讀，與 pad 一樣排成 4 列 4 個（13-16 在最上面）。 |
@@ -651,7 +691,8 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | 訊息 | 值 | 預設 | 意義 |
 | --- | --- | --- | --- |
 | `/mpciml/preset/ensemble/bass` | `loop`、`rule` 或 `off` | `loop` | bass 的模式 |
-| `/mpciml/preset/ensemble/bass-loop` | `boom` 或 `walk` | `boom` | bass 的 loop |
+| `/mpciml/preset/ensemble/bass-loop` | bass loop 的名稱（`boom`、`walk` 或你自己的） | `boom` | bass 的 loop |
+| `/mpciml/preset/ensemble/bass-loop-step` | 1 或 -1 | - | `bass-loops` 中的下一個或上一個 bass loop，到尾端時繞回 |
 | `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | rule bass 的 immediate 層 |
 | `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | rule bass 的 bar 層 |
 | `/mpciml/preset/ensemble/progression` | `minor-two` 或 `minor-four` | `minor-two` | 和弦進行 |
@@ -662,7 +703,9 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換 bass 模式的 pad；0 表示不使用 |
 | `/mpciml/preset/ensemble/melody-mode` | `follow`、`fixed` 或 `off` | `follow` | 以一則訊息設定旋律的模式（設定 `melody` 與 `follow`）；`off` 也取消尚未發出的音符 |
 | `/mpciml/preset/ensemble/melody` | 0 或 1 | 1 | 旋律；0 時也取消尚未發出的音符 |
-| `/mpciml/preset/ensemble/loop` | `keys` 或 `pluck` | `keys` | 旋律的 loop |
+| `/mpciml/preset/ensemble/loop` | 旋律 loop 的名稱（`keys`、`pluck` 或你自己的） | `keys` | 旋律的 loop |
+| `/mpciml/preset/ensemble/loop-step` | 1 或 -1 | - | `loops` 中的下一個或上一個旋律 loop，到尾端時繞回 |
+| `/mpciml/preset/ensemble/reload-loops` | 無 | - | 重新讀取 `<資料夾>/loops/` 中的 loop 檔案；改變的 loop 從下一個小節線開始演奏 |
 | `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | 旋律的八度（4 時為 A4） |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
@@ -687,12 +730,13 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `bass` | 下一個與正在演奏的模式（`loop`、`rule`、`off`） |
 | `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`） |
 | `bass-loop`、`loop`、`progression` | 選擇的名稱 |
-| `bass-loops`、`loops`、`progressions` | 可選擇的名稱 |
+| `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序） |
 | `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
 | `roles` | 16 個角色，pad 1-16 |
 | `no-drums` | 值（`lead`、`hold`、`thin`） |
 | `fade-bars`、`surprise` | 值（`surprise` 為 0 或 1） |
 | `variation` | 正在演奏的 bass 變奏與旋律變奏（該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `loop-errors` | 上次讀取時略過的 loop 檔案數 |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
 
