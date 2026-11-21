@@ -171,3 +171,31 @@ def test_without_clock_the_loop_plays_a_note_on_each_kick() -> None:
     rig.hit()
     assert rig.log == [NO_CLOCK]
     assert [m for _, m in rig.sent] == [bytes([0x91, 33, 120])]
+
+
+def test_plans_give_the_bar_that_starts_for_both_loops() -> None:
+    rig = started(melody=True)
+    assert rig.ensemble.plans == {"bass": None, "melody": None}
+    play_bar(rig, 0, [(0, KICK), (10, KICK), (2, HAT)])
+    rig.until(BAR + 1)
+    plans = rig.ensemble.plans
+    bass, melody = plans["bass"], plans["melody"]
+    assert bass is not None and melody is not None
+    assert (bass.variation, melody.variation) == ("push", "open")
+    variation = dict(rig.ensemble.state())["variation"]
+    assert variation == [bass.variation, melody.variation]
+    rig.until(2 * BAR)
+    in_bar = [n for t, n, _ in bass_on(rig) if 16 <= t < 32]
+    assert len(in_bar) == len(bass.notes(rig.ensemble.bass_loop, 1))
+    assert len([t for t, _, _ in melody_on(rig) if BAR <= t < 2 * BAR]) == len(
+        melody.notes(rig.ensemble.loop, 1)
+    )
+    plans["bass"] = None
+    assert rig.ensemble.plans["bass"] is bass
+
+
+def test_plans_are_none_for_a_loop_that_does_not_play() -> None:
+    rig = started(melody=False, bass=["rule"])
+    play_bar(rig, 0, [(0, KICK)])
+    rig.until(BAR + 1)
+    assert rig.ensemble.plans == {"bass": None, "melody": None}

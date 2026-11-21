@@ -261,6 +261,7 @@ class Ensemble:
         self.surprise = True
         self._random = random.Random(seed)
         self._variations = ("-", "-")
+        self._plans: dict[str, BarPlan | None] = {"bass": None, "melody": None}
         self._melody_notes: list[Scheduled] = []
         self._log = log
         self._timer = timer
@@ -269,6 +270,15 @@ class Ensemble:
         self._off: bytes | None = None
         self._off_handle: Scheduled | _Timer | None = None
         self._echoes: list[_Echo] = []
+
+    @property
+    def plans(self) -> dict[str, BarPlan | None]:
+        """The plans of the bar that started at the last bar line, for `bass` and
+        `melody` (read-only, a copy; #166): what each loop plays in it, `None` when
+        it does not play (no running clock, the bass not in `loop`, the melody off).
+        Not an OSC reply; the web demo reads it to show what the rules chose."""
+        with self._lock:
+            return dict(self._plans)
 
     def attach(self, access: ClockAccess) -> None:
         """The `Preset.clock` hook: listen to every pad hit."""
@@ -377,7 +387,9 @@ class Ensemble:
         `extra` if it is the melody's; the variation it plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or not self.melody:
+            self._plans["melody"] = None
             return "-"
+        self._plans["melody"] = plan
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._melody_notes = [h for h in self._melody_notes if h.tick >= last_bar]
         channel = self.melody_channel
@@ -415,7 +427,9 @@ class Ensemble:
         `fill`; the variation it plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or self._bass_active != "loop":
+            self._plans["bass"] = None
             return "-"
+        self._plans["bass"] = plan
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._bass_notes = [h for h in self._bass_notes if h.tick >= last_bar]
         bar = start.bar
