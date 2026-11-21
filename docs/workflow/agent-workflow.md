@@ -99,6 +99,7 @@ git switch -c <type>/<N>-<short-topic>
 - Commit 與 PR 標題使用 `feat:`／`fix:`／`docs:`／`chore:`／`ci:` 前綴。
 - 依 [PR 範本](../../.github/pull_request_template.md) 填寫；驗證結果寫實際執行的指令與結果，未執行的寫明原因。
 - 有合併後待辦或只完成一部分驗收條件時，寫 `Refs #N`；否則寫 `Closes #N`。
+  - 關閉關鍵字接 Issue 編號只寫在連結行；其他句子提到 Issue 時不把關鍵字放在編號旁（AGENTS.md 第 7 節）。
 - Issue 指定 `Closes` 但有合併後待辦時，以 `Refs` 為準，並在 PR 描述註明。
 
 - PR 描述依[貼出 PR 描述與留言](#貼出-pr-描述與留言)寫成新檔，檢查通過後以同一個檔案貼出。
