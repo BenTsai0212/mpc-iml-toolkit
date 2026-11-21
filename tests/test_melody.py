@@ -144,8 +144,12 @@ def test_melody_ornaments_join_with_eight_hits() -> None:
 def test_follower_plays_the_chosen_variation() -> None:
     follower = Follower(("open", ORNAMENTS))
     assert follower.plan_bar([], ("busy", 2), 90, True, True) == BarPlan(None, 0, 100, None)
-    assert follower.plan_bar([127] * 6, ("home", 1), 60, True, True) == BarPlan("home", 1, 120, 60)
-    assert follower.plan_bar([1], ("busy", 2), 40, True, True) == BarPlan("busy", 2, 50, 40)
+    assert follower.plan_bar([127] * 6, ("home", 1), 60, True, True) == BarPlan(
+        "home", 1, 120, 60, surprise=True
+    )
+    assert follower.plan_bar([1], ("busy", 2), 40, True, True) == BarPlan(
+        "busy", 2, 50, 40, surprise=True
+    )
     assert follower.plan_bar([], ("home", 1), 40, True, False) == BarPlan(
         "home", ORNAMENTS, 100, None
     )
@@ -162,11 +166,14 @@ def test_no_drums_lead_plays_the_lead_variation_then_fades_and_stops() -> None:
     assert {(p.variation, p.level, p.cc) for p in plans[:8]} == {("open", ORNAMENTS, None)}
     assert [p.velocity for p in plans[:8]] == [120] * 6 + [round(120 * FADE[1]), 48]
     assert [p.variation for p in plans[8:]] == [None, None]
+    assert [p.surprise for p in plans] == [True] * 6 + [False] * 4
 
 
 def test_no_drums_hold_keeps_the_last_choice_and_fade_bars_zero_never_stops() -> None:
     plans = empty_bars(Follower(("open", ORNAMENTS)), 40, "hold", 0)
-    assert {(p.variation, p.level, p.velocity) for p in plans} == {("busy", 2, 120)}
+    assert {(p.variation, p.level, p.velocity, p.surprise) for p in plans} == {
+        ("busy", 2, 120, True)
+    }
     assert empty_bars(Follower(("open", ORNAMENTS)), 2, "hold", 1)[0].velocity == 48
 
 
