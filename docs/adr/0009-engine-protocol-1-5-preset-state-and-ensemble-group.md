@@ -186,6 +186,38 @@ dropping notes, and keep playing when the drums stop (`no-drums`).
   (`Ensemble(seed=…)`, a fresh seed in each build); a surprise does not change the
   `variation` reply and does not call `report()`. Group 8 does not change.
 
+## Amendment: user loop files (#173)
+
+The `## Decision` on #173 (2026-11-21) accepts this amendment, with ADR 0010. The
+loops are loop files, and musicians add their own in `<data folder>/loops/`.
+
+- The engine gives `ensemble` its data folder through the provisional plugin field
+  `Preset.data_folder` (ADR 0010), each time it loads the preset. `ensemble` reads
+  `<data folder>/loops/*.json` then. A bad file, or one that reuses a built-in,
+  installed or other user loop's name, is skipped with a log line.
+- New `ensemble` controls (preset version):
+  - `reload-loops` (no arguments): reads the user folder again. A changed loop
+    plays from the next bar line. A playing loop whose file is gone keeps playing
+    (its name stays in `bass-loop` / `loop`) until another loop is chosen.
+  - `bass-loop-step 1|-1` and `loop-step 1|-1`: choose the next or previous loop
+    of `bass-loops` / `loops`, wrapping around; from a loop no longer listed, the
+    first (1) or the last (−1).
+- `bass-loop` and `loop` accept every loaded loop of their part; a melody loop
+  given to `bass-loop` (or a bass loop to `loop`) is refused with `bad_arguments`.
+- `bass-loops` and `loops` list built-in loops first, then installed, then user
+  loops, each group by name.
+- New reply after `variation`:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `loop-errors` | `i` how many user loop files were skipped at the last read |
+
+- Group 8's loop rows become `<` name `>` with `reload` and the `loop-errors` count
+  in a later PR of #173; until then the new controls are OSC only. The canvas stays
+  1490 × 840 and the Max for Live device does not change.
+- No core message, reply, error code or protocol version changes; the protocol
+  stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

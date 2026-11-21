@@ -341,6 +341,7 @@ class Engine:
         self._examples = found.example_set()
         self._loop = self._build_loop(found, self._examples)
         self._attach_clock(found)
+        self._attach_data_folder(found)
         self._handlers: dict[str, Callable[[list[Any]], None]] = {
             "hello": self._hello,
             "ping": self._ping,
@@ -660,6 +661,7 @@ class Engine:
             self._examples = preset.example_set()
             self._loop = self._build_loop(preset, self._examples)
             self._attach_clock(preset)
+            self._attach_data_folder(preset)
             self._timeline = []
             self._generated = None
             self._library = None
@@ -1151,6 +1153,15 @@ class Engine:
             self._log(f"preset {preset.name!r} clock hook failed, no clock: {error!r}")
             return
         self._clock_access = access
+
+    def _attach_data_folder(self, preset: Preset) -> None:
+        """Tell `preset` the data folder when it has a `data_folder` hook (#173)."""
+        if preset.data_folder is None:
+            return
+        try:
+            preset.data_folder(self.data_dir)
+        except Exception as error:
+            self._log(f"preset {preset.name!r} data folder hook failed: {error!r}")
 
     def _clock_now(self) -> float | None:
         """Now, in the gesture source's time base (`None` before a replay starts)."""
