@@ -1,13 +1,17 @@
 """The web demo's page (#166): its functions without a browser, and the page built."""
 
+import os
+
 import pytest
 
 from mpc_iml.webdemo import __main__ as webdemo_main
 from mpc_iml.webdemo.app import (
+    ANALYTICS_ENV,
     BARS,
     EXAMPLES,
     HEADERS,
     TABLE_HEADERS,
+    analytics_default_off,
     play,
     resize,
     to_table,
@@ -115,3 +119,26 @@ def test_the_page_builds() -> None:
         "Checkbox",
         "Number",
     }
+
+
+def test_analytics_are_off_unless_the_environment_sets_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(ANALYTICS_ENV, raising=False)
+    assert analytics_default_off() is False
+    assert os.environ[ANALYTICS_ENV] == "False"
+    monkeypatch.setenv(ANALYTICS_ENV, "True")
+    assert analytics_default_off() is True
+    assert os.environ[ANALYTICS_ENV] == "True"
+
+
+def test_the_built_page_leaves_analytics_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    if not webdemo_main.gradio_installed():
+        pytest.skip("needs the demo extra")
+    from gradio import analytics
+
+    from mpc_iml.webdemo.app import build
+
+    monkeypatch.delenv(ANALYTICS_ENV, raising=False)
+    page = build()
+    assert page.analytics_enabled is False and analytics.analytics_enabled() is False

@@ -944,6 +944,10 @@ To let a teammate open it from another computer, add `--share`: Gradio makes a
 temporary public link (valid for 72 hours, while the demo runs) through its share
 servers. Only share when you mean to; the default is local only.
 
+The demo turns Gradio's usage analytics off (it sets `GRADIO_ANALYTICS_ENABLED` to
+`False` unless you already set it), so it sends nothing to Gradio by itself.
+`--share` still goes through Gradio's share servers.
+
 ## Ableton Live starter set
 
 A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),

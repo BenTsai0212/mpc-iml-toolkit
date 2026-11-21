@@ -7,8 +7,13 @@ gathers input and shows output: `sim.simulate` runs the real rules and
 
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`) work, and are tested, without the `demo` extra.
+
+Gradio sends usage analytics to its servers unless `GRADIO_ANALYTICS_ENABLED` is
+`"False"`. `build` turns them off unless the environment already sets the variable,
+so the demo sends nothing unless a person asks (#172).
 """
 
+import os
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -24,7 +29,29 @@ from mpc_iml.webdemo.synth import RATE, render
 if TYPE_CHECKING:
     import gradio as gr
 
-__all__ = ["BARS", "EXAMPLES", "HEADERS", "TABLE_HEADERS", "build", "play", "resize", "to_table"]
+__all__ = [
+    "ANALYTICS_ENV",
+    "BARS",
+    "EXAMPLES",
+    "HEADERS",
+    "TABLE_HEADERS",
+    "analytics_default_off",
+    "build",
+    "play",
+    "resize",
+    "to_table",
+]
+
+ANALYTICS_ENV = "GRADIO_ANALYTICS_ENABLED"
+"""The environment variable that turns Gradio's usage analytics on or off."""
+
+
+def analytics_default_off() -> bool:
+    """Set `GRADIO_ANALYTICS_ENABLED` to `"False"` unless it is already set, and
+    return whether analytics are on (as Gradio reads it: only `"True"` is on)."""
+    os.environ.setdefault(ANALYTICS_ENV, "False")
+    return os.environ[ANALYTICS_ENV] == "True"
+
 
 BARS = (4, 8)
 """The fewest and most bars of the grid on the page."""
@@ -98,11 +125,13 @@ def play(
 
 
 def build() -> "gr.Blocks":
-    """The demo page. Needs the `demo` extra (`uv sync --extra demo`)."""
+    """The demo page. Needs the `demo` extra (`uv sync --extra demo`). Turns
+    Gradio's analytics off unless the environment sets them (`analytics_default_off`)."""
+    analytics = analytics_default_off()
     import gradio as gr
 
     default = Settings()
-    page = gr.Blocks(title="mpc-iml ensemble demo")
+    page = gr.Blocks(title="mpc-iml ensemble demo", analytics_enabled=analytics)
     with page:
         gr.Markdown(
             "# ensemble without hardware\n"
