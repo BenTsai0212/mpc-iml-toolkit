@@ -609,10 +609,10 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 
 ### 一點驚喜
 
-`surprise 1`（預設）時，每個 4 小節樂句的最後一小節有 1/2 的機率出現一個你沒有直接要求的變化
-（#158）：第 4 拍的 bass **fill**（根音、五度、八度與進入下一小節的趨近音組成的 16 分音符音群）、
-旋律在該小節高八度（**octave**），或**經過音**（**passing**：旋律在該小節的最後一個音改為下一小節
-和弦音的半音之下）。終端機會顯示每一次（`ensemble: surprise fill in bar 7`）。surprise 只出現在
+每個 4 小節樂句的最後一小節有 1/2 的機率出現一個你沒有直接要求的變化（#158）。`surprise 1`
+（預設，#178）時是第 4 拍的 bass **fill**（根音、五度、八度與進入下一小節的趨近音組成的 16 分音符
+音群）。`surprise 2` 再加上兩種旋律的 surprise：旋律在該小節高八度（**octave**），或**經過音**
+（**passing**：旋律在該小節的最後一個音改為下一小節和弦音的半音之下）。終端機會顯示每一次（`ensemble: surprise fill in bar 7`）。surprise 只出現在
 跟隨鼓或沒有鼓時繼續演奏的小節，fixed 模式、`no-drums thin` 與淡出的小節不會出現。rule bass 時
 沒有 fill，旋律關掉時只有 fill。`surprise 0` 關掉它。抽選是隨機的，每次載入 `ensemble` 都用新的
 種子。
@@ -714,7 +714,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/learn-cc` | 無 | - | 只在旋律的 channel 送出亮度的 CC（0、32、64、96、127，下一則訊息往下），讓 DAW 對應；clock 執行中或 `filter-cc` 為 0 時拒絕 |
 | `/mpciml/preset/ensemble/no-drums` | `lead`、`hold` 或 `thin` | `lead` | 兩個 loop 在沒有鼓的小節演奏什麼（[鼓停下時](#鼓停下時)） |
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | loop 停止前的空小節數（最後兩個淡出）；0 不會停止 |
-| `/mpciml/preset/ensemble/surprise` | 0 或 1 | 1 | 每個 4 小節樂句結尾的 surprise（[一點驚喜](#一點驚喜)） |
+| `/mpciml/preset/ensemble/surprise` | 0-2（0 關閉，1 只有 bass fill，2 再加上旋律的 surprise） | 1 | 每個 4 小節樂句結尾的 surprise（[一點驚喜](#一點驚喜)） |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
@@ -734,7 +734,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
 | `roles` | 16 個角色，pad 1-16 |
 | `no-drums` | 值（`lead`、`hold`、`thin`） |
-| `fade-bars`、`surprise` | 值（`surprise` 為 0 或 1） |
+| `fade-bars`、`surprise` | 值（`surprise` 為 0-2） |
 | `variation` | 正在演奏的 bass 變奏與旋律變奏（該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `loop-errors` | 上次讀取時略過的 loop 檔案數 |
 

@@ -22,7 +22,8 @@ follow the `no-drums` rule (`NO_DRUMS`).
 A little surprise (#158): at the last bar of each 4-bar phrase, with probability
 `SURPRISE_CHANCE`, one change the musician did not ask for (`surprise`): a bass fill
 (`bass.bass_fill`), the melody an octave up (`octave_up`) or a passing note into the
-next bar (`passing`). The choice comes from a seeded `random.Random`.
+next bar (`passing`). The choice comes from a seeded `random.Random`. By default
+only the bass fill can come; the melody surprises need `surprise 2` (#178).
 """
 
 import random

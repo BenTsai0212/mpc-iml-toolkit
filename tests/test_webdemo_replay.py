@@ -42,8 +42,8 @@ def take(grid: list[dict[str, list[int]]], tempo: float = 100.0, bank: int = 0) 
 
 def test_a_recording_plays_like_the_same_grid() -> None:
     grid = [SPARSE, BUSY, {}, SPARSE]
-    song = replay(take(grid, 100.0), Settings(surprise=False))
-    expected = simulate(grid, Settings(tempo=100.0, surprise=False))
+    song = replay(take(grid, 100.0), Settings(surprise=0))
+    expected = simulate(grid, Settings(tempo=100.0, surprise=0))
     assert song.settings.tempo == pytest.approx(100.0)
     assert (song.bars, song.rows) == (expected.bars, expected.rows)
     assert song.notes == expected.notes and song.brightness == expected.brightness

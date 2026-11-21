@@ -58,10 +58,11 @@ no arguments: sends only the brightness CC on the melody channel, `LEARN_CC_SWEE
 upwards and on the next call downwards, so a DAW in MIDI map mode learns the CC and
 not a note; refused while the clock is `running` and when `filter-cc` is 0), and for
 both loops `no-drums lead|hold|thin` and `fade-bars 0-32` (default 8, 0: never
-stop; #158), and `surprise 0|1` (default 1, #158: at the last bar of each 4-bar
-phrase, with probability 1/2, a bass fill, the melody an octave up or a passing
-note, only in bars that follow the drums or keep playing without them; seeded with
-`Ensemble(seed=…)`, a fresh seed in each `make_preset`). Bass mode and melody
+stop; #158), and `surprise 0-2` (#158, #178: at the last bar of each 4-bar
+phrase, with probability 1/2, a change the musician did not ask for, only in bars
+that follow the drums or keep playing without them; 0 is off, 1, the default, only
+the bass fill, 2 the bass fill, the melody an octave up or a passing note; seeded
+with `Ensemble(seed=…)`, a fresh seed in each `make_preset`). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
 
@@ -284,7 +285,7 @@ class Ensemble:
         self._follower = Follower(("open", ORNAMENTS))
         self.no_drums = "lead"
         self.fade_bars = 8
-        self.surprise = True
+        self.surprise = 1
         self._random = random.Random(seed)
         self._variations = ("-", "-")
         self._plans: dict[str, BarPlan | None] = {"bass": None, "melody": None}
@@ -395,13 +396,14 @@ class Ensemble:
             self._variations = (bass, self._plan_melody(start, melody_plan, extra))
 
     def _surprise(self, bar: int, bass: BarPlan, melody: BarPlan) -> str | None:
-        """The surprise of `bar`, among those that can sound in it (#158)."""
+        """The surprise of `bar`, among those that can sound in it (#158): with
+        `surprise 1` only the bass fill, with `surprise 2` also the melody's (#178)."""
         if not self.surprise or self._access is None or self._access.scheduler is None:
             return None
         candidates = []
         if bass.surprise and self._bass_active == "loop":
             candidates.append("fill")
-        if melody.surprise and self.melody:
+        if self.surprise == 2 and melody.surprise and self.melody:
             candidates += ["octave", "passing"]
         chosen = surprise(self._random, bar, candidates)
         if chosen is not None:
@@ -662,7 +664,7 @@ class Ensemble:
             "learn-cc": self._learn_cc,
             "no-drums": self._set_no_drums,
             "fade-bars": lambda a: self._set(lambda: setattr(self, "fade_bars", _whole(a, 0, 32))),
-            "surprise": lambda a: self._set(lambda: setattr(self, "surprise", _flag(a))),
+            "surprise": lambda a: self._set(lambda: setattr(self, "surprise", _whole(a, 0, 2))),
         }
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
@@ -764,7 +766,7 @@ class Ensemble:
                 ("roles", list(self.roles)),
                 ("no-drums", [self.no_drums]),
                 ("fade-bars", [self.fade_bars]),
-                ("surprise", [int(self.surprise)]),
+                ("surprise", [self.surprise]),
                 ("variation", list(self._variations if scheduler is not None else ("-", "-"))),
                 ("loop-errors", [self.loop_errors]),
             ]

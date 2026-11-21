@@ -779,11 +779,12 @@ variation that bar chooses. Fixed mode always plays.
 
 ### A little surprise
 
-With `surprise 1` (the default), the last bar of each 4-bar phrase has a 1 in 2
-chance of one change you did not ask for (#158): a bass **fill** on beat 4 (a 16th
-run of root, fifth, octave and an approach note into the next bar), the melody an
-**octave** up for that bar, or a **passing** note (the melody's last note of the bar
-half a step below a chord tone of the next bar). The terminal shows each one
+The last bar of each 4-bar phrase has a 1 in 2 chance of one change you did not
+ask for (#158). With `surprise 1` (the default, #178) it is a bass **fill** on beat 4
+(a 16th run of root, fifth, octave and an approach note into the next bar).
+`surprise 2` adds the two melody surprises: the melody an **octave** up for that
+bar, or a **passing** note (the melody's last note of the bar half a step below a
+chord tone of the next bar). The terminal shows each one
 (`ensemble: surprise fill in bar 7`). Surprises come only in bars that follow your
 drums or keep playing without them, not in fixed mode, with `no-drums thin` or in
 a fading bar. With the rule bass there is no fill, and with the melody off only the
@@ -904,7 +905,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/learn-cc` | none | - | Sends only the brightness CC on the melody channel (0, 32, 64, 96, 127, then downwards on the next message) so a DAW can map it; refused while the clock runs or when `filter-cc` is 0 |
 | `/mpciml/preset/ensemble/no-drums` | `lead`, `hold` or `thin` | `lead` | What both loops play in bars without drums ([When the drums stop](#when-the-drums-stop)) |
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
-| `/mpciml/preset/ensemble/surprise` | 0 or 1 | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
+| `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -926,7 +927,7 @@ melody mode or a playing variation changes:
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
 | `roles` | 16 roles, pads 1-16 |
 | `no-drums` | the value (`lead`, `hold`, `thin`) |
-| `fade-bars`, `surprise` | the value (`surprise` as 0 or 1) |
+| `fade-bars`, `surprise` | the value (`surprise` as 0-2) |
 | `variation` | the bass variation and the melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `loop-errors` | how many of your loop files were skipped at the last read |
 

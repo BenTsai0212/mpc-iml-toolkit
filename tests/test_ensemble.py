@@ -61,14 +61,15 @@ class FakeTimer:
 class Rig:
     """An `Ensemble` on a simulated DAW clock (or without one); the melody layer is
     off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`.
-    The surprises (#158) are off unless `surprise`, with the fixed seed `seed`."""
+    The surprises (#158) are off unless `surprise` (the control's 0-2, #178), with the
+    fixed seed `seed`."""
 
     def __init__(
         self,
         clock: bool = True,
         melody: bool = False,
         bass: str = "rule",
-        surprise: bool = False,
+        surprise: int = 0,
         seed: int = 0,
     ) -> None:
         self.sent: list[tuple[int, bytes]] = []
