@@ -18,12 +18,16 @@ marked `skeleton` (in `home` only) are what `no-drums thin` plays; without any,
 Loop files are a content kind next to kits and modules (ADR 0007): packages declare
 them through the `mpc_iml.content` entry point group, under
 `<root>/loops/ensemble/<name>.json`. `load_loops` reads every entry, built-in
-content (the `mpc_iml` package) first.
+content (the `mpc_iml` package) first. Musicians' own loops live in the engine's
+data folder, `<data folder>/loops/*.json`; `load_user_loops` adds them after the
+installed ones and skips a bad file instead of failing.
 """
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from importlib.metadata import entry_points
+from pathlib import Path
 from typing import Any
 
 from mpc_iml.bass import BASS_VARIATIONS
@@ -52,7 +56,9 @@ __all__ = [
     "VARIATIONS",
     "LoopFile",
     "LoopLibrary",
+    "USER_FOLDER",
     "load_loops",
+    "load_user_loops",
     "parse_loop",
 ]
 
@@ -61,6 +67,8 @@ PRESET = "ensemble"
 """The preset loop files belong to."""
 KIND = "loops"
 """The content folder of loop files: `<root>/loops/ensemble/`."""
+USER_FOLDER = "loops"
+"""The folder of user loop files in the engine's data folder."""
 PARTS = ("bass", "melody")
 VARIATIONS: Mapping[str, tuple[str, ...]] = {"bass": BASS_VARIATIONS, "melody": MELODY_VARIATIONS}
 """The variation names each part allows, in order."""
@@ -257,3 +265,36 @@ def load_loops(group: str = CONTENT_GROUP) -> LoopLibrary:
                 )
             loops[loop.name] = loop
     return LoopLibrary(loops)
+
+
+def load_user_loops(folder: Path, library: LoopLibrary) -> tuple[LoopLibrary, list[str]]:
+    """`library` with the user loop files in `folder` (`*.json`) after its own loops,
+    by name, and one error message per skipped file.
+
+    A file that cannot be read, is invalid, has a file name other than its `name` or
+    reuses a name already in `library` (built-in, installed or another user file) is
+    skipped, so one bad export never stops playing. A missing folder has no loops.
+    """
+    loops = dict(library.loops)
+    errors: list[str] = []
+    files = sorted(folder.glob("*.json")) if folder.is_dir() else []
+    for path in files:
+        origin = str(path)
+        try:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                raise ContentError(f"{origin}: cannot read: {error}") from error
+            loop = parse_loop(data, origin)
+            if loop.name != path.stem:
+                raise ContentError(f"{origin}: the file name must equal the name {loop.name!r}")
+            if loop.name in loops:
+                raise ContentError(
+                    f"{origin}: a loop named {loop.name!r} already exists"
+                    f" ({loops[loop.name].origin}); rename it"
+                )
+        except ContentError as error:
+            errors.append(str(error))
+            continue
+        loops[loop.name] = loop
+    return LoopLibrary(loops), errors

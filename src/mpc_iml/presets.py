@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from importlib.metadata import EntryPoint, entry_points
 from importlib.resources import files
 from importlib.resources.abc import Traversable
+from pathlib import Path
 
 from mpc_iml.clock import ClockAccess
 from mpc_iml.examples import ExampleSet, FeatureFn, default_features
@@ -158,6 +159,11 @@ class Preset:
       (after `clock`), after each successful control, and when the preset calls
       `ClockAccess.report()`. It runs on the engine's threads and must return
       quickly; errors are logged and nothing is sent.
+    - `data_folder`: **provisional** (#173, ADR 0010). Called with the engine's data
+      folder (for example `./mpc-iml-data`, which may not exist yet) each time the
+      engine loads this preset, before its state is sent; `ensemble` reads user loop
+      files from `<data folder>/loops/`. Errors are logged and the preset loads
+      anyway.
     """
 
     name: str
@@ -173,6 +179,7 @@ class Preset:
     output_names: tuple[str, ...] | None = None
     clock: Callable[[ClockAccess], None] | None = None
     state: Callable[[], StateReplies] | None = None
+    data_folder: Callable[[Path], None] | None = None
 
     def __post_init__(self) -> None:
         if not _NAME.fullmatch(self.name):
