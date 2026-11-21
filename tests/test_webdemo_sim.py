@@ -109,3 +109,10 @@ def test_surprises_are_seeded_and_shown_in_the_rows() -> None:
     assert passing.rows[2].surprise == "passing"
     assert band(fill, 3) != band(plain, 3) and band(fill, 2) == band(plain, 2)
     assert simulate(grid, Settings(seed=1)) == fill
+
+
+def test_surprise_off_plays_none() -> None:
+    grid = [SPARSE] * 8
+    off = simulate(grid, Settings(seed=1, surprise=False))
+    assert [r.surprise for r in off.rows] == [None] * 8
+    assert off.notes == simulate(grid, Settings(seed=0)).notes

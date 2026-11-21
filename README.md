@@ -922,6 +922,28 @@ and `uv run mpc-iml --clock` (the patch opens):
    `inactive_preset` on the status line.
 6. Check that the Pd window shows no red errors.
 
+### Try it without hardware
+
+A small web page plays the real `ensemble` rules on a drum grid you fill in, so
+anyone can hear how the drums choose what the band plays, without an MPC, Live or a
+MIDI clock (#166). It needs the optional `demo` extra (Gradio):
+
+```bash
+uv sync --extra demo
+uv run python -m mpc_iml.webdemo
+```
+
+Open the address it prints (`http://127.0.0.1:7860`). Each row of the grid is one
+drum of one bar (kick, snare, hat; 0 is no hit, 1-127 the velocity). Pick an example
+or place hits, choose the settings, and press **Play**. The page renders the drums,
+bass and keys with a small synth and shows a table: the drums of each bar and the
+variation, ornaments, velocity and brightness the band chose for the bar after it.
+The same grid and seed always sound the same.
+
+To let a teammate open it from another computer, add `--share`: Gradio makes a
+temporary public link (valid for 72 hours, while the demo runs) through its share
+servers. Only share when you mean to; the default is local only.
+
 ## Ableton Live starter set
 
 A Live set that plays the `pressure` preset with no mapping step (RFC 0003, #104),
@@ -1218,8 +1240,9 @@ do not hold it.
 
 CI (`.github/workflows/ci.yml`, job `checks`) runs on Ubuntu and macOS
 (`ubuntu-latest` and `macos-latest`). On each, it runs the workflow tool tests
-(`npm test --prefix tools/workflow`) followed by the commands above; hardware tests
-stay skipped.
+(`npm test --prefix tools/workflow`) followed by the commands above, installing with
+`uv sync --locked --extra demo` so the web demo is checked too; hardware tests stay
+skipped.
 
 ## Project workflow
 

@@ -24,7 +24,7 @@ jobs:
         run: npm test --prefix tools/workflow
       - uses: astral-sh/setup-uv@v6
       - name: uv sync
-        run: uv sync --locked
+        run: uv sync --locked --extra demo
       - name: ruff check
         run: uv run ruff check
       - name: ruff format
