@@ -567,7 +567,7 @@ patch has no group for them yet, so send them from any OSC client:
 ## Play the ensemble preset
 
 The built-in preset `ensemble` (`src/mpc_iml/ensemble.py`, the first step of
-[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md), #138, #144, #148) plays a bass and a
+[RFC 0005](docs/rfcs/0005-drum-led-ensemble.md), #138, #144, #148, #158) plays a bass and a
 melody that follow your drums. There is no model and nothing to train: you play
 drums on the MPC Sample as usual. With `--clock`, a bass loop plays over a fixed
 chord progression, and your **kicks** in each bar shape the next bar of the loop
@@ -667,28 +667,32 @@ are two loops:
   the next bar.
 - `walk`: a 2-bar line with more motion, a passing note and approach notes.
 
-Each note of a loop has a level 1-3: level 1 notes are the skeleton (in `boom`, the
-root and the fifth, so even a sparse bar sounds like a bass line), levels 2 and 3 fill it in.
+Each loop has three **variations**, each a complete bass line (#158): `home` (the
+loop as described above), `push` (anticipations: notes a 16th early that answer
+pushed kicks) and `drive` (8ths in `boom`, a quarter-note walk in `walk`). Each
+variation has a full line (level 1) and **ornaments** (level 2: ghost notes and
+passing notes) on top, so a sparse bar never drops to a skeleton.
 
 **The kick changes the loop once per bar.** The bass listens to **kick** pads only.
 At each bar line, the kicks of the bar that just ended set the whole next bar:
 
 | Your kicks in the last bar | The next bar of the bass |
 | --- | --- |
-| Number of kicks | **Density**: 1-2 kicks play the skeleton only, 3-4 add level 2, 5 or more play every note. |
+| Positions and number of kicks | **Variation**: 5 or more kicks play `drive`; else a kick off the quarter-note grid (a pushed or syncopated kick) plays `push`; else (1-4 kicks on the beat) `home`. |
+| Number of kicks | **Ornaments**: 3 or more kicks add the ornaments to the full line. |
 | Average kick velocity | **Loudness**: velocity 1-127 becomes 50-120. |
 | Positions of the kicks | **Accents**: a bass note within one 16th of where you played a kick keeps its full velocity; the other notes play at 0.8 of it, so the line locks to your kick pattern. |
 
-When you stop playing kicks, one bar without kicks keeps the skeleton, and two in a
-row stop the bass; it comes back at the bar after your next kick. A bar of only
-snare and hats counts as a bar without kicks, so the bass thins out under a
-breakdown while the melody keeps playing. After Start in Live, the bass waits for
-your first kick. Hits on pads 15 and 16 do not count.
+A bar without kicks (also a bar of only snare and hats) follows the `no-drums`
+setting ([When the drums stop](#when-the-drums-stop)): by default the bass keeps
+playing its `home` line. After Start in Live, the bass waits for your first kick.
+Hits on pads 15 and 16 do not count.
 
 Pad 15 (below) also switches the bass loop between **follow** and **fixed**: fixed
-plays every note of the loop at velocity 100 with no accents, whatever the kicks
-do. Pad 15's **off** turns off only the melody; the bass loop stays fixed until
-the next press of pad 15 brings back follow.
+plays every note of the `home` variation (the same notes as before #158) at
+velocity 100 with no accents, whatever the kicks do. Pad 15's **off** turns off
+only the melody; the bass loop stays fixed until the next press of pad 15 brings
+back follow.
 
 ### The melody loop
 
@@ -701,27 +705,32 @@ major. There are two loops:
 - `keys` (default): a sparse 2-bar keys riff.
 - `pluck`: a 1-bar 8th-note arpeggio.
 
-The melody starts in octave 4 (A4 is MIDI note 69). Each note of a loop has a level
-1-3: level 1 notes are the loop's skeleton, levels 2 and 3 fill it in.
+The melody starts in octave 4 (A4 is MIDI note 69). As the bass, each loop has three
+variations, each a complete line with ornaments on top (#158): `home` (the loop as
+described above), `open` (longer notes: in `keys` a question in the first bar and an
+answer an octave up, in `pluck` a quarter-note arpeggio reaching up to a held
+seventh) and `busy` (short stabs on the off-8ths in `keys`, a 16th arpeggio over two
+octaves in `pluck`).
 
 **The drums change the loop once per bar.** At each bar line, the hits of the bar
-that just ended set the whole next bar; nothing changes in the middle of a bar.
-Three things in your playing each change one thing you can hear:
+that just ended set the whole next bar; nothing changes in the middle of a bar:
 
 | Your last bar | The next bar of the melody |
 | --- | --- |
-| Number of hits (all pads) | **Density**: 1-4 hits play the skeleton only, 5-10 add level 2, 11 or more play every note. Kick and snare give the skeleton; add 8th hats to fill the loop in. |
+| Number of hits (all pads) and the hats | **Variation**: a hat on an odd 16th (16th hats) or 14 or more hits play `busy`; 5 or fewer hits (space in the drums) play `open`; else `home`. |
+| Number of hits | **Ornaments**: 8 or more hits add the ornaments to the full line. |
 | Average velocity | **Loudness**: velocity 1-127 becomes 50-120, as for the bass. |
 | Hits on `hat` pads | **Brightness**: CC 74 on channel 3 at the bar line, from 40 with no hats to 127 with 16 or more. Map it to a filter or brightness knob in Live. |
 
-When you stop playing, one empty bar keeps the skeleton under the break, and two
-empty bars in a row stop the melody; it comes back at the bar after your next hit.
-After Start in Live, the melody waits for your first hit. Hits on pads 15 and 16
-do not count.
+So kick and snare alone give the more melodic `open` line, 8th hats the `home`
+line with its ornaments, and 16th hats `busy`. An empty bar follows `no-drums`
+([When the drums stop](#when-the-drums-stop)). After Start in Live, the melody
+waits for your first hit. Hits on pads 15 and 16 do not count.
 
 Press **pad 15** to cycle follow → fixed → off. **fixed** plays every note of the
-melody loop at velocity 100 and sends no CC, and every note of the bass loop at
-velocity 100 with no accents, whatever the drums do, so you can compare it with
+melody loop's `home` variation at velocity 100 and sends no CC, and every note of
+the bass loop's `home` at velocity 100 with no accents, whatever the drums do (the
+same notes as before #158, with no surprises), so you can compare it with
 **follow**. **off** turns off the melody only (the bass loop stays fixed). The
 terminal shows the new mode (`ensemble: melody follow`, `ensemble: melody fixed` or
 `ensemble: melody off`), as does group 8 **Ensemble** of the patch, and it applies
@@ -748,6 +757,38 @@ so MIDI Map Mode would catch a note instead:
 
 Then start Live and play `hat` pads: the filter moves at the next bar line. While
 Live plays, `learn-cc` gets `/mpciml/error bad_arguments`.
+
+### When the drums stop
+
+When you stop playing, the band keeps going and hands the focus to the melody, as a
+drummer who drops out for a few bars would expect (#158). The control `no-drums`
+([Ensemble controls](#ensemble-controls)) sets what the loops play in bars without
+drums (bars without kicks, for the bass):
+
+| `no-drums` | Bars without drums |
+| --- | --- |
+| `lead` (default) | The melody plays its `open` variation with ornaments (a line that leads forward); the bass plays its `home` line without ornaments, to make room. |
+| `hold` | Both keep the variation and ornaments of the last bar with drums. |
+| `thin` | The rule from before #158, to compare: one empty bar plays the loop's skeleton (in `boom`, the root and the fifth), two in a row stop it. |
+
+With `lead` and `hold`, the loops keep the loudness of your last bar with drums for
+`fade-bars` empty bars (default 8); the last two of them fade (0.7, then 0.4 of
+that velocity), and then the loops stop. `fade-bars 0` never stops. The brightness
+CC stays where it was. The loops come back at the bar after your next hit, with the
+variation that bar chooses. Fixed mode always plays.
+
+### A little surprise
+
+With `surprise 1` (the default), the last bar of each 4-bar phrase has a 1 in 2
+chance of one change you did not ask for (#158): a bass **fill** on beat 4 (a 16th
+run of root, fifth, octave and an approach note into the next bar), the melody an
+**octave** up for that bar, or a **passing** note (the melody's last note of the bar
+half a step below a chord tone of the next bar). The terminal shows each one
+(`ensemble: surprise fill in bar 7`). Surprises come only in bars that follow your
+drums or keep playing without them, not in fixed mode, with `no-drums thin` or in
+a fading bar. With the rule bass there is no fill, and with the melody off only the
+fill. `surprise 0` turns them off. The choice is
+random, with a new seed each time `ensemble` is loaded.
 
 ### The Ensemble group in Pure Data
 
@@ -776,8 +817,8 @@ because the melody does not play.
 The group is always there. While another preset is loaded, its boxes show `-` (the
 octave boxes keep their last number), and a click puts `inactive_preset` on the
 status line in group 9 **Messages**: load `ensemble` first. The pad roles, the MIDI
-channels, `length`, `immediate`, `bar`, `filter-cc` and the pads that cycle the modes
-stay OSC only ([Ensemble controls](#ensemble-controls)). The Max for Live device
+channels, `length`, `immediate`, `bar`, `filter-cc`, the pads that cycle the modes,
+`no-drums`, `fade-bars` and `surprise` stay OSC only ([Ensemble controls](#ensemble-controls)). The Max for Live device
 has no Ensemble group.
 
 ### Ensemble controls
@@ -807,6 +848,9 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
 | `/mpciml/preset/ensemble/melody-pad` | 0-16 | 15 | The pad that cycles the melody; 0 for none |
 | `/mpciml/preset/ensemble/learn-cc` | none | - | Sends only the brightness CC on the melody channel (0, 32, 64, 96, 127, then downwards on the next message) so a DAW can map it; refused while the clock runs or when `filter-cc` is 0 |
+| `/mpciml/preset/ensemble/no-drums` | `lead`, `hold` or `thin` | `lead` | What both loops play in bars without drums ([When the drums stop](#when-the-drums-stop)) |
+| `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
+| `/mpciml/preset/ensemble/surprise` | 0 or 1 | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -817,7 +861,7 @@ controls apply from the next bar line.
 to the reply port (6451) as `/mpciml/preset/ensemble/<reply>` messages after
 `preset/load`, in the full state (`hello`, `state/get`), after each control that
 succeeds, after a press of pad 15 or 16, and at a bar line where the playing bass or
-melody mode changes:
+melody mode or a playing variation changes:
 
 | Reply | Arguments |
 | --- | --- |
@@ -827,6 +871,9 @@ melody mode changes:
 | `bass-loops`, `loops`, `progressions` | the names to choose from |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
 | `roles` | 16 roles, pads 1-16 |
+| `no-drums` | the value (`lead`, `hold`, `thin`) |
+| `fade-bars`, `surprise` | the value (`surprise` as 0 or 1) |
+| `variation` | the bass variation and the melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
@@ -901,6 +948,33 @@ two bars without drums.
    | cause only | | | |
 
 3. Press Stop in Live while the bass and the melody play, and check that no note
+   keeps sounding on channel 2 or 3.
+
+### Check the variations
+
+The manual check for #158: does following the drums by variation, instead of by
+dropping notes, make playing with the band more fun? It repeats the three trials of
+[Check the bass loop](#check-the-bass-loop) with the same setup, the same boom-bap
+patterns (sparse bars, busy bars, then one bar and two bars without drums) and about
+5 minutes each. The defaults are `no-drums lead`, `fade-bars 8` and `surprise 1`.
+
+1. **Both**: the defaults (`ensemble: bass loop`, `ensemble: melody follow`). Also
+   try an off-beat kick (for example on the "and" of beat 2), 16th hats, and a
+   longer stop of 10 bars or more.
+2. **Content only**: pad 15 once (`ensemble: melody fixed`).
+3. **Cause only**: pad 16 once (`ensemble: bass rule`); pad 15 once more
+   (`ensemble: melody off`).
+4. After each, write one row:
+
+   | Trial | Fun (1-5) | Sounds like me (1-5) | Notes |
+   | --- | --- | --- | --- |
+   | both | | | Did the bass feel like a full bass line in sparse bars? Did stopping the drums hand the focus to the melody, and what happened after 8 empty bars? Did changing the drums (an off-beat kick, 16th hats, a sparse bar) lead to audibly different music? Were the phrase-end surprises welcome or distracting? |
+   | content only | | | |
+   | cause only | | | |
+
+5. Optional: one more pass of trial 1 with `no-drums thin` or `surprise 0`, to
+   compare.
+6. Press Stop in Live while the bass and the melody play, and check that no note
    keeps sounding on channel 2 or 3.
 
 ### Check the Ensemble group
@@ -986,8 +1060,8 @@ engine appear on the status line in group 9 **Messages** of the patch.
 | Mappings lost or wrong | Click `stop` so that `state` shows `idle`, then map one CC at a time with `l1`-`l8`, as in [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw). In Live, the [Ableton Live starter set](#ableton-live-starter-set) has the mappings already. |
 | The patch does not respond | Click `connect`. If that does not help, close the patch, stop the engine with Ctrl-C in the terminal and run `uv run mpc-iml` again. |
 | The engine stopped, or the MPC Sample does not respond | Reconnect the USB cable, stop `uv run mpc-iml` with Ctrl-C and start it again, then click the preset (for example `pressure`), load a kit and click `run` again. |
-| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. The bass loop needs `--clock` and Live playing, waits for your first kick after Start and stops after two bars without kicks. Pad 16 may have switched the bass to `rule` or `off` (group 8 **Ensemble** and the terminal show the mode); see [Play the ensemble preset](#play-the-ensemble-preset). |
-| `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and stops after two empty bars. Pad 15 may have switched it off (group 8 **Ensemble** shows `off`, the terminal `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
+| `ensemble` plays no bass | The bass track's MIDI From is `mpc-iml`, **Ch. 2**, and **Track** is on for the input `mpc-iml` in Live's settings. The kick is on pad 1 or 5. The bass loop needs `--clock` and Live playing, waits for your first kick after Start and, after you stop, keeps playing for `fade-bars` bars (default 8; two with `no-drums thin`). Pad 16 may have switched the bass to `rule` or `off` (group 8 **Ensemble** and the terminal show the mode); see [Play the ensemble preset](#play-the-ensemble-preset). |
+| `ensemble` plays no melody | The engine runs with `--clock` and Live is playing with Sync on for `mpc-iml clock`. The keys track's MIDI From is `mpc-iml`, **Ch. 3**. The melody waits for your first hit after Start and, after you stop, keeps playing for `fade-bars` bars (default 8; two with `no-drums thin`). Pad 15 may have switched it off (group 8 **Ensemble** shows `off`, the terminal `ensemble: melody off`); see [The melody loop](#the-melody-loop). |
 | `wrong_state` on the status line after changing a module or `amount` | A retrain is in progress; wait a moment and try again. |
 | A light hold or a quick tap barely changes the sound | See the notes on the light end (#76) at the end of [Map the MIDI CCs in a DAW](#map-the-midi-ccs-in-a-daw), in [Play the pressure preset](#play-the-pressure-preset). |
 
