@@ -2,9 +2,10 @@
 
 A teammate places kick, snare and hat hits on a 16-step grid, or uploads a
 recording made with `record --clock`, picks the settings, and hears and reads what
-`ensemble` plays in answer, bar by bar. The page only gathers input and shows
-output: `sim.simulate` and `sim.replay` run the real rules and `synth.render`
-makes the audio.
+`ensemble` plays in answer, bar by bar, with a piano roll and a MIDI file. The page
+only gathers input and shows output: `sim.simulate` and `sim.replay` run the real
+rules, `synth.render` makes the audio, `roll.draw` the piano roll and
+`midifile.write` the MIDI file.
 
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`, `upload`) work, and are tested, without the `demo` extra.
@@ -15,6 +16,7 @@ so the demo sends nothing unless a person asks (#172).
 """
 
 import os
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -28,6 +30,7 @@ from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
 from mpc_iml.recording import read_recording
+from mpc_iml.webdemo import midifile, roll
 from mpc_iml.webdemo.sim import (
     DRUMS,
     STEPS,
@@ -103,11 +106,13 @@ HIT_HEADERS = list(COLUMNS)
 
 
 class Shown(NamedTuple):
-    """What the page shows for a song: the audio (`(RATE, samples)`) and the bar
-    table."""
+    """What the page shows for a song: the audio (`(RATE, samples)`), the bar table,
+    the piano roll and the MIDI file's bytes."""
 
     audio: tuple[int, npt.NDArray[np.int16]]
     table: Table
+    roll: npt.NDArray[np.uint8]
+    midi: bytes
 
 
 class Uploaded(NamedTuple):
@@ -153,8 +158,9 @@ def resize(table: Sequence[Sequence[object]], bars: int) -> Table:
 
 
 def show(song: Song) -> Shown:
-    """The audio and bar table of `song`."""
-    return Shown((RATE, render(song, song.settings.seed)), [_table_row(r) for r in song.rows])
+    """The audio, bar table, piano roll and MIDI file of `song`."""
+    audio = (RATE, render(song, song.settings.seed))
+    return Shown(audio, [_table_row(r) for r in song.rows], roll.draw(song), midifile.write(song))
 
 
 def play(table: Sequence[Sequence[object]], settings: Settings) -> Shown:
@@ -238,6 +244,8 @@ def build() -> "gr.Blocks":
             hits = gr.Dataframe(headers=HIT_HEADERS, type="array", interactive=False)
         audio = gr.Audio(label="the band", type="numpy", interactive=False)
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
+        image = gr.Image(label="piano roll", type="numpy", interactive=False)
+        midi = gr.File(label="MIDI file", interactive=False)
         controls = [progression, bass_loop, loop, mode, no_drums, fade, surprise, seed]
 
         def settings_of(tempo: float, *values: object) -> Settings:
@@ -254,9 +262,16 @@ def build() -> "gr.Blocks":
                 int(float(str(seed))),
             )
 
+        def outputs(shown: Shown) -> tuple[object, ...]:
+            with tempfile.NamedTemporaryFile(
+                prefix="ensemble-", suffix=".mid", delete=False
+            ) as file:
+                file.write(shown.midi)
+            return shown.audio, shown.table, shown.roll, file.name
+
         def on_play(cells: Table, tempo: float, *values: object) -> tuple[object, ...]:
             try:
-                return play(cells, settings_of(tempo, *values))
+                return outputs(play(cells, settings_of(tempo, *values)))
             except ValueError as e:
                 raise gr.Error(str(e)) from e
 
@@ -267,10 +282,10 @@ def build() -> "gr.Blocks":
                 shown, rows = upload(path, settings_of(default.tempo, *values))
             except ValueError as e:
                 raise gr.Error(str(e)) from e
-            return (*shown, rows)
+            return (*outputs(shown), rows)
 
         bars.change(lambda cells, n: resize(cells, int(n)), [grid, bars], grid)
-        results = [audio, table]
+        results = [audio, table, image, midi]
         button.click(on_play, [grid, tempo, *controls], results)
         upload_button.click(on_upload, [recording, *controls], [*results, hits])
     return page

@@ -1012,7 +1012,9 @@ drum of one bar (kick, snare, hat; 0 is no hit, 1-127 the velocity). Pick an exa
 or place hits, choose the settings, and press **Play**. The page renders the drums,
 bass and keys with a small synth and shows a table: the drums of each bar and the
 variation, ornaments, velocity and brightness the band chose for the bar after it.
-The same grid and seed always sound the same.
+The same grid and seed always sound the same. Below the table, a piano roll shows
+the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
+bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
 
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
 instead: the band answers it exactly as the engine would have, at the recording's
