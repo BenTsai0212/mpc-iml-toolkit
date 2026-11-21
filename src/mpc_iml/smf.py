@@ -2,16 +2,17 @@
 
 `read` takes the notes of a format 0 or 1 file (running status, a Note On with
 velocity 0 as a Note Off; meta and sysex events are skipped) and `write` writes notes
-as a format 0 file. Times are ticks; `division` is ticks per quarter note (SMPTE
+as a format 0 file; `track`, `tempo` and `file` build other files (the #166 download
+is format 1). Times are ticks; `division` is ticks per quarter note (SMPTE
 division is refused). For the loop import and export of #173 and the #166 MIDI
 download.
 """
 
 from collections import defaultdict, deque
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
-__all__ = ["DIVISION", "MidiFile", "Note", "SmfError", "read", "write"]
+__all__ = ["DIVISION", "MidiFile", "Note", "SmfError", "file", "read", "tempo", "track", "write"]
 
 DIVISION = 480
 """Ticks per quarter note of written files."""
@@ -139,22 +140,37 @@ def _number(value: int) -> bytes:
     return bytes(out)
 
 
+def track(events: Iterable[tuple[int, int, bytes]], length: int = 0) -> bytes:
+    """A track chunk of `(tick, order, message)` events, sorted by tick and then
+    `order`, ending at `length` ticks or the last event."""
+    data = bytearray()
+    tick = 0
+    for at, _, message in sorted(events, key=lambda e: (e[0], e[1])):
+        data += _number(at - tick) + message
+        tick = at
+    data += _number(max(length - tick, 0)) + b"\xff\x2f\x00"
+    return b"MTrk" + len(data).to_bytes(4) + bytes(data)
+
+
+def file(tracks: Sequence[bytes], division: int = DIVISION) -> bytes:
+    """A file of `track` chunks: format 0 for one track, otherwise format 1."""
+    kind = 0 if len(tracks) == 1 else 1
+    header = (6).to_bytes(4) + kind.to_bytes(2) + len(tracks).to_bytes(2) + division.to_bytes(2)
+    return b"MThd" + header + b"".join(tracks)
+
+
+def tempo(bpm: float) -> tuple[int, int, bytes]:
+    """A Set Tempo meta event at tick 0, as a `track` event."""
+    return (0, 0, b"\xff\x51\x03" + round(60_000_000 / bpm).to_bytes(3))
+
+
 def write(
     notes: Iterable[Note], division: int = DIVISION, bpm: float = 120.0, length: int = 0
 ) -> bytes:
     """A format 0 file of `notes` with a tempo, ending at `length` ticks or the last
     note end. At the same tick a Note Off comes before a Note On."""
-    events: list[tuple[int, int, bytes]] = []
+    events = [tempo(bpm)]
     for n in notes:
         events.append((n.start, 1, bytes([0x90 | n.channel, n.pitch, n.velocity])))
         events.append((n.start + n.length, 0, bytes([0x80 | n.channel, n.pitch, 0])))
-    events.sort(key=lambda e: (e[0], e[1]))
-    tempo = round(60_000_000 / bpm).to_bytes(3)
-    track = bytearray(b"\x00\xff\x51\x03" + tempo)
-    tick = 0
-    for at, _, message in events:
-        track += _number(at - tick) + message
-        tick = at
-    track += _number(max(length - tick, 0)) + b"\xff\x2f\x00"
-    header = b"MThd" + (6).to_bytes(4) + (0).to_bytes(2) + (1).to_bytes(2) + division.to_bytes(2)
-    return header + b"MTrk" + len(track).to_bytes(4) + bytes(track)
+    return file([track(events, length)], division)

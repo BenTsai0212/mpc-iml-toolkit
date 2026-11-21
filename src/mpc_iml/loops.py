@@ -298,3 +298,9 @@ def load_user_loops(folder: Path, library: LoopLibrary) -> tuple[LoopLibrary, li
             continue
         loops[loop.name] = loop
     return LoopLibrary(loops), errors
+
+
+if __name__ == "__main__":
+    from mpc_iml.loop_midi import main
+
+    raise SystemExit(main())

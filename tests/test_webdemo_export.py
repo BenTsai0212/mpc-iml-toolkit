@@ -44,10 +44,3 @@ def test_the_midi_file_has_a_tempo_track_and_a_track_per_part() -> None:
     assert b"\x91" in tracks[2][1] and b"\xb2\x4a" in tracks[3][1]
     drums = sum(1 for n in song.notes if n.part in DRUM_NOTES)
     assert tracks[1][1].count(b"\x99") == drums
-
-
-def test_varlen_writes_long_delta_times() -> None:
-    assert midifile._varlen(0) == b"\x00"
-    assert midifile._varlen(0x7F) == b"\x7f"
-    assert midifile._varlen(0x80) == b"\x81\x00"
-    assert midifile._varlen(0x3FFF) == b"\xff\x7f"

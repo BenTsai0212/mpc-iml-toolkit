@@ -2,7 +2,7 @@
 
 import pytest
 
-from mpc_iml.smf import MidiFile, Note, SmfError, read, write
+from mpc_iml.smf import MidiFile, Note, SmfError, _number, file, read, tempo, track, write
 
 
 def smf(form: int, division: int, *tracks: bytes) -> bytes:
@@ -16,6 +16,19 @@ def test_write_then_read_keeps_the_notes() -> None:
     data = write(notes, length=3840)
     assert data[:14] == b"MThd\x00\x00\x00\x06\x00\x00\x00\x01\x01\xe0"
     assert read(data) == MidiFile(480, notes, 3840)
+
+
+def test_tracks_build_a_format_1_file_with_long_delta_times() -> None:
+    assert [_number(v) for v in (0, 0x7F, 0x80, 0x3FFF)] == [
+        b"\x00",
+        b"\x7f",
+        b"\x81\x00",
+        b"\xff\x7f",
+    ]
+    notes = [(0x3FFF, 1, b"\x91\x2d\x64"), (0x4000, 0, b"\x81\x2d\x00")]
+    data = file([track([tempo(120.0)]), track(notes)], 96)
+    assert data[8:14] == b"\x00\x01\x00\x02\x00\x60"
+    assert read(data) == MidiFile(96, (Note(0x3FFF, 1, 45, 100, channel=1),), 0x4000)
 
 
 def test_same_tick_note_off_before_note_on() -> None:
