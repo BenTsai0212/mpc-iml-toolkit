@@ -339,7 +339,9 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
         7: [*(f"o{k}-gui" for k in range(1, 9)), *(f"l{k}" for k in range(1, 9))],
         8: [
             *(f"ensemble-{n}" for n in ["b1", "b2", "b3", "m1", "m2", "m3"]),
-            *(f"ensemble-{n}{k}" for n in ["bl", "l", "p"] for k in range(1, 5)),
+            *(f"ensemble-p{k}" for k in range(1, 5)),
+            *(f"ensemble-{n}-{s}" for n in ["bl", "l"] for s in ["prev", "next"]),
+            "ensemble-reload-loops", "ensemble-loop-errors-show",
             *(f"ensemble-{n}-{s}" for n in ["bass", "melody"] for s in ["now", "next"]),
             *(f"ensemble-{n}-show" for n in ["bass-loop", "loop", "progression"]),
             *(f"ensemble-role{k}" for k in range(1, 17)),
@@ -658,17 +660,18 @@ def test_box_widths_are_read() -> None:
 # Group 8 Ensemble (ADR 0009, #153)
 
 ENSEMBLE_REPLIES = [
-    "bass", "melody-mode", "bass-loop", "loop", "progression", "bass-loops", "loops",
+    "bass", "melody-mode", "bass-loop", "loop", "progression", "loop-errors",
     "progressions", "octave", "melody-octave", "roles", "filter-cc", "melody-channel",
 ]  # fmt: skip
 """The replies of `ensemble` that group 8 uses; the others are ignored."""
 
-CHOOSERS = [
-    ("bl", "bass-loops", "bass-loop"),
-    ("l", "loops", "loop"),
-    ("p", "progressions", "progression"),
-]
-"""Button prefix, the reply that labels the buttons, and the control they send."""
+CHOOSERS = [("p", "progressions", "progression")]
+"""Button prefix, the reply that labels the buttons, and the control they send.
+
+The loops are chosen with `<` and `>` instead (#173): `LOOP_STEPS`."""
+
+LOOP_STEPS = [("bl", "bass-loop-step", "bass-loop"), ("l", "loop-step", "loop")]
+"""Button prefix, the step control, and the reply shown between `<` and `>` (#173)."""
 
 
 def reaches_box(c: Canvas, start: int, target: int) -> bool:
@@ -770,7 +773,7 @@ def test_ensemble_controls_send_what_the_preset_accepts() -> None:
             found[box.args[4]] = ens.sources(i)
     assert set(found) == {"bass", "melody-mode", "octave", "melody-octave", "learn-cc"} | {
         control for _, _, control in CHOOSERS
-    }
+    } | {control for _, control, _ in LOOP_STEPS} | {"reload-loops"}
     modes = [("bass", ["loop", "rule", "off"]), ("melody-mode", ["follow", "fixed", "off"])]
     for control, values in modes:
         assert {ens.boxes[s].text for s in found[control]} == {f"symbol {v}" for v in values}
@@ -820,7 +823,7 @@ def test_ensemble_replies_reach_the_displays() -> None:
     }
     for name in ("bass-loop", "loop", "progression", "octave", "melody-octave"):
         shown[name] = {f"mpciml-ensemble-{name}-show": "$1"}
-    for name in ("filter-cc", "melody-channel"):
+    for name in ("filter-cc", "melody-channel", "loop-errors"):
         shown[name] = {f"mpciml-ensemble-{name}-show": "$1"}
     main_receivers = {gui_names(b)[1] for b in patch().boxes}
     for reply, expected in shown.items():
@@ -852,8 +855,6 @@ def test_ensemble_displays_reset_when_a_preset_loads() -> None:
         f"{name}bass-loop": ["list", "-"],
         f"{name}loop": ["list", "-"],
         f"{name}progression": ["list", "-"],
-        f"{name}bass-loops": ["list"],
-        f"{name}loops": ["list"],
         f"{name}progressions": ["list"],
         f"{name}roles": ["list", *["-"] * 16],
     }, "the reply chains themselves, fed with empty replies"
@@ -875,3 +876,33 @@ def test_learn_cc_button_sends_learn_cc_next_to_its_cc_and_channel() -> None:
     assert button.x < cc.x < channel.x
     assert abs(cc.y - button.y) <= 3 and cc.y == channel.y
     assert button.y > gui["ensemble-role1"].y, "a new row under the roles"
+
+
+def test_loops_are_stepped_with_previous_and_next_and_reloaded(tmp_path: Path) -> None:
+    """#173: `<` and `>` send `bass-loop-step` / `loop-step` -1 and 1 around the loop's
+    name; under them `reload` sends `reload-loops` and `errors` shows `loop-errors`."""
+    ens, gui, preset = canvas("ensemble"), main_gui(), make_ensemble()
+    for prefix, control, reply in LOOP_STEPS:
+        (send,) = find(ens, f"oscformat mpciml preset ensemble {control}")
+        assert reaches(ens, send, "s mpciml-out")
+        for side, value in (("prev", "-1"), ("next", "1")):
+            (r,) = find(ens, f"r mpciml-ensemble-{prefix}-{side}")
+            (msg,) = ens.sinks(r)
+            assert ens.boxes[msg].text == value and ens.sinks(msg) == [send]
+            preset.controls[control]([float(value)])
+        prev, name, after = (
+            gui[f"ensemble-{n}"] for n in (f"{prefix}-prev", f"{reply}-show", f"{prefix}-next")
+        )
+        assert (prev.args[7], after.args[7]) == ("<", ">")
+        assert prev.y == after.y < name.y and prev.x == name.x < after.x
+    (r,) = find(ens, "r mpciml-ensemble-reload-loops")
+    (send,) = ens.sinks(r)
+    assert ens.boxes[send].text == "oscformat mpciml preset ensemble reload-loops"
+    assert reaches(ens, send, "s mpciml-out")
+    assert preset.data_folder is not None
+    preset.data_folder(tmp_path)
+    preset.controls["reload-loops"]([])
+    reload, errors = gui["ensemble-reload-loops"], gui["ensemble-loop-errors-show"]
+    assert reload.cls == "bng" and reload.args[7] == "reload" and errors.args[4] == "errors"
+    assert reload.y > gui["ensemble-bass-loop-show"].y and abs(errors.y - reload.y) <= 3
+    assert not [k for k in range(1, 5) if {f"ensemble-bl{k}", f"ensemble-l{k}"} & set(gui)]

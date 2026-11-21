@@ -212,9 +212,12 @@ loops are loop files, and musicians add their own in `<data folder>/loops/`.
   | --- | --- |
   | `loop-errors` | `i` how many user loop files were skipped at the last read |
 
-- Group 8's loop rows become `<` name `>` with `reload` and the `loop-errors` count
-  in a later PR of #173; until then the new controls are OSC only. The canvas stays
-  1490 × 840 and the Max for Live device does not change.
+- Group 8's `bass loop` and `melody loop` rows become `<` name `>` (instead of up
+  to 4 buttons): `<` and `>` send `bass-loop-step` / `loop-step` −1 and 1, and the
+  box between shows `bass-loop` / `loop`. Under them, `reload` sends `reload-loops`
+  and `errors` shows `loop-errors` (#173 PR 5). The group no longer uses the
+  `bass-loops` and `loops` replies; `progression` keeps its 4 buttons. The canvas
+  stays 1490 × 840 and the Max for Live device does not change.
 - No core message, reply, error code or protocol version changes; the protocol
   stays 1.5.
 
