@@ -217,7 +217,7 @@ def build() -> "gr.Blocks":
             mode = gr.Radio(list(MELODY_MODES), value=default.melody_mode, label="melody mode")
             no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")
             fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
-            surprise = gr.Checkbox(value=default.surprise, label="surprise")
+            surprise = gr.Checkbox(value=bool(default.surprise), label="surprise")
             seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
         with gr.Tab("step grid"):
             grid = gr.Dataframe(
@@ -258,7 +258,7 @@ def build() -> "gr.Blocks":
                 str(mode),
                 str(no_drums),
                 int(float(str(fade))),
-                bool(surprise),
+                int(bool(surprise)),
                 int(float(str(seed))),
             )
 

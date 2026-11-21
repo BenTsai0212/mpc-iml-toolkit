@@ -1,5 +1,6 @@
 """`ensemble`'s little surprise (#158): at the last bar of each 4-bar phrase, with
 probability 1/2, a bass fill, the melody an octave up or a passing note, seeded.
+`surprise 1` (the default, #178) allows only the fill, `surprise 2` all three.
 
 The preset runs on the simulated DAW clock of `test_ensemble.py` (`Rig`). Over
 `minor-two`, bar 3 is Fmaj7 and bar 4 Am7: in bass octave 1 the fill of bar 3 is
@@ -14,6 +15,7 @@ from test_ensemble import BAR, KICK, START, STEP, Rig
 from test_melody import HAT, play_bar
 
 from mpc_iml.bass import bass_fill
+from mpc_iml.ensemble import Ensemble
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import (
     PHRASE,
@@ -37,10 +39,10 @@ def seed_for(kind: str) -> int:
     return next(s for s in range(100) if surprise(random.Random(s), 3, SURPRISES) == kind)
 
 
-def run(bars: int, surprise_on: bool = True, seed: int = 0, **controls: str | int) -> Rig:
+def run(bars: int, level: int = 2, seed: int = 0, **controls: str | int) -> Rig:
     """`ensemble` with both loops following `DRUMS` in bars 0 to `bars - 1`, run to
-    the end of bar `bars`."""
-    rig = Rig(melody=True, bass="loop", surprise=surprise_on, seed=seed)
+    the end of bar `bars`, with `surprise` at `level`."""
+    rig = Rig(melody=True, bass="loop", surprise=level, seed=seed)
     for name, value in controls.items():
         rig.ensemble.controls()[name.replace("_", "-")]([value])
     rig.send(START)
@@ -127,7 +129,7 @@ def test_octave_up_and_the_passing_note() -> None:
 
 
 def test_a_bass_fill_ends_the_phrase() -> None:
-    plain, rig = run(4, surprise_on=False), run(4, seed=seed_for("fill"))
+    plain, rig = run(4, level=0), run(4, seed=seed_for("fill"))
     assert surprises(rig) == ["ensemble: surprise fill in bar 3"]
     bass = notes(rig, 0x91, 3)
     assert [(s, n) for s, n, _ in bass if s >= 12] == [(12, 29), (13, 36), (14, 41), (15, 32)]
@@ -137,7 +139,7 @@ def test_a_bass_fill_ends_the_phrase() -> None:
 
 
 def test_the_melody_goes_an_octave_up_or_ends_on_a_passing_note() -> None:
-    plain = notes(run(4, surprise_on=False), 0x92, 3)
+    plain = notes(run(4, level=0), 0x92, 3)
     up = run(4, seed=seed_for("octave"))
     assert surprises(up) == ["ensemble: surprise octave in bar 3"]
     assert notes(up, 0x92, 3) == [(s, n + 12, v) for s, n, v in plain]
@@ -146,7 +148,7 @@ def test_the_melody_goes_an_octave_up_or_ends_on_a_passing_note() -> None:
     melody = notes(moved, 0x92, 3)
     assert melody[:-1] == plain[:-1] and melody[-1][0] == plain[-1][0]
     assert melody[-1][1] != plain[-1][1]
-    assert notes(moved, 0x91, 3) == notes(run(4, surprise_on=False), 0x91, 3)
+    assert notes(moved, 0x91, 3) == notes(run(4, level=0), 0x91, 3)
 
 
 def test_only_surprises_that_can_sound() -> None:
@@ -154,12 +156,12 @@ def test_only_surprises_that_can_sound() -> None:
     assert "fill" not in str(surprises(run(4, seed=seed, bass="rule")))
     assert "octave" not in str(surprises(run(4, seed=seed, melody_mode="off")))
     assert surprises(run(8, seed=seed, melody_mode="fixed")) == []
-    assert surprises(run(8, surprise_on=False)) == []
+    assert surprises(run(8, level=0)) == []
 
 
 def test_never_while_fading_or_in_thin() -> None:
     def quiet(**controls: str | int) -> list[str]:
-        rig = Rig(melody=True, bass="loop", surprise=True, seed=seed_for("fill"))
+        rig = Rig(melody=True, bass="loop", surprise=2, seed=seed_for("fill"))
         for name, value in controls.items():
             rig.ensemble.controls()[name.replace("_", "-")]([value])
         rig.send(START)
@@ -173,11 +175,24 @@ def test_never_while_fading_or_in_thin() -> None:
     assert quiet() == ["ensemble: surprise fill in bar 3"]
 
 
+def test_by_default_only_the_bass_fill() -> None:
+    assert Ensemble().surprise == 1
+    for kind in ("octave", "passing"):
+        rig = run(4, level=1, seed=seed_for(kind))
+        assert surprises(rig) == ["ensemble: surprise fill in bar 3"]
+        assert notes(rig, 0x92, 3) == notes(run(4, level=0), 0x92, 3)
+    drawn = {line for s in range(20) for line in surprises(run(8, level=1, seed=s))}
+    assert drawn == {"ensemble: surprise fill in bar 3", "ensemble: surprise fill in bar 7"}
+    assert surprises(run(8, level=1, seed=seed_for("octave"), bass="rule")) == []
+
+
 def test_the_surprise_control() -> None:
-    rig = Rig(surprise=True)
+    rig = Rig(surprise=2)
+    for level in (0, 1, 2):
+        rig.ensemble.controls()["surprise"]([level])
+        assert dict(rig.ensemble.state())["surprise"] == [level]
     rig.ensemble.controls()["surprise"]([0])
-    assert dict(rig.ensemble.state())["surprise"] == [0]
-    for bad in ([2], ["on"], []):
+    for bad in ([3], [-1], [1.5], ["on"], [True], [], [1, 2]):
         with pytest.raises(ValueError):
             rig.ensemble.controls()["surprise"](bad)
     assert dict(rig.ensemble.state())["surprise"] == [0]

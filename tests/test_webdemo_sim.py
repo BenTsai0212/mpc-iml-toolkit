@@ -98,7 +98,7 @@ def test_bad_input_is_refused(grid: list[dict[str, list[int]]], settings: Settin
 
 def test_surprises_are_seeded_and_shown_in_the_rows() -> None:
     grid = [SPARSE] * 8
-    plain, fill, passing = (simulate(grid, Settings(seed=seed)) for seed in (0, 1, 3))
+    plain, fill, passing = (simulate(grid, Settings(seed=s, surprise=2)) for s in (0, 1, 3))
     assert [r.surprise for r in plain.rows] == [None] * 8
     assert [r.surprise for r in fill.rows] == [None, None, "fill", None] + [
         None,
@@ -108,11 +108,19 @@ def test_surprises_are_seeded_and_shown_in_the_rows() -> None:
     ]
     assert passing.rows[2].surprise == "passing"
     assert band(fill, 3) != band(plain, 3) and band(fill, 2) == band(plain, 2)
-    assert simulate(grid, Settings(seed=1)) == fill
+    assert simulate(grid, Settings(seed=1, surprise=2)) == fill
+
+
+def test_by_default_the_band_plays_only_the_bass_fill() -> None:
+    grid = [SPARSE] * 8
+    assert Settings().surprise == 1
+    for seed in (1, 3):
+        rows = simulate(grid, Settings(seed=seed)).rows
+        assert [r.surprise for r in rows] == [None, None, "fill", None] * 2
 
 
 def test_surprise_off_plays_none() -> None:
     grid = [SPARSE] * 8
-    off = simulate(grid, Settings(seed=1, surprise=False))
+    off = simulate(grid, Settings(seed=1, surprise=0))
     assert [r.surprise for r in off.rows] == [None] * 8
     assert off.notes == simulate(grid, Settings(seed=0)).notes

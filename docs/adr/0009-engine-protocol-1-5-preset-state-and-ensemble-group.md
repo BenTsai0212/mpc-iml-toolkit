@@ -169,7 +169,7 @@ dropping notes, and keep playing when the drums stop (`no-drums`).
   | --- | --- |
   | `no-drums` | `s` value |
   | `fade-bars` | `i` value |
-  | `surprise` | `i` 0 or 1 (PR 3, below) |
+  | `surprise` | `i` 0 or 1 (PR 3, below; 0-2 since #178) |
   | `variation` | `s` bass variation playing, `s` melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
 
 - `ensemble` calls `report()` at a bar line when the playing bass or melody mode
@@ -220,6 +220,26 @@ loops are loop files, and musicians add their own in `<data folder>/loops/`.
   stays 1490 × 840 and the Max for Live device does not change.
 - No core message, reply, error code or protocol version changes; the protocol
   stays 1.5.
+
+## Amendment: the bass fill by default (#178)
+
+Issue #178 asks for this amendment, following RFC 0005 principle 10 as amended in
+#174: by default a surprise keeps to the style's grammar (a bass fill at the end of
+a phrase), and the melody surprises, drawn without reference to the drums, are off
+unless the musician turns them on.
+
+- The control `surprise` takes 0-2 instead of 0 or 1 (preset version): 0 is off,
+  1 (still the default) only the bass fill, 2 the bass fill, the melody an octave
+  up or a passing note (the behaviour of 1 before #178). Other values are refused
+  with `bad_arguments`, as before.
+- The reply `surprise` stays an `i` value, now 0-2, in the same place.
+- The draw, its probability (1/2), the phrase (4 bars) and the seed
+  (`Ensemble(seed=…)`) do not change; with 1 the draw chooses among the fill only.
+- Group 8 and the Max for Live device do not change (they have no surprise
+  control).
+- No core message, reply, error code or protocol version changes; the protocol
+  stays 1.5. A preset's controls are versioned by the preset version (ADR 0004),
+  and the message, its type and the reply's place are unchanged.
 
 ## Consequences
 

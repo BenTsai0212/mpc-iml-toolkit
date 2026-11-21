@@ -57,7 +57,7 @@ def test_sparse_and_busy_examples_sound_and_read_different() -> None:
 
 
 def test_the_table_names_the_no_drums_rule_when_the_drums_stop() -> None:
-    _, table, *_ = play(to_table(EXAMPLES["drums stop"]), Settings(fade_bars=2, surprise=False))
+    _, table, *_ = play(to_table(EXAMPLES["drums stop"]), Settings(fade_bars=2, surprise=0))
     melody = column(table, "melody")
     assert melody[:4] == ["busy + ornaments"] * 4
     assert melody[4:6] == ["open + ornaments (lead)"] * 2
