@@ -76,7 +76,11 @@ The loops are loop files (#173, ADR 0010): the built-in `boom`, `walk`, `keys` a
 `pluck` live in `mpc_iml/loops/ensemble/` (registered as `CONTENT`), and installed
 packages add more through the `mpc_iml.content` entry point group. A note's timing
 `offset` moves it from its step by a fraction of a 16th, rounded to a clock tick; a
-note cannot sound before the bar line its bar is planned at.
+note cannot sound before the bar line its bar is planned at. Musicians' own loops
+are read from `<data folder>/loops/*.json` (`Preset.data_folder`) when the preset
+loads and on `reload-loops`; a bad file is skipped with a log line and counted in
+the reply `loop-errors`. `bass-loop-step 1|-1` and `loop-step 1|-1` move to the
+next or previous loop of the lists (built-in, installed, then user loops).
 """
 
 import random
@@ -84,6 +88,7 @@ import sys
 import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from mpc_iml import __version__
@@ -104,7 +109,7 @@ from mpc_iml.clock import (
 )
 from mpc_iml.content import Content
 from mpc_iml.frames import PADS
-from mpc_iml.loops import LoopLibrary, load_loops
+from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
     NO_DRUMS,
     ORNAMENTS,
@@ -246,10 +251,13 @@ class Ensemble:
         seed: int | None = None,
         library: LoopLibrary | None = None,
     ) -> None:
-        library = load_loops() if library is None else library
-        self.bass_loops = library.played("bass")
+        self._library = load_loops() if library is None else library
+        self._folder: Path | None = None
+        self.loop_errors = 0
+        """How many user loop files were skipped at the last read (#173)."""
+        self.bass_loops = self._library.played("bass")
         """The bass loops by name, in library order (#173)."""
-        self.loops = library.played("melody")
+        self.loops = self._library.played("melody")
         """The melody loops by name, in library order (#173)."""
         self.bass = "loop"
         self._bass_active = "loop"
@@ -626,6 +634,9 @@ class Ensemble:
         return {
             "bass": self._set_bass_control,
             "bass-loop": self._set_bass_loop,
+            "bass-loop-step": lambda a: self._step("bass", a),
+            "loop-step": lambda a: self._step("melody", a),
+            "reload-loops": self._reload_loops,
             "immediate": lambda a: self._set(lambda: setattr(self, "immediate", _flag(a))),
             "bar": lambda a: self._set(lambda: self._set_bar(_flag(a))),
             "progression": self._set_progression,
@@ -755,7 +766,57 @@ class Ensemble:
                 ("fade-bars", [self.fade_bars]),
                 ("surprise", [int(self.surprise)]),
                 ("variation", list(self._variations if scheduler is not None else ("-", "-"))),
+                ("loop-errors", [self.loop_errors]),
             ]
+
+    def data_folder(self, folder: Path) -> None:
+        """The `Preset.data_folder` hook: read the user loops in `<folder>/loops/`."""
+        with self._lock:
+            self._folder = folder / USER_FOLDER
+            self._read_user_loops()
+
+    def _reload_loops(self, args: Sequence[float | int | str]) -> None:
+        if args:
+            raise ValueError(f"expected no arguments, got {list(args)}")
+        with self._lock:
+            if self._folder is None:
+                raise ValueError("no data folder: ensemble is not loaded by the engine")
+            self._read_user_loops()
+
+    def _read_user_loops(self) -> None:
+        """Read the user folder again. A changed loop plays from the next bar line; a
+        playing loop whose file is gone keeps playing until another one is chosen."""
+        assert self._folder is not None
+        library, errors = load_user_loops(self._folder, self._library)
+        for error in errors:
+            self._log(f"ensemble: skipped a loop file: {error}")
+        self.loop_errors = len(errors)
+        self.bass_loops = library.played("bass")
+        self.loops = library.played("melody")
+        self.bass_loop = self.bass_loops.get(self.bass_loop.name, self.bass_loop)
+        self.loop = self.loops.get(self.loop.name, self.loop)
+        users = len(library.loops) - len(self._library.loops)
+        if users or errors:
+            self._log(f"ensemble: {users} user loops from {self._folder}, {len(errors)} skipped")
+
+    def _step(self, part: str, args: Sequence[float | int | str]) -> None:
+        """Choose the next (1) or previous (-1) loop of `part`, wrapping around; from
+        a loop no longer listed, the first or the last."""
+        if len(args) != 1 or args[0] not in (1, -1):
+            raise ValueError(f"expected 1 or -1, got {list(args)}")
+        step = int(args[0])
+        with self._lock:
+            loops = self.bass_loops if part == "bass" else self.loops
+            names = list(loops)
+            current = self.bass_loop if part == "bass" else self.loop
+            if current.name in names:
+                name = names[(names.index(current.name) + step) % len(names)]
+            else:
+                name = names[0 if step == 1 else -1]
+            if part == "bass":
+                self.bass_loop = loops[name]
+            else:
+                self.loop = loops[name]
 
     def _set_loop(self, args: Sequence[float | int | str]) -> None:
         loop = self._pick(self.loops, args)
@@ -825,4 +886,5 @@ def make_preset(log: Callable[[str], None] | None = None) -> Preset:
         patch="mpc_iml:patches/mpc-iml.pd",
         clock=ensemble.attach,
         state=ensemble.state,
+        data_folder=ensemble.data_folder,
     )
