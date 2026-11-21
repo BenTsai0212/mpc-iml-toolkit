@@ -13,9 +13,9 @@ import pytest
 from test_ensemble import BAR, KICK, START, STEP, Rig
 from test_melody import HAT, play_bar
 
-from mpc_iml.bass import BASS_LOOPS, bass_fill
+from mpc_iml.bass import bass_fill
+from mpc_iml.loops import load_loops
 from mpc_iml.melody import (
-    LOOPS,
     PHRASE,
     SURPRISES,
     LoopNote,
@@ -23,6 +23,9 @@ from mpc_iml.melody import (
     passing,
     surprise,
 )
+
+BASS_LOOPS = load_loops().played("bass")
+LOOPS = load_loops().played("melody")
 
 DRUMS = [(0, KICK), (4, HAT), (8, KICK), (12, HAT)]
 """A sparse bar: the bass plays `home`, the melody `open`."""

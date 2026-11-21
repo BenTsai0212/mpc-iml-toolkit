@@ -3,6 +3,20 @@
 - Status: Proposed
 - Date: 2026-11-19
 - Related: RFC 0001, RFC 0002, RFC 0003, RFC 0004, ADR 0002, ADR 0004, #113, #130
+- Amended: 2026-11-21 (#174)
+
+> **Amendment (2026-11-21, #174).** Steps 1–4 are built and have been played
+> several times. In those trials the band felt like an effects processor rather
+> than a partner when what it played was unrelated to what the musician played.
+> The direction is unchanged; this amendment:
+>
+> - adds principles 7–12 (follow by variation, reflexive content, representation,
+>   surprise within the grammar, a small control budget, visible intent);
+> - marks steps 1–4 as done and replaces steps 5–6 with a new build order;
+> - adds the section "Scope rules";
+> - adds two questions on reflexive content and on a preview of the next bar;
+> - updates the gate in "Phases and gates" and the step-5 open question to the new
+>   steps.
 
 ## Summary
 
@@ -95,17 +109,42 @@ style — and its freedom has to sit inside that framework.
    play this kind of bass".
 6. **Causality first.** The musician must hear that their drumming changed the
    band. Simple, legible relations come before rich generation.
+7. **Follow by variation, not subtraction.** A sparse bar never reduces the band
+   to a skeleton. The drums choose which full line plays and which ornaments it
+   gets. When the drums stop, the band carries on and only fades after a while
+   (built in #158).
+8. **Reflexive content.** At least part of what the band plays comes from the
+   musician: lines they wrote or chose, or material transformed from their own
+   drumming (repetition with variation). Content fixed by the system is a default,
+   not the goal.
+9. **Representation is an aesthetic choice.** Content formats must be able to hold
+   timing offsets (swing, microtiming) and non-chord tones, not only quantized
+   chord tones. When a format makes some music easier to express than other
+   music, the ADR that defines it says so.
+10. **Surprise within the grammar.** Surprises keep to the style's grammar (for
+    example a bass fill at the end of a phrase). Surprises that ignore the
+    musician's material or the harmony are off by default.
+11. **A small control budget.** At most two controls are meant to be changed while
+    playing; everything else is a good default. A new performance control says
+    which existing one it replaces.
+12. **Intent can be seen.** Where a front end exists, it can show what the band
+    will do in the next bar.
 
 ### What to build, in order
 
-| Step | What | Why first |
-| --- | --- | --- |
-| 1 | Tempo sync with the DAW, bar position, capture tagged by bar and grid step, scheduling at bar boundaries (#130) | Everything else depends on it |
-| 2 | Pad roles: map pads to drum roles in kits | Input for the skeleton and for the generators |
-| 3 | Rule-based bass: bass notes fall on the kick positions of the last bar, pitches follow a fixed chord progression | No model needed; the clearest causality; a baseline for later steps |
-| 4 | Melodic loop that follows the drums: choose among prepared loops, or change their filter or density, from features of the drumming (density, velocity, which pads) | Scenario 2 of the platform discussion; uses the existing CC output |
-| 5 | Learned response: replace the rules with a model shaped by the musician (demonstrated drum-to-bass examples, or a small pretrained model as a comparison) | Tests whether learning adds to the rules |
-| 6 | Two-way leading: the melody also influences the drums | Last; depends on what steps 3–5 show |
+| Step | What | Why first | Status |
+| --- | --- | --- | --- |
+| 1 | Tempo sync with the DAW, bar position, capture tagged by bar and grid step, scheduling at bar boundaries | Everything else depends on it | Done (#130) |
+| 2 | Pad roles: map pads to drum roles in kits | Input for the skeleton and for the generators | Done (#138) |
+| 3 | Rule-based bass: bass notes fall on the kick positions of the last bar, pitches follow a fixed chord progression | No model needed; the clearest causality; a baseline for later steps | Done (#138, #148) |
+| 4 | Melodic loop that follows the drums: choose among prepared loops, or change their filter or density, from features of the drumming (density, velocity, which pads) | Scenario 2 of the platform discussion; uses the existing CC output | Done (#144, #153, #158, #159) |
+| 5 | Loops as editable data, with import from a DAW MIDI file (#173), meeting the representation principle (principle 9) | Reflexive content and every later step need content the musician can write and change | |
+| 6 | Rhythm transformation: the band's rhythm is a transformation (not a copy) of the musician's last bar or bars, with pitches from the chords and the musician's own lines, following 4- or 8-bar phrases | The first step where the band plays material derived from the musician (principle 8) | |
+| 7 | Listening layer: per-bar features beyond counts (change in density, accents, similarity to the previous phrase), and leading or following that moves with the musician's volume and density | Gives steps 6 and 8 richer input than hit counts | |
+| 8 | Learning, smallest first: preset weights, then explicit likes while playing, then learning from playing; shared weights can be saved as a profile | Tests whether learning adds to the rules, starting from what is easiest to understand | |
+| 9 | Two-way leading: the melody also influences the drums | Last; depends on what steps 5–8 show | |
+
+Steps 5–9 are ordered by dependency, not by date.
 
 Each step is played by the decision maker for at least 10 minutes, with a note on
 how it felt, and kept, changed or dropped, as in RFC 0004.
@@ -121,8 +160,18 @@ ADR:
 - pad roles in kit files (ADR 0007 format);
 - any new OSC messages these need, as a new protocol version.
 
-Large dependencies (for example a deep-learning framework for step 5) stay optional
+Large dependencies (for example a deep-learning framework for step 8) stay optional
 extras, as in RFC 0004.
+
+### Scope rules
+
+- No new front ends, protocol versions or interfaces unless one of the steps above
+  needs them. The decision maker lifts this rule.
+- The repository contains only content the project owns or that has a clear
+  licence. Samples and clips a musician imports stay on their machine and are
+  never committed or uploaded.
+- A change that alters the sound is accepted after it has been played under a
+  fixed trial procedure and recorded, not after a single impression.
 
 ### Questions this direction explores
 
@@ -135,6 +184,10 @@ study outside the toolkit (RFC 0001).
 - Does a framework the musician defined (by demonstration) make the AI feel more
   "like listening to me" than a preset one?
 - How should the AI's freedom be limited to the space outside the skeleton?
+- Does reflexive content (the musician's own lines, or their drumming
+  transformed) make the band feel more "like listening to me" than content the
+  system wrote?
+- Does a visible preview of the next bar change that feeling?
 
 ## Non-goals
 
@@ -153,7 +206,9 @@ This RFC stays within **Phase 2.7** (Epic #113) and replaces experiment C there.
   Ableton starter set or the Pure Data patch, the decision maker plays drums on the
   pads and hears bass and a melodic loop follow at bar boundaries, for at least 10
   minutes, and records the result.
-- Steps 5 and 6 are decided after the first version has been played.
+- Steps 5–9 follow the order above (amendment of 2026-11-21, after the first
+  version was played). Each is played and recorded under a fixed trial procedure
+  before it is kept (see "Scope rules").
 
 ## Open questions
 
@@ -164,5 +219,5 @@ This RFC stays within **Phase 2.7** (Epic #113) and replaces experiment C there.
 - Whether the chord progression or melodic loop is part of a kit, a module, or a
   new content type.
 - How pad roles relate to the existing pad selection and modules (ADR 0007).
-- For step 5: the model or learning method, its licence and size, and how the
-  musician's demonstrations shape it.
+- For step 8: the learning method, its licence and size, and how the musician's
+  likes and playing shape it.

@@ -48,3 +48,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | [0007](0007-engine-protocol-1-3-kits-modules-and-pad-selection.md) | Engine protocol 1.3: kits, modules and pad selection | Accepted |
 | [0008](0008-engine-protocol-1-4-midi-clock-sync.md) | Engine protocol 1.4: MIDI clock sync | Proposed |
 | [0009](0009-engine-protocol-1-5-preset-state-and-ensemble-group.md) | Engine protocol 1.5: preset state replies, and a preset group in Pure Data | Proposed |
+| [0010](0010-loop-files-for-ensemble.md) | Loop files for `ensemble` | Proposed |

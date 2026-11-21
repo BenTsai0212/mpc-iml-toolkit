@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 import numpy as np
 import numpy.typing as npt
 
-from mpc_iml.bass import BASS_LOOPS
 from mpc_iml.clock import tag_recording
 from mpc_iml.ensemble import MELODY_MODES, PROGRESSIONS
 from mpc_iml.grid import COLUMNS, format_hit
-from mpc_iml.melody import LOOPS, NO_DRUMS, ORNAMENTS, BarPlan
+from mpc_iml.loops import load_loops
+from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
 from mpc_iml.recording import read_recording
 from mpc_iml.webdemo.sim import (
     DRUMS,
@@ -189,6 +189,7 @@ def build() -> "gr.Blocks":
     import gradio as gr
 
     default = Settings()
+    library = load_loops()
     page = gr.Blocks(title="mpc-iml ensemble demo", analytics_enabled=analytics)
     with page:
         gr.Markdown(
@@ -202,8 +203,10 @@ def build() -> "gr.Blocks":
             progression = gr.Dropdown(
                 list(PROGRESSIONS), value=default.progression, label="progression"
             )
-            bass_loop = gr.Dropdown(list(BASS_LOOPS), value=default.bass_loop, label="bass loop")
-            loop = gr.Dropdown(list(LOOPS), value=default.loop, label="melody loop")
+            bass_loop = gr.Dropdown(
+                library.names("bass"), value=default.bass_loop, label="bass loop"
+            )
+            loop = gr.Dropdown(library.names("melody"), value=default.loop, label="melody loop")
         with gr.Row():
             mode = gr.Radio(list(MELODY_MODES), value=default.melody_mode, label="melody mode")
             no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")

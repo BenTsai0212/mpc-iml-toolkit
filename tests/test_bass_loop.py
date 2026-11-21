@@ -8,6 +8,7 @@ from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 from test_melody import HAT, melody_on, play_bar
 
 from mpc_iml.ensemble import NO_CLOCK
+from mpc_iml.loops import parse_loop
 
 
 def started(melody: bool = False, **controls: list[Any]) -> Rig:
@@ -199,3 +200,34 @@ def test_plans_are_none_for_a_loop_that_does_not_play() -> None:
     play_bar(rig, 0, [(0, KICK)])
     rig.until(BAR + 1)
     assert rig.ensemble.plans == {"bass": None, "melody": None}
+
+
+def test_a_note_offset_moves_it_by_clock_ticks_and_never_before_the_bar() -> None:
+    """A loop file's `offset` (#173, ADR 0010) is played: a fraction of a 16th,
+    rounded to a tick (1/6 of a 16th); a bass note still ends by the next note's start
+    and the bar's end."""
+    line = {"bar": 0, "tone": 0, "length": 4}
+    data = {
+        "format": "mpc-iml-loop",
+        "format_version": 1,
+        "name": "late",
+        "preset": "ensemble",
+        "part": "bass",
+        "bars": 1,
+        "variations": {
+            "home": [
+                {**line, "step": 0, "offset": -0.5},
+                {**line, "step": 4, "offset": 0.17},
+                {**line, "step": 8},
+                {**line, "step": 12, "offset": 0.5},
+            ]
+        },
+    }
+    rig = started()
+    rig.ensemble.bass_loop = parse_loop(data).loop()
+    play_bar(rig, 1, [(0, KICK), (8, KICK)])
+    rig.until(3 * BAR + 1)
+    on = [t - 2 * BAR for t, m in rig.sent if m[0] == 0x91 and t < 3 * BAR]
+    off = [t - 2 * BAR for t, m in rig.sent if m[0] == 0x81]
+    assert on == [0, 4 * STEP + 1, 8 * STEP, 12 * STEP + 3]
+    assert off == [4 * STEP, 8 * STEP, 12 * STEP, BAR]

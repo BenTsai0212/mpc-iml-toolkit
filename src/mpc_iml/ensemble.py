@@ -71,6 +71,12 @@ mode asked for (next) and the one playing, the other replies the current setting
 (`ClockAccess.report()`) after a press of the layer pad or the melody pad, and at a
 bar line where the playing bass or melody mode or a playing variation (the reply
 `variation`, #158) changes.
+
+The loops are loop files (#173, ADR 0010): the built-in `boom`, `walk`, `keys` and
+`pluck` live in `mpc_iml/loops/ensemble/` (registered as `CONTENT`), and installed
+packages add more through the `mpc_iml.content` entry point group. A note's timing
+`offset` moves it from its step by a fraction of a 16th, rounded to a clock tick; a
+note cannot sound before the bar line its bar is planned at.
 """
 
 import random
@@ -82,7 +88,6 @@ from typing import Protocol
 
 from mpc_iml import __version__
 from mpc_iml.bass import (
-    BASS_LOOPS,
     bass_fill,
     bass_note_velocity,
     bass_ornaments,
@@ -97,13 +102,16 @@ from mpc_iml.clock import (
     PadHit,
     Scheduled,
 )
+from mpc_iml.content import Content
 from mpc_iml.frames import PADS
+from mpc_iml.loops import LoopLibrary, load_loops
 from mpc_iml.melody import (
-    LOOPS,
     NO_DRUMS,
     ORNAMENTS,
     BarPlan,
     Follower,
+    Loop,
+    LoopNote,
     brightness,
     loop_pitch,
     melody_ornaments,
@@ -116,6 +124,7 @@ from mpc_iml.presets import ControlHandler, Preset
 
 __all__ = [
     "BASS_MODES",
+    "CONTENT",
     "DEFAULT_ROLES",
     "LEARN_CC_SWEEP",
     "MELODY_MODES",
@@ -131,6 +140,9 @@ __all__ = [
 ]
 
 ROLES = ("kick", "snare", "hat", "other")
+
+CONTENT = Content(preset="ensemble", root="mpc_iml")
+"""The built-in loop files for `ensemble` (ADR 0010)."""
 
 BASS_MODES = ("loop", "rule", "off")
 """The bass modes, in the order the layer pad cycles them; `loop` is the default."""
@@ -232,10 +244,16 @@ class Ensemble:
         log: Callable[[str], None] = lambda line: print(line, file=sys.stderr),
         timer: TimerFactory = threading.Timer,
         seed: int | None = None,
+        library: LoopLibrary | None = None,
     ) -> None:
+        library = load_loops() if library is None else library
+        self.bass_loops = library.played("bass")
+        """The bass loops by name, in library order (#173)."""
+        self.loops = library.played("melody")
+        """The melody loops by name, in library order (#173)."""
         self.bass = "loop"
         self._bass_active = "loop"
-        self.bass_loop = BASS_LOOPS["boom"]
+        self.bass_loop = self.bass_loops["boom"]
         self._bass_follower = Follower(("home", 1))
         self._bass_notes: list[Scheduled] = []
         self.immediate = True
@@ -247,7 +265,7 @@ class Ensemble:
         self.roles = list(DEFAULT_ROLES)
         self.layer_pad = 16
         self.melody = True
-        self.loop = LOOPS["keys"]
+        self.loop = self.loops["keys"]
         self.follow = True
         self.melody_octave = 4
         self.melody_channel = 3
@@ -406,8 +424,11 @@ class Ensemble:
         for note in notes:
             pitch = loop_pitch(note, *chords, self.melody_octave)
             velocity = min(max(round(plan.velocity * note.velocity), 1), 127)
+            tick = _tick(note)
             self._melody_notes.append(
-                scheduler.note(start.bar, note.step, pitch, velocity, note.length, channel)
+                scheduler.note(
+                    start.bar, tick, pitch, velocity, note.length * SIXTEENTHS, channel, 1
+                )
             )
         return plan.variation or "-"
 
@@ -442,12 +463,15 @@ class Ensemble:
         notes = tuple(n for n in plan.notes(self.bass_loop, bar) if n.step < steps)
         if fill:
             notes = bass_fill(notes, bar % self.bass_loop.bars, steps)
-        for note in notes:
+        starts = [_tick(n) for n in notes]
+        for note, tick in zip(notes, starts, strict=True):
             pitch = loop_pitch(note, *chords, self.octave)
             velocity = bass_note_velocity(note, plan.velocity, accents)
-            length = min(note.length, steps - note.step)
+            # Monophonic: a note ends by the next one's start (offsets) and the bar's end.
+            end = min([s for s in starts if s > tick] + [steps * SIXTEENTHS])
+            ticks = max(min(tick + note.length * SIXTEENTHS, end) - tick, 1)
             self._bass_notes.append(
-                scheduler.note(bar, note.step, pitch, velocity, length, self.channel)
+                scheduler.note(bar, tick, pitch, velocity, ticks, self.channel, 1)
             )
         return plan.variation or "-"
 
@@ -670,10 +694,9 @@ class Ensemble:
             self._set_bass(str(args[0]))
 
     def _set_bass_loop(self, args: Sequence[float | int | str]) -> None:
-        if len(args) != 1 or args[0] not in BASS_LOOPS:
-            raise ValueError(f"expected one of {', '.join(BASS_LOOPS)}, got {list(args)}")
+        loop = self._pick(self.bass_loops, args)
         with self._lock:
-            self.bass_loop = BASS_LOOPS[str(args[0])]
+            self.bass_loop = loop
 
     def _set_melody(self, args: Sequence[float | int | str]) -> None:
         self._melody_to(_flag(args), None)
@@ -714,8 +737,8 @@ class Ensemble:
                 ("bass-loop", [self.bass_loop.name]),
                 ("loop", [self.loop.name]),
                 ("progression", [self.progression.name]),
-                ("bass-loops", list(BASS_LOOPS)),
-                ("loops", list(LOOPS)),
+                ("bass-loops", list(self.bass_loops)),
+                ("loops", list(self.loops)),
                 ("progressions", list(PROGRESSIONS)),
                 ("octave", [self.octave]),
                 ("melody-octave", [self.melody_octave]),
@@ -735,10 +758,14 @@ class Ensemble:
             ]
 
     def _set_loop(self, args: Sequence[float | int | str]) -> None:
-        if len(args) != 1 or args[0] not in LOOPS:
-            raise ValueError(f"expected one of {', '.join(LOOPS)}, got {list(args)}")
+        loop = self._pick(self.loops, args)
         with self._lock:
-            self.loop = LOOPS[str(args[0])]
+            self.loop = loop
+
+    def _pick(self, loops: dict[str, Loop], args: Sequence[float | int | str]) -> Loop:
+        if len(args) != 1 or args[0] not in loops:
+            raise ValueError(f"expected one of {', '.join(loops)}, got {list(args)}")
+        return loops[str(args[0])]
 
     def _set_melody_channel(self, args: Sequence[float | int | str]) -> None:
         channel = _whole(args, 1, 16)
@@ -774,6 +801,12 @@ def _whole(args: Sequence[float | int | str], low: int, high: int) -> int:
 
 def _flag(args: Sequence[float | int | str]) -> bool:
     return bool(_whole(args, 0, 1))
+
+
+def _tick(note: LoopNote) -> int:
+    """The clock tick of `note` in its bar: its step moved by its `offset`, rounded to
+    a tick, never before the bar line."""
+    return max(note.step * SIXTEENTHS + round(note.offset * SIXTEENTHS), 0)
 
 
 def make_preset(log: Callable[[str], None] | None = None) -> Preset:
