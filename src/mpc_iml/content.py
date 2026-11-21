@@ -158,8 +158,8 @@ def _number(value: Any, origin: str, what: str, low: float, high: float) -> floa
     return float(value)
 
 
-def _header(data: Any, fmt: str, origin: str, preset: Preset) -> tuple[str, str, str]:
-    """Check the common fields; return (name, title, description)."""
+def _header(data: Any, fmt: str, origin: str, preset: str) -> tuple[str, str, str]:
+    """Check the common fields for a file of `preset`; return (name, title, description)."""
     if not isinstance(data, dict):
         raise _fail(origin, "not a JSON object")
     if data.get("format") != fmt or data.get("format_version") != 1:
@@ -167,8 +167,8 @@ def _header(data: Any, fmt: str, origin: str, preset: Preset) -> tuple[str, str,
     name = data.get("name")
     if not isinstance(name, str) or not _NAME.fullmatch(name):
         raise _fail(origin, f"name must be lower case letters, digits and hyphens: {name!r}")
-    if data.get("preset") != preset.name:
-        raise _fail(origin, f"preset is {data.get('preset')!r}, expected {preset.name!r}")
+    if data.get("preset") != preset:
+        raise _fail(origin, f"preset is {data.get('preset')!r}, expected {preset!r}")
     title = data.get("title", name.capitalize())
     description = data.get("description", "")
     if not isinstance(title, str) or not isinstance(description, str):
@@ -185,7 +185,7 @@ def _output_names(preset: Preset) -> tuple[str, ...]:
 def parse_module(data: Any, preset: Preset, origin: str = "module") -> Module:
     """Validate a module's JSON object for `preset`; raises `ContentError`."""
     names = _output_names(preset)
-    name, title, description = _header(data, MODULE_FORMAT, origin, preset)
+    name, title, description = _header(data, MODULE_FORMAT, origin, preset.name)
     if name == NONE:
         raise _fail(origin, f"{NONE!r} is built in and cannot be defined")
     outputs = data.get("outputs")
@@ -229,7 +229,7 @@ def parse_kit(data: Any, preset: Preset, origin: str = "kit") -> Kit:
     Module ids are checked against the installed modules by `load_library`.
     """
     names = _output_names(preset)
-    name, title, description = _header(data, KIT_FORMAT, origin, preset)
+    name, title, description = _header(data, KIT_FORMAT, origin, preset.name)
     rest = data.get("rest")
     if not isinstance(rest, dict) or set(rest) != set(names):
         raise _fail(origin, f"rest must give a value for every output: {', '.join(names)}")
@@ -318,9 +318,9 @@ def _json_files(folder: Traversable) -> Iterator[tuple[str, Any, str]]:
         yield item.name.removesuffix(".json"), data, origin
 
 
-def _read(contents: Sequence[Content], kind: str, preset: Preset) -> Iterator[tuple[str, Any, str]]:
+def _read(contents: Sequence[Content], kind: str, preset: str) -> Iterator[tuple[str, Any, str]]:
     for content in contents:
-        for stem, data, origin in _json_files(content.folder() / kind / preset.name):
+        for stem, data, origin in _json_files(content.folder() / kind / preset):
             name = data.get("name") if isinstance(data, dict) else None
             if stem != name:
                 raise ContentError(f"{origin}: the file name must equal the name {name!r}")
@@ -340,13 +340,13 @@ def load_library(preset: Preset, group: str = CONTENT_GROUP) -> Library:
     contents = [c for c in map(_load_entry, entry_points(group=group)) if c.preset == preset.name]
     modules: dict[str, Module] = {NONE: Module(NONE, preset.name, {}, NONE_MODULE_TITLE)}
     origins: dict[str, str] = {}
-    for name, data, origin in _read(contents, "modules", preset):
+    for name, data, origin in _read(contents, "modules", preset.name):
         if name in modules:
             raise ContentError(f"two modules named {name!r}: {origins.get(name)} and {origin}")
         modules[name] = parse_module(data, preset, origin)
         origins[name] = origin
     kits: dict[str, Kit] = {}
-    for name, data, origin in _read(contents, "kits", preset):
+    for name, data, origin in _read(contents, "kits", preset.name):
         if name in kits:
             raise ContentError(f"two kits named {name!r}: {origins[f'kit:{name}']} and {origin}")
         kit = parse_kit(data, preset, origin)
