@@ -1,12 +1,13 @@
-"""The Gradio page of the web demo (#166): a step grid in, the band out.
+"""The Gradio page of the web demo (#166): a step grid or a recording in, the band out.
 
-A teammate places kick, snare and hat hits on a 16-step grid, picks the settings,
-and hears and reads what `ensemble` plays in answer, bar by bar. The page only
-gathers input and shows output: `sim.simulate` runs the real rules and
-`synth.render` makes the audio.
+A teammate places kick, snare and hat hits on a 16-step grid, or uploads a
+recording made with `record --clock`, picks the settings, and hears and reads what
+`ensemble` plays in answer, bar by bar. The page only gathers input and shows
+output: `sim.simulate` and `sim.replay` run the real rules and `synth.render`
+makes the audio.
 
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
-`play`) work, and are tested, without the `demo` extra.
+`play`, `upload`) work, and are tested, without the `demo` extra.
 
 Gradio sends usage analytics to its servers unless `GRADIO_ANALYTICS_ENABLED` is
 `"False"`. `build` turns them off unless the environment already sets the variable,
@@ -15,15 +16,29 @@ so the demo sends nothing unless a person asks (#172).
 
 import os
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import numpy as np
 import numpy.typing as npt
 
+from mpc_iml.clock import tag_recording
 from mpc_iml.ensemble import MELODY_MODES, PROGRESSIONS
+from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
-from mpc_iml.webdemo.sim import DRUMS, STEPS, TEMPO_RANGE, BarRow, Grid, Settings, simulate
+from mpc_iml.recording import read_recording
+from mpc_iml.webdemo.sim import (
+    DRUMS,
+    STEPS,
+    TEMPO_RANGE,
+    BarRow,
+    Grid,
+    Settings,
+    Song,
+    replay,
+    simulate,
+)
 from mpc_iml.webdemo.synth import RATE, render
 
 if TYPE_CHECKING:
@@ -34,12 +49,17 @@ __all__ = [
     "BARS",
     "EXAMPLES",
     "HEADERS",
+    "HIT_HEADERS",
     "TABLE_HEADERS",
+    "Shown",
+    "Uploaded",
     "analytics_default_off",
     "build",
     "play",
     "resize",
+    "show",
     "to_table",
+    "upload",
 ]
 
 ANALYTICS_ENV = "GRADIO_ANALYTICS_ENABLED"
@@ -78,6 +98,26 @@ plays in the bar after it."""
 
 Table = list[list[str | int]]
 
+HIT_HEADERS = list(COLUMNS)
+"""The hits of an uploaded recording, as `python -m mpc_iml.grid` prints them."""
+
+
+class Shown(NamedTuple):
+    """What the page shows for a song: the audio (`(RATE, samples)`) and the bar
+    table."""
+
+    audio: tuple[int, npt.NDArray[np.int16]]
+    table: Table
+
+
+class Uploaded(NamedTuple):
+    """What the page shows for a recording: the song, and each pad hit on the grid
+    (`HIT_HEADERS`, all as text)."""
+
+    shown: Shown
+    hits: list[list[str]]
+
+
 _DATATYPE: list[Literal["str", "number"]] = [
     "str" if i == 0 else "number" for i in range(STEPS + 1)
 ]
@@ -112,16 +152,34 @@ def resize(table: Sequence[Sequence[object]], bars: int) -> Table:
     return to_table([*grid[:bars], *[{}] * (bars - len(grid))])
 
 
-def play(
-    table: Sequence[Sequence[object]], settings: Settings
-) -> tuple[tuple[int, npt.NDArray[np.int16]], Table]:
-    """The audio (`(RATE, samples)`) and the bar table of the band playing `table`.
+def show(song: Song) -> Shown:
+    """The audio and bar table of `song`."""
+    return Shown((RATE, render(song, song.settings.seed)), [_table_row(r) for r in song.rows])
+
+
+def play(table: Sequence[Sequence[object]], settings: Settings) -> Shown:
+    """What the band plays for the page's grid `table`.
 
     Raises `ValueError` for a cell that is not a whole number 0-127 or for settings
     `sim.simulate` refuses.
     """
-    song = simulate(_grid(table), settings)
-    return (RATE, render(song, settings.seed)), [_table_row(r) for r in song.rows]
+    return show(simulate(_grid(table), settings))
+
+
+def upload(path: str | Path, settings: Settings) -> Uploaded:
+    """What the band plays for the recording at `path` (`sim.replay`; the tempo is
+    the recording's) and its pad hits placed on the grid (`tag_recording`, as the
+    `grid` command shows them).
+
+    Raises `ValueError` for a file that cannot be read, is not a recording, or that
+    `sim.replay` refuses.
+    """
+    try:
+        events = read_recording(path).events
+    except OSError as e:
+        raise ValueError(f"cannot read the recording: {e}") from e
+    hits = [format_hit(h).split("\t") for h in tag_recording(events)]
+    return Uploaded(show(replay(events, settings)), hits)
 
 
 def build() -> "gr.Blocks":
@@ -142,7 +200,9 @@ def build() -> "gr.Blocks":
         with gr.Row():
             bars = gr.Slider(*BARS, value=BARS[1], step=1, label="bars")
             tempo = gr.Slider(*TEMPO_RANGE, value=default.tempo, step=1, label="tempo")
-            progression = gr.Dropdown(list(PROGRESSIONS), value=default.progression)
+            progression = gr.Dropdown(
+                list(PROGRESSIONS), value=default.progression, label="progression"
+            )
             bass_loop = gr.Dropdown(
                 library.names("bass"), value=default.bass_loop, label="bass loop"
             )
@@ -153,49 +213,66 @@ def build() -> "gr.Blocks":
             fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
             surprise = gr.Checkbox(value=default.surprise, label="surprise")
             seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
-        grid = gr.Dataframe(
-            to_table(EXAMPLES["sparse"]),
-            headers=HEADERS,
-            datatype=_DATATYPE,
-            type="array",
-            interactive=True,
-            label="drums",
-        )
-        gr.Examples(
-            [[len(g), to_table(g)] for g in EXAMPLES.values()],
-            [bars, grid],
-            example_labels=list(EXAMPLES),
-        )
-        button = gr.Button("Play", variant="primary")
+        with gr.Tab("step grid"):
+            grid = gr.Dataframe(
+                to_table(EXAMPLES["sparse"]),
+                headers=HEADERS,
+                datatype=_DATATYPE,
+                type="array",
+                interactive=True,
+                label="drums",
+            )
+            gr.Examples(
+                [[len(g), to_table(g)] for g in EXAMPLES.values()],
+                [bars, grid],
+                example_labels=list(EXAMPLES),
+            )
+            button = gr.Button("Play", variant="primary")
+        with gr.Tab("recording"):
+            gr.Markdown(
+                "A recording made with `python -m mpc_iml.record --clock`, played at its "
+                "own tempo. Pads 1 and 5 are kicks, 2 and 6 snares, 3, 4 and 7 hats."
+            )
+            recording = gr.File(label="recording (.jsonl)", file_types=[".jsonl"], type="filepath")
+            upload_button = gr.Button("Play the recording", variant="primary")
+            hits = gr.Dataframe(headers=HIT_HEADERS, type="array", interactive=False)
         audio = gr.Audio(label="the band", type="numpy", interactive=False)
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
+        controls = [progression, bass_loop, loop, mode, no_drums, fade, surprise, seed]
 
-        def on_play(
-            cells: Table,
-            tempo: float,
-            progression: str,
-            bass_loop: str,
-            loop: str,
-            mode: str,
-            no_drums: str,
-            fade: float,
-            surprise: bool,
-            seed: float,
-        ) -> tuple[tuple[int, npt.NDArray[np.int16]], Table]:
-            settings = Settings(
-                tempo, progression, bass_loop, loop, mode, no_drums, int(fade), surprise, int(seed)
+        def settings_of(tempo: float, *values: object) -> Settings:
+            progression, bass_loop, loop, mode, no_drums, fade, surprise, seed = values
+            return Settings(
+                tempo,
+                str(progression),
+                str(bass_loop),
+                str(loop),
+                str(mode),
+                str(no_drums),
+                int(float(str(fade))),
+                bool(surprise),
+                int(float(str(seed))),
             )
+
+        def on_play(cells: Table, tempo: float, *values: object) -> tuple[object, ...]:
             try:
-                return play(cells, settings)
+                return play(cells, settings_of(tempo, *values))
             except ValueError as e:
                 raise gr.Error(str(e)) from e
 
+        def on_upload(path: str | None, *values: object) -> tuple[object, ...]:
+            if path is None:
+                raise gr.Error("choose a recording first")
+            try:
+                shown, rows = upload(path, settings_of(default.tempo, *values))
+            except ValueError as e:
+                raise gr.Error(str(e)) from e
+            return (*shown, rows)
+
         bars.change(lambda cells, n: resize(cells, int(n)), [grid, bars], grid)
-        button.click(
-            on_play,
-            [grid, tempo, progression, bass_loop, loop, mode, no_drums, fade, surprise, seed],
-            [audio, table],
-        )
+        results = [audio, table]
+        button.click(on_play, [grid, tempo, *controls], results)
+        upload_button.click(on_upload, [recording, *controls], [*results, hits])
     return page
 
 

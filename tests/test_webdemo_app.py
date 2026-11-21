@@ -44,8 +44,8 @@ def test_resize_keeps_the_bars_it_can_and_adds_empty_ones() -> None:
 
 
 def test_sparse_and_busy_examples_sound_and_read_different() -> None:
-    (rate, sparse_audio), sparse = play(to_table(EXAMPLES["sparse"]), Settings())
-    (_, busy_audio), busy = play(to_table(EXAMPLES["busy"]), Settings())
+    (rate, sparse_audio), sparse, *_ = play(to_table(EXAMPLES["sparse"]), Settings())
+    (_, busy_audio), busy, *_ = play(to_table(EXAMPLES["busy"]), Settings())
     assert rate == RATE and sparse_audio.any() and busy_audio.any()
     assert len(sparse) == len(busy) == 8 and all(len(r) == len(TABLE_HEADERS) for r in sparse)
     assert sparse[0][:6] == ["1 → 2", "1 5 9 13", "-", 4, "100", "Am7"]
@@ -57,7 +57,7 @@ def test_sparse_and_busy_examples_sound_and_read_different() -> None:
 
 
 def test_the_table_names_the_no_drums_rule_when_the_drums_stop() -> None:
-    _, table = play(to_table(EXAMPLES["drums stop"]), Settings(fade_bars=2, surprise=False))
+    _, table, *_ = play(to_table(EXAMPLES["drums stop"]), Settings(fade_bars=2, surprise=False))
     melody = column(table, "melody")
     assert melody[:4] == ["busy + ornaments"] * 4
     assert melody[4:6] == ["open + ornaments (lead)"] * 2
@@ -69,8 +69,8 @@ def test_the_table_names_the_no_drums_rule_when_the_drums_stop() -> None:
 
 def test_fixed_and_off_are_shown() -> None:
     table = to_table(EXAMPLES["sparse"][:4])
-    _, fixed = play(table, Settings(melody_mode="fixed"))
-    _, off = play(table, Settings(melody_mode="off"))
+    _, fixed, *_ = play(table, Settings(melody_mode="fixed"))
+    _, off, *_ = play(table, Settings(melody_mode="off"))
     assert set(column(fixed, "melody")) == {"home + ornaments (fixed)"}
     assert set(column(off, "melody")) == {"off"} and set(column(off, "brightness")) == {"-"}
 
@@ -118,6 +118,8 @@ def test_the_page_builds() -> None:
         "Radio",
         "Checkbox",
         "Number",
+        "File",
+        "Tab",
     }
 
 

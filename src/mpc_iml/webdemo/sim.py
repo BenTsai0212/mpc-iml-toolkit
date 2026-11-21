@@ -16,14 +16,15 @@ the same song.
 """
 
 import re
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 
 from mpc_iml.clock import SIXTEENTHS, TICKS_PER_BEAT, BarStart, ClockAccess, MidiClock, Scheduler
 from mpc_iml.ensemble import DEFAULT_ROLES, PROGRESSIONS, Ensemble
-from mpc_iml.events import MidiEvent
-from mpc_iml.frames import bank_pad_to_note
+from mpc_iml.events import Event, MidiEvent, RawMidiEvent
+from mpc_iml.frames import bank_pad_to_note, note_to_bank_pad
 from mpc_iml.melody import BarPlan
+from mpc_iml.sources import CLOCK_BYTES
 
 __all__ = [
     "BEATS_PER_BAR",
@@ -37,6 +38,7 @@ __all__ = [
     "Settings",
     "Song",
     "chord_name",
+    "replay",
     "simulate",
 ]
 
@@ -57,6 +59,8 @@ _PARTS = {2: "bass", 3: "keys"}
 """The `ensemble` channels in the song, by default setting."""
 
 _START, _TICK = b"\xfa", b"\xf8"
+_TAKE_ENDS = frozenset((0xFA, 0xFB, 0xFC, 0xF2))
+"""Start, Continue, Stop and Song Position: after the first Start, the end of the take."""
 _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
@@ -163,59 +167,133 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
     low, high = TEMPO_RANGE
     if not low <= settings.tempo <= high:
         raise ValueError(f"tempo must be {low:g}-{high:g}, got {settings.tempo:g}")
-    log: list[str] = []
-    surprises: dict[int, str] = {}
-
-    def ensemble_log(line: str) -> None:
-        match = _SURPRISE.fullmatch(line)
-        if match:
-            surprises[int(match[2])] = match[1]
-        else:
-            log.append(line)
-
-    clock = MidiClock(BEATS_PER_BAR)
-    sent: list[tuple[int, bytes]] = []
-    scheduler = Scheduler(clock, lambda m: sent.append((clock.state().tick, m)))
-    access = ClockAccess(clock, log.append, scheduler)
-    ensemble = Ensemble(ensemble_log, seed=settings.seed)
-    controls = ensemble.controls()
-    controls["bass"](["loop"])
-    controls["bass-loop"]([settings.bass_loop])
-    controls["loop"]([settings.loop])
-    controls["progression"]([settings.progression])
-    controls["melody-mode"]([settings.melody_mode])
-    controls["no-drums"]([settings.no_drums])
-    controls["fade-bars"]([settings.fade_bars])
-    controls["surprise"]([int(settings.surprise)])
-    ensemble.attach(access)
-    bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
-    access.on_bar(lambda start: bars.__setitem__(start.bar, (start, ensemble.plans)))
-
+    run = _Run(settings)
     interval = 60.0 / settings.tempo / TICKS_PER_BEAT
     song_bars = len(grid) + 1
-    total = song_bars * BEATS_PER_BAR * TICKS_PER_BEAT
-    clock.feed(_START, 0.0)
-    for tick in range(total):
+    run.feed(_START, 0.0)
+    for tick in range(song_bars * BEATS_PER_BAR * TICKS_PER_BEAT):
         t = tick * interval
-        clock.feed(_TICK, t)
-        access.bar_line()
-        scheduler.update(t)
+        run.feed(_TICK, t)
         for pad, velocity in hits.get(tick, ()):
-            note = bank_pad_to_note(0, pad)
-            access.deliver(MidiEvent(t, "note_on", 1, velocity, note))
-    if log:
-        raise RuntimeError(f"ensemble failed: {log}")
+            run.hit(MidiEvent(t, "note_on", 1, velocity, bank_pad_to_note(0, pad)))
+    return run.song(len(grid), settings)
 
-    notes = _drum_notes(hits) + _band_notes(sent, total)
-    brightness = tuple((tick, m[2]) for tick, m in sent if m[0] & 0xF0 == 0xB0 and m[0] & 0x0F == 2)
-    rows = tuple(_row(b, *bars[b + 1], settings, surprises.get(b + 1)) for b in range(len(grid)))
-    return Song(
-        settings,
-        song_bars,
-        tuple(sorted(notes, key=lambda n: (n.tick, n.part))),
-        brightness,
-        rows,
-    )
+
+def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
+    """Play a recording made with `record --clock` (ADR 0002) into a new `Ensemble`.
+
+    The events go in time order as the engine plays them live: each clock message to
+    the clock (then the bar lines and the scheduler), each pad Note On through
+    `ClockAccess.deliver`, at its recorded time. The take is the clock from its first
+    Start up to the next Stop, Continue, Song Position or Start; later events are
+    ignored. The band then plays one more bar at the last tempo, as for a grid.
+
+    The drums of the song are the hits of `kick`, `snare` and `hat` pads
+    (`DEFAULT_ROLES`, any bank) while the clock runs, at their clock position. The
+    song's tempo (`Settings.tempo`) is the clock's at the end of the take, and the
+    audio renders at that tempo. Raises `ValueError` for a recording without a Start
+    and 24 ticks, or of more than `MAX_BARS` bars.
+    """
+    run: _Run | None = None
+    t = 0.0
+    for event in events:
+        if isinstance(event, RawMidiEvent) and event.data[:1] and event.data[0] in CLOCK_BYTES:
+            if run is None:
+                if event.data[0] != _START[0]:
+                    continue
+                run = _Run(settings)
+            elif event.data[0] in _TAKE_ENDS:
+                break
+            t = event.t
+            run.feed(event.data, t)
+            if run.clock.state().bar >= MAX_BARS:
+                raise ValueError(f"the recording must have at most {MAX_BARS} bars")
+        elif run is not None and isinstance(event, MidiEvent) and event.kind == "note_on":
+            run.clock.check(event.t)
+            run.hit(event)
+    state = run.clock.state() if run is not None else None
+    if run is None or state is None or state.bpm is None:
+        raise ValueError(
+            "the recording has no MIDI clock: record it with `python -m mpc_iml.record --clock`"
+        )
+    interval = 60.0 / state.bpm / TICKS_PER_BEAT
+    grid_bars = state.bar + 1
+    for _ in range(state.tick + 1, (grid_bars + 1) * BEATS_PER_BAR * TICKS_PER_BEAT):
+        t += interval
+        run.feed(_TICK, t)
+    return run.song(grid_bars, replace(settings, tempo=state.bpm))
+
+
+class _Run:
+    """A new `Ensemble` with `settings` on a simulated clock, collecting what it plays."""
+
+    def __init__(self, settings: Settings) -> None:
+        self.log: list[str] = []
+        self.surprises: dict[int, str] = {}
+        self.clock = MidiClock(BEATS_PER_BAR)
+        self.sent: list[tuple[int, bytes]] = []
+        self.drums: list[Note] = []
+        clock = self.clock
+        self.scheduler = Scheduler(clock, lambda m: self.sent.append((clock.state().tick, m)))
+        self.access = ClockAccess(clock, self.log.append, self.scheduler)
+        ensemble = Ensemble(self._ensemble_log, seed=settings.seed)
+        controls = ensemble.controls()
+        controls["bass"](["loop"])
+        controls["bass-loop"]([settings.bass_loop])
+        controls["loop"]([settings.loop])
+        controls["progression"]([settings.progression])
+        controls["melody-mode"]([settings.melody_mode])
+        controls["no-drums"]([settings.no_drums])
+        controls["fade-bars"]([settings.fade_bars])
+        controls["surprise"]([int(settings.surprise)])
+        ensemble.attach(self.access)
+        self.bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
+        self.access.on_bar(lambda start: self.bars.__setitem__(start.bar, (start, ensemble.plans)))
+
+    def _ensemble_log(self, line: str) -> None:
+        match = _SURPRISE.fullmatch(line)
+        if match:
+            self.surprises[int(match[2])] = match[1]
+        else:
+            self.log.append(line)
+
+    def feed(self, data: bytes, t: float) -> None:
+        """One clock message at `t`, then the bar lines and the notes now due."""
+        self.clock.feed(data, t)
+        self.access.bar_line()
+        self.scheduler.update(t)
+
+    def hit(self, event: MidiEvent) -> None:
+        """A pad Note On; a drum while the clock runs is also a note of the song."""
+        position = self.clock.position(event.t)
+        if position is not None and event.note is not None and event.value > 0:
+            drum = DEFAULT_ROLES[note_to_bank_pad(event.note)[1]]
+            if drum in DRUMS:
+                tick = max(round(position), 0)
+                self.drums.append(Note(drum, tick, SIXTEENTHS, DRUM_NOTES[drum], event.value))
+        self.access.deliver(event)
+
+    def song(self, grid_bars: int, settings: Settings) -> Song:
+        if self.log:
+            raise RuntimeError(f"ensemble failed: {self.log}")
+        song_bars = grid_bars + 1
+        total = song_bars * BEATS_PER_BAR * TICKS_PER_BEAT
+        sent = self.sent
+        notes = self.drums + _band_notes(sent, total)
+        brightness = tuple(
+            (tick, m[2]) for tick, m in sent if m[0] & 0xF0 == 0xB0 and m[0] & 0x0F == 2
+        )
+        rows = tuple(
+            _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1))
+            for b in range(grid_bars)
+        )
+        return Song(
+            settings,
+            song_bars,
+            tuple(sorted(notes, key=lambda n: (n.tick, n.part))),
+            brightness,
+            rows,
+        )
 
 
 def _hits(grid: Grid) -> dict[int, list[tuple[int, int]]]:
@@ -238,14 +316,6 @@ def _hits(grid: Grid) -> dict[int, list[tuple[int, int]]]:
                     tick = (bar * STEPS + step) * SIXTEENTHS
                     hits.setdefault(tick, []).append((pad, int(velocity)))
     return hits
-
-
-def _drum_notes(hits: Mapping[int, Sequence[tuple[int, int]]]) -> list[Note]:
-    return [
-        Note(DRUMS[pad], tick, SIXTEENTHS, DRUM_NOTES[DRUMS[pad]], velocity)
-        for tick, pads in hits.items()
-        for pad, velocity in pads
-    ]
 
 
 def _band_notes(sent: Sequence[tuple[int, bytes]], end: int) -> list[Note]:

@@ -1014,6 +1014,12 @@ bass and keys with a small synth and shows a table: the drums of each bar and th
 variation, ornaments, velocity and brightness the band chose for the bar after it.
 The same grid and seed always sound the same.
 
+The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
+instead: the band answers it exactly as the engine would have, at the recording's
+tempo, from the clock's Start to the next Stop, at most 64 bars. Pads 1 and 5 are
+kicks, 2 and 6 snares, 3, 4 and 7 hats (any bank). A second table lists each pad hit
+on the grid, as `python -m mpc_iml.grid` prints it.
+
 To let a teammate open it from another computer, add `--share`: Gradio makes a
 temporary public link (valid for 72 hours, while the demo runs) through its share
 servers. Only share when you mean to; the default is local only.
