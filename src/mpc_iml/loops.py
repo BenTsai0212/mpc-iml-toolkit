@@ -222,6 +222,11 @@ class LoopLibrary:
         """The names of the loops of `part`, in library order."""
         return [name for name, loop in self.loops.items() if loop.part == part]
 
+    def played(self, part: str) -> dict[str, Loop]:
+        """The loops of `part` as `ensemble` plays them (`LoopFile.loop`), by name in
+        library order."""
+        return {name: self.loops[name].loop() for name in self.names(part)}
+
     def get(self, name: str, part: str) -> LoopFile:
         """The `part` loop `name`; raises `UnknownContentError` when none is installed."""
         loop = self.loops.get(name)

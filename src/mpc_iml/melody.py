@@ -2,15 +2,15 @@
 
 A loop is a few bars of notes written as chord tones (`tone` 0-3 is the root,
 third, fifth or seventh), so it fits any chord: each note takes the chord of the bar
-it falls in, through the chord's quality (`QUALITIES`). Each note has a `level`
-1-3: level 1 notes are the loop's skeleton, levels 2 and 3 fill it in. A note can
-also take the chord of the next bar (`chord` 1) and a chromatic offset
-(`semitones`), for approach and passing notes (the bass loops of #148, `bass`).
+it falls in, through the chord's quality (`QUALITIES`). A note can also take the
+chord of the next bar (`chord` 1) and a chromatic offset (`semitones`), for approach
+and passing notes (the bass loops of #148, `bass`).
 
-Variations (#158): every loop also holds three named variations
-(`Loop.variations`), each a complete line with two levels: level 1 is the full line,
-level 2 adds ornaments. The first, `home`, is the loop itself re-levelled
-(`relevel`), so it plays the same notes.
+Variations (#158): every loop holds three named variations (`Loop.variations`),
+each a complete line with two levels: level 1 is the full line, level 2 adds
+ornaments. The loop's own notes are its skeleton, what `no-drums thin` plays. The
+loops themselves are loop files (`mpc_iml.loops`, ADR 0010, #173); the built-in
+`keys` and `pluck` live in `mpc_iml/loops/ensemble/`.
 
 Once per bar, at the bar line, a `Follower` decides the next bar from the drum hits
 of the bar that just ended (RFC 0005, causality first): the hits choose the
@@ -31,7 +31,6 @@ from dataclasses import dataclass, replace
 
 __all__ = [
     "FADE",
-    "LOOPS",
     "MELODY_VARIATIONS",
     "NO_DRUMS",
     "ORNAMENTS",
@@ -51,7 +50,6 @@ __all__ = [
     "melody_velocity",
     "octave_up",
     "passing",
-    "relevel",
     "surprise",
 ]
 
@@ -86,7 +84,7 @@ SURPRISE_CHANCE = 0.5
 @dataclass(frozen=True)
 class LoopNote:
     """A note of a loop: `step` (16ths) of the loop's `bar`, a chord `tone` 0-3,
-    `octave` above the melody octave, `length` in 16ths, `level` 1-3 and a velocity
+    `octave` above the melody octave, `length` in 16ths, `level` 1 or 2 and a velocity
     weight 0-1. `chord` 0 takes the chord of the note's own bar, 1 the chord of the
     next bar; `semitones` is added after the tone (an approach note half a step
     below the next root is `tone=0, chord=1, semitones=-1`). `offset` is how far
@@ -126,115 +124,6 @@ class Loop:
             if variation.name == name:
                 return variation
         raise KeyError(name)
-
-
-def relevel(loop: Loop) -> Loop:
-    """`loop` as its `home` variation: levels 1 and 2 become the full line (level 1),
-    level 3 the ornaments, so all levels play the same notes as the loop."""
-    notes = tuple(replace(n, level=1 if n.level <= 2 else ORNAMENTS) for n in loop.notes)
-    return Loop("home", loop.bars, notes)
-
-
-def with_variations(loop: Loop, *others: Loop) -> Loop:
-    """`loop` holding its `home` variation (`relevel`) followed by `others`."""
-    return replace(loop, variations=(relevel(loop), *others))
-
-
-N = LoopNote
-LOOPS = {
-    loop.name: loop
-    for loop in (
-        with_variations(
-            Loop(
-                "keys",
-                2,
-                (
-                    N(0, 0, 0, 4, 1),
-                    N(0, 3, 1, 1, 3, velocity=0.8),
-                    N(0, 6, 2, 2, 2, velocity=0.9),
-                    N(0, 10, 3, 6, 1),
-                    N(1, 0, 1, 4, 1),
-                    N(1, 6, 3, 1, 3, velocity=0.8),
-                    N(1, 8, 2, 2, 2, velocity=0.9),
-                    N(1, 12, 0, 4, 3, octave=1),
-                ),
-            ),
-            Loop(
-                "open",
-                2,
-                (
-                    N(0, 0, 1, 3, 1),
-                    N(0, 3, 2, 1, 2, velocity=0.8),
-                    N(0, 4, 2, 3, 1, velocity=0.9),
-                    N(0, 8, 3, 6, 1),
-                    N(0, 14, 0, 2, 2, octave=1, velocity=0.8),
-                    N(1, 0, 2, 4, 1, octave=1),
-                    N(1, 4, 1, 3, 1, octave=1, velocity=0.9),
-                    N(1, 7, 2, 1, 2, octave=1, velocity=0.8),
-                    N(1, 8, 0, 8, 1, octave=1),
-                ),
-            ),
-            Loop(
-                "busy",
-                2,
-                tuple(
-                    note
-                    for bar, tones in ((0, (0, 2, 1, 3)), (1, (1, 3, 2, 4)))
-                    for i, tone in enumerate(tones)
-                    for note in (
-                        N(bar, 4 * i + 1, tone % 4, 1, 2, octave=tone // 4, velocity=0.75),
-                        N(bar, 4 * i + 2, tone % 4, 2, 1, octave=tone // 4),
-                    )
-                ),
-            ),
-        ),
-        with_variations(
-            Loop(
-                "pluck",
-                1,
-                tuple(
-                    N(0, 2 * i, tone, 2, level, velocity=1.0 if level == 1 else 0.85)
-                    for i, (tone, level) in enumerate(
-                        [(0, 1), (1, 2), (2, 1), (3, 3), (2, 1), (1, 2), (2, 1), (1, 3)]
-                    )
-                ),
-            ),
-            Loop(
-                "open",
-                1,
-                (
-                    N(0, 0, 0, 4, 1),
-                    N(0, 4, 2, 4, 1, velocity=0.9),
-                    N(0, 8, 0, 2, 1, octave=1),
-                    N(0, 10, 2, 2, 2, octave=1, velocity=0.85),
-                    N(0, 12, 3, 4, 1),
-                ),
-            ),
-            Loop(
-                "busy",
-                1,
-                tuple(
-                    N(
-                        0,
-                        step,
-                        tone % 4,
-                        1,
-                        1 if step % 2 == 0 else 2,
-                        octave=tone // 4,
-                        velocity=1.0 if step % 2 == 0 else 0.8,
-                    )
-                    for step, tone in enumerate([0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1])
-                ),
-            ),
-        ),
-    )
-}
-"""`keys` (default): a sparse 2-bar keys riff; `open` asks a question in its first
-bar (third, fifth, a held seventh) and answers an octave up ending on the root;
-`busy` stabs the off-8ths with 16th pickups as ornaments. `pluck`: a 1-bar 8th-note
-arpeggio with the downbeats as its skeleton; `open` is a quarter-note arpeggio
-reaching an octave up to a held seventh; `busy` a 16th arpeggio over two octaves
-(the 8ths are its line, the 16ths between them its ornaments)."""
 
 
 def chord_note(pitch_class: int, quality: str, tone: int, octave: int) -> int:

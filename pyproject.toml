@@ -27,6 +27,7 @@ ensemble = "mpc_iml.ensemble:make_preset"
 pressure = "mpc_iml.pressure:make_preset"
 
 [project.entry-points."mpc_iml.content"]
+ensemble-content = "mpc_iml.ensemble:CONTENT"
 pressure-content = "mpc_iml.pressure:CONTENT"
 
 [project.optional-dependencies]
