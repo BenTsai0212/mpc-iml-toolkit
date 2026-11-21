@@ -10,9 +10,9 @@ import pytest
 from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 
 from mpc_iml.ensemble import NO_CLOCK, Ensemble
+from mpc_iml.loops import load_loops
 from mpc_iml.melody import (
     FADE,
-    LOOPS,
     MELODY_VARIATIONS,
     ORNAMENTS,
     BarPlan,
@@ -24,6 +24,8 @@ from mpc_iml.melody import (
     melody_variation,
     melody_velocity,
 )
+
+LOOPS = load_loops().played("melody")
 
 HAT, MELODY = 38, 50
 """Notes of pad 3 (hat) and pad 15 (the melody pad), bank A."""
@@ -75,8 +77,8 @@ def test_loops_have_levels_and_lengths() -> None:
     assert [n.step for n in keys.bar_notes(0, 1)] == [0, 10]
     assert [n.step for n in keys.bar_notes(3, 1)] == [0]
     assert [n.step for n in pluck.bar_notes(5, 1)] == [0, 4, 8, 12]
-    assert len(pluck.bar_notes(0, 3)) == 8
-    assert all(n.level in (1, 2, 3) and 0 <= n.tone <= 3 for n in keys.notes + pluck.notes)
+    assert len(pluck.variation("home").bar_notes(0, ORNAMENTS)) == 8
+    assert all(n.level == 1 and 0 <= n.tone <= 3 for n in keys.notes + pluck.notes)
 
 
 def sounding(loop: Loop, level: int) -> set[tuple[int, ...]]:
@@ -89,11 +91,9 @@ def sounding(loop: Loop, level: int) -> set[tuple[int, ...]]:
 
 
 @pytest.mark.parametrize("name", list(LOOPS))
-def test_home_is_the_loop_re_levelled(name: str) -> None:
+def test_the_skeleton_is_part_of_home(name: str) -> None:
     loop = LOOPS[name]
-    home = loop.variation("home")
-    assert sounding(home, ORNAMENTS) == sounding(loop, 3)
-    assert sounding(home, 1) == sounding(loop, 2)
+    assert sounding(loop, 1) <= sounding(loop.variation("home"), 1)
 
 
 @pytest.mark.parametrize("name", list(LOOPS))

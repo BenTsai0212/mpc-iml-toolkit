@@ -1,0 +1,40 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "boom",
+  "title": "Boom",
+  "description": "A 1-bar boom-bap line: root and fifth, a ghost note, an octave and an approach into the next bar. push answers off-beat kicks with anticipations; drive answers busy kicks with 8ths.",
+  "preset": "ensemble",
+  "part": "bass",
+  "bars": 1,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 3, "skeleton": true},
+      {"bar": 0, "step": 3, "tone": 0, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 6, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 8, "tone": 2, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 11, "tone": 2, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "push": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2},
+      {"bar": 0, "step": 3, "tone": 0, "length": 2, "velocity": 0.9},
+      {"bar": 0, "step": 7, "tone": 2, "length": 3},
+      {"bar": 0, "step": 10, "tone": 0, "length": 2, "octave": 1, "velocity": 0.9},
+      {"bar": 0, "step": 12, "tone": 2, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "drive": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2},
+      {"bar": 0, "step": 2, "tone": 0, "length": 2, "velocity": 0.85},
+      {"bar": 0, "step": 4, "tone": 0, "length": 1, "octave": 1},
+      {"bar": 0, "step": 5, "tone": 0, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 6, "tone": 0, "length": 2, "velocity": 0.85},
+      {"bar": 0, "step": 8, "tone": 2, "length": 2},
+      {"bar": 0, "step": 10, "tone": 2, "length": 1, "velocity": 0.85},
+      {"bar": 0, "step": 11, "tone": 2, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 12, "tone": 3, "length": 2},
+      {"bar": 0, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ]
+  }
+}

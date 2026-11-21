@@ -4,18 +4,17 @@ import copy
 import json
 import sys
 from collections.abc import Iterator
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from mpc_iml.bass import BASS_LOOPS
 from mpc_iml.content import ContentError, UnknownContentError
-from mpc_iml.loops import HOME, VARIATIONS, LoopFile, load_loops, parse_loop
-from mpc_iml.melody import LOOPS, Loop, LoopNote
+from mpc_iml.ensemble import PROGRESSIONS
+from mpc_iml.loops import HOME, PARTS, VARIATIONS, LoopFile, load_loops, parse_loop
+from mpc_iml.melody import ORNAMENTS, Loop, LoopNote, loop_pitch
 
-DEFAULTS = asdict(LoopNote(0, 0, 0, 1, 1))
+DATA = Path(__file__).parent / "data"
 
 LOOP: dict[str, Any] = {
     "format": "mpc-iml-loop",
@@ -66,23 +65,6 @@ def changed(path: str, value: Any, base: dict[str, Any] = LOOP) -> dict[str, Any
     return data
 
 
-def to_file(loop: Loop, part: str) -> dict[str, Any]:
-    """A loop file written from a Python table `loop` (its notes' level 1 is the
-    skeleton), giving only the fields that differ from the defaults."""
-
-    def note(n: LoopNote, skeleton: bool = False) -> dict[str, Any]:
-        fields = {k: v for k, v in asdict(n).items() if k in {"bar", "step", "tone", "length"}}
-        fields |= {k: v for k, v in asdict(n).items() if v != DEFAULTS[k]}
-        return fields | ({"skeleton": True} if skeleton else {})
-
-    skeleton = {n for n in loop.notes if n.level == 1}
-    variations = {
-        v.name: [note(n, v.name == HOME and n in skeleton) for n in v.notes]
-        for v in loop.variations
-    }
-    return {**LOOP, "name": loop.name, "part": part, "bars": loop.bars, "variations": variations}
-
-
 # The format
 
 
@@ -116,14 +98,37 @@ def test_a_melody_loop_has_the_melody_variations() -> None:
     assert [v.name for v in loop.variations] == list(VARIATIONS["melody"])
 
 
-@pytest.mark.parametrize(("tables", "part"), [(BASS_LOOPS, "bass"), (LOOPS, "melody")])
-def test_the_built_in_loops_can_be_written_as_files(tables: dict[str, Loop], part: str) -> None:
-    """Every variation and the skeleton of today's tables survive a file (#173)."""
-    for table in tables.values():
-        loop = parse_loop(json.loads(json.dumps(to_file(table, part)))).loop()
-        for variation in table.variations:
-            assert loop.variation(variation.name).notes == variation.notes
-        assert loop.notes == tuple(n for n in table.notes if n.level == 1)
+def played(loop: Loop, progression: str, part: str, level: int) -> list[list[Any]]:
+    """[bar, step, pitch, length, velocity] of what `loop` plays in song bars 0-3 up to
+    `level`, at the part's default octave."""
+    p = PROGRESSIONS[progression]
+    out: list[list[Any]] = []
+    for bar in range(4):
+        now, following = p.chord(bar), p.chord(bar + 1)
+        chords = ((p.tonic + now.root, now.quality), (p.tonic + following.root, following.quality))
+        for n in loop.bar_notes(bar, level):
+            pitch = loop_pitch(n, *chords, 1 if part == "bass" else 4)
+            out.append([bar, n.step, pitch, n.length, n.velocity])
+    return out
+
+
+def test_the_built_in_loop_files_play_the_notes_of_158() -> None:
+    """The snapshot was written from the Python tables before they were removed (#173):
+    every variation and level, and `thin`, over both progressions."""
+    snapshot = json.loads((DATA / "loops-158.json").read_text())
+    library = load_loops()
+    assert (library.names("bass"), library.names("melody")) == (["boom", "walk"], ["keys", "pluck"])
+    found: dict[str, list[list[Any]]] = {}
+    for part in PARTS:
+        for name, loop in library.played(part).items():
+            assert library.get(name, part).origin.endswith(f"mpc_iml/loops/ensemble/{name}.json")
+            for progression in PROGRESSIONS:
+                found[f"{name} {progression} thin"] = played(loop, progression, part, 1)
+                for variation in loop.variations:
+                    for level in (1, ORNAMENTS):
+                        key = f"{name} {progression} {variation.name} {level}"
+                        found[key] = played(variation, progression, part, level)
+    assert found == snapshot
 
 
 # Bad files

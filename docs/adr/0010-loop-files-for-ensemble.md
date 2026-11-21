@@ -143,10 +143,11 @@ keeps working with the built-in names.
 - Fixed variation names keep the #158 rules unchanged, at the cost of not allowing
   a musician's own variation names yet.
 - Playback of `offset` is applied when a bar is scheduled, through the
-  `Scheduler`'s tick timing, if this needs no protocol change. Until that is in
-  place, `offset` is stored and validated only, and playback ignores it; if it
-  would need another core change, this ADR is amended to say so and a follow-up
-  Issue is opened.
+  `Scheduler`'s tick timing (`ticks_per_step` 1), with no protocol or core change
+  (#173 PR 2). The offset is rounded to a tick. A note cannot sound before the bar
+  line its bar is planned at, so a negative offset on step 0 plays on the bar line.
+  A bass note ends by the next bass note's start and the bar's end, so offsets keep
+  the bass monophonic.
 - Work in order (#173): the format, validation and loader; the built-in files;
   the user folder and controls; `mpc_iml.smf` with import and export; Pure Data
   group 8 and the README.

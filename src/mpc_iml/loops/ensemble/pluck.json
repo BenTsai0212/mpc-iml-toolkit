@@ -1,0 +1,47 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "pluck",
+  "title": "Pluck",
+  "description": "A 1-bar 8th-note arpeggio. open is a quarter-note arpeggio reaching an octave up to a held seventh; busy a 16th arpeggio over two octaves.",
+  "preset": "ensemble",
+  "part": "melody",
+  "bars": 1,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 2, "tone": 1, "length": 2, "velocity": 0.85},
+      {"bar": 0, "step": 4, "tone": 2, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 6, "tone": 3, "length": 2, "level": 2, "velocity": 0.85},
+      {"bar": 0, "step": 8, "tone": 2, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 10, "tone": 1, "length": 2, "velocity": 0.85},
+      {"bar": 0, "step": 12, "tone": 2, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 14, "tone": 1, "length": 2, "level": 2, "velocity": 0.85}
+    ],
+    "open": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 4},
+      {"bar": 0, "step": 4, "tone": 2, "length": 4, "velocity": 0.9},
+      {"bar": 0, "step": 8, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 10, "tone": 2, "length": 2, "level": 2, "octave": 1, "velocity": 0.85},
+      {"bar": 0, "step": 12, "tone": 3, "length": 4}
+    ],
+    "busy": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 1},
+      {"bar": 0, "step": 1, "tone": 1, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 0, "step": 2, "tone": 2, "length": 1},
+      {"bar": 0, "step": 3, "tone": 3, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 0, "step": 4, "tone": 0, "length": 1, "octave": 1},
+      {"bar": 0, "step": 5, "tone": 1, "length": 1, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 0, "step": 6, "tone": 2, "length": 1, "octave": 1},
+      {"bar": 0, "step": 7, "tone": 3, "length": 1, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 0, "step": 8, "tone": 0, "length": 1, "octave": 2},
+      {"bar": 0, "step": 9, "tone": 3, "length": 1, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 0, "step": 10, "tone": 2, "length": 1, "octave": 1},
+      {"bar": 0, "step": 11, "tone": 1, "length": 1, "level": 2, "octave": 1, "velocity": 0.8},
+      {"bar": 0, "step": 12, "tone": 0, "length": 1, "octave": 1},
+      {"bar": 0, "step": 13, "tone": 3, "length": 1, "level": 2, "velocity": 0.8},
+      {"bar": 0, "step": 14, "tone": 2, "length": 1},
+      {"bar": 0, "step": 15, "tone": 1, "length": 1, "level": 2, "velocity": 0.8}
+    ]
+  }
+}
