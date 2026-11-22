@@ -83,6 +83,10 @@ class Settings:
     """The phrase-end surprises (#158) as the control `surprise`: 0 off, 1 (the
     default, as in the instrument) the bass fill only, 2 also the melody surprises
     (#178)."""
+    rhythm: int = 1
+    """The rhythm transformation (#189) as the setting `rhythm`: 0 off, 1 (the
+    default, as in the instrument) the bass follows the kicks, 2 also the melody
+    follows the snares and hats."""
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
 
@@ -90,13 +94,15 @@ class Settings:
 @dataclass(frozen=True)
 class Note:
     """A note of the song: `part` is a drum (`DRUMS`), `bass` or `keys`; `tick` and
-    `ticks` are its start and length in MIDI clock ticks from song start."""
+    `ticks` are its start and length in MIDI clock ticks from song start; `moved`
+    says the rhythm transformation moved it to a drum hit (#189)."""
 
     part: str
     tick: int
     ticks: int
     pitch: int
     velocity: int
+    moved: bool = False
 
 
 @dataclass(frozen=True)
@@ -249,6 +255,7 @@ class _Run:
         controls["no-drums"]([settings.no_drums])
         controls["fade-bars"]([settings.fade_bars])
         controls["surprise"]([settings.surprise])
+        controls["rhythm"]([settings.rhythm])
         ensemble.attach(self.access)
         self.bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
         self.access.on_bar(lambda start: self.bars.__setitem__(start.bar, (start, ensemble.plans)))
@@ -282,7 +289,10 @@ class _Run:
         song_bars = grid_bars + 1
         total = song_bars * BEATS_PER_BAR * TICKS_PER_BEAT
         sent = self.sent
-        notes = self.drums + _band_notes(sent, total)
+        moves = _moves(self.bars, self.surprises)
+        notes = self.drums + [
+            replace(n, moved=True) if _moved(n, moves) else n for n in _band_notes(sent, total)
+        ]
         brightness = tuple(
             (tick, m[2]) for tick, m in sent if m[0] & 0xF0 == 0xB0 and m[0] & 0x0F == 2
         )
@@ -319,6 +329,40 @@ def _hits(grid: Grid) -> dict[int, list[tuple[int, int]]]:
                     tick = (bar * STEPS + step) * SIXTEENTHS
                     hits.setdefault(tick, []).append((pad, int(velocity)))
     return hits
+
+
+_PLAN_PARTS = {"bass": "bass", "melody": "keys"}
+"""The part of the song each loop's plan plays."""
+_NEAR = SIXTEENTHS // 3
+"""A moved note starts within this many ticks of its step: it takes half of a hit's
+offset (at most half a step), so at most a quarter step, 2 ticks once rounded."""
+
+
+def _moves(
+    bars: Mapping[int, tuple[BarStart, Mapping[str, BarPlan | None]]],
+    surprises: Mapping[int, str],
+) -> dict[str, set[int]]:
+    """The ticks from song start that the rhythm transformation moved a note to, by
+    part. A move that keeps its step is not counted, and the bass `fill` replaces
+    the last beat, so moves into it do not sound."""
+    moves: dict[str, set[int]] = {part: set() for part in _PLAN_PARTS.values()}
+    for bar, (_, plans) in bars.items():
+        for loop, part in _PLAN_PARTS.items():
+            plan = plans.get(loop)
+            if plan is None or plan.taken is None:
+                continue
+            for move in plan.taken.moves:
+                if move.step == move.start:
+                    continue
+                if part == "bass" and surprises.get(bar) == "fill" and move.step >= STEPS - 4:
+                    continue
+                moves[part].add((bar * STEPS + move.step) * SIXTEENTHS)
+    return moves
+
+
+def _moved(note: Note, moves: Mapping[str, set[int]]) -> bool:
+    ticks = moves.get(note.part, set())
+    return any(abs(note.tick - tick) <= _NEAR for tick in ticks)
 
 
 def _band_notes(sent: Sequence[tuple[int, bytes]], end: int) -> list[Note]:
