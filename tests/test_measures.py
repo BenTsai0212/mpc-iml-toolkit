@@ -24,6 +24,7 @@ from mpc_iml.webdemo.sim import Settings, replay
 DATA = Path(__file__).parent / "data"
 TWO_BARS = DATA / "trial-two-bars.jsonl"
 EXAMPLE = Path(__file__).parents[1] / "examples" / "trial" / "rhythm.json"
+LEARN = EXAMPLE.with_name("learn.json")
 
 
 def test_the_two_bar_recording_has_known_measures() -> None:
@@ -102,7 +103,10 @@ def test_replay_settings_from_a_trial() -> None:
     assert replay_settings([("bass-loop", ["walk"]), ("fade-bars", [4])]) == Settings(
         bass_loop="walk", fade_bars=4
     )
-    for bad in [("bass", ["rule"]), ("learn", [1]), ("rhythm", [])]:
+    learn, _ = load_trial(LEARN)
+    demo = next(c for c in learn.conditions if c.name == "learn-demo")
+    assert replay_settings(learn.messages(demo)) == Settings(surprise=1, learn="demo")
+    for bad in [("bass", ["rule"]), ("learn-loops", [1]), ("learn-log", [2]), ("rhythm", [])]:
         with pytest.raises(ValueError, match="the replay cannot play"):
             replay_settings([bad])
 

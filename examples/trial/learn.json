@@ -1,0 +1,31 @@
+{
+  "format": "mpc-iml-trial",
+  "format_version": 1,
+  "title": "Learning off, from likes, or from demonstrations",
+  "bars": 240,
+  "base": {
+    "bass": ["loop"],
+    "melody-mode": ["follow"],
+    "surprise": [1],
+    "rhythm": [0],
+    "learn-loops": [0],
+    "learn": ["off"],
+    "reset-learning": [],
+    "learn-log": [0]
+  },
+  "conditions": [
+    {"name": "learn-off", "settings": {"learn": ["off"], "learn-log": [1]}},
+    {"name": "learn-likes", "settings": {"learn": ["likes"], "learn-log": [1]}},
+    {"name": "learn-demo", "settings": {"learn": ["demo"], "learn-log": [1]}}
+  ],
+  "questions": [
+    {"id": "heard-me", "text": "It heard me", "scale": "1-5"},
+    {"id": "leading", "text": "I am leading it", "scale": "1-5"},
+    {"id": "mine", "text": "This is mine", "scale": "1-5"},
+    {"id": "sounds-good", "text": "It sounds good", "scale": "1-5"},
+    {"id": "fun", "text": "It is fun", "scale": "1-5"},
+    {"id": "learned", "text": "It learned what I wanted", "scale": "1-5"},
+    {"id": "heard-moment", "text": "A moment it heard me", "scale": "text"},
+    {"id": "broken-moment", "text": "A moment that felt broken", "scale": "text"}
+  ]
+}

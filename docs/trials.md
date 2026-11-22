@@ -55,6 +55,40 @@ one recording per condition (`A.jsonl`, `B.jsonl`; `A-2.jsonl` for a repeat) and
 `engine.log`. Nothing is uploaded or committed; keep the data folder outside the
 repository.
 
+## Comparing learning modes
+
+[`examples/trial/learn.json`](../examples/trial/learn.json) compares `learn off`,
+`learn likes` and `learn demo` (#196), about 10 minutes each (240 bars at 90 BPM;
+Enter ends a condition early):
+
+```bash
+uv run python -m mpc_iml.trial run examples/trial/learn.json ~/mpc-iml-trials
+```
+
+**Keep a profile out of the comparison.** The engine reads the profile
+`<data folder>/learn/ensemble.json` when it starts, and while `learn` is not `off`
+it writes it at each phrase start. So that no condition starts from what an earlier
+one (or your own practice) learned:
+
+- `base` sends `learn off`, then `reset-learning`: every condition starts from the
+  rules, whatever the profile held. The condition then sends its `learn` mode.
+- Run trials with a data folder of their own (`~/mpc-iml-trials` above, not your
+  usual `~/mpc-iml-data`): the `likes` and `demo` conditions save what they learned
+  over that folder's profile, which would otherwise replace your "my band". Copy
+  your `loops/` folder into it if you play your own loops.
+- `base` sends `learn-log 0` and each condition `learn-log 1`, so each condition
+  gets its own `<data folder>/learn/log-<time>.jsonl`, in play order. Summarise
+  each with `python -m mpc_iml.learn summary <log>`.
+
+This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
+wanted bass variation in `demo` (pad 15 the melody's), and cycles the bass mode in
+`off`. Before the trial, tell the musician: press 16 whenever you like what the band
+plays; if the bass stops or changes to every-kick notes, press 16 until the loop
+comes back; if the band starts playing one variation over and over, you are marking
+what you want, so keep it while you drum the way you want it, and come back to
+`auto` (pads 16 and 15 again) to hear what it learned. The report's response
+measures are left empty beyond 64 bars.
+
 ## Reports
 
 ```bash

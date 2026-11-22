@@ -64,8 +64,12 @@ _FIELDS = {
     "fade-bars": "fade_bars",
     "surprise": "surprise",
     "rhythm": "rhythm",
+    "learn": "learn",
 }
 """`ensemble` controls the replay takes, and their `Settings` fields."""
+_SAME = {("reset-learning", ()), ("learn-log", (0,)), ("learn-log", (1,)), ("learn-loops", (0,))}
+"""Controls that do not change what the replay plays: it starts from the rules, with
+no profile, no learn log and the selected loops (#196)."""
 
 Pattern = frozenset[tuple[str, int]]
 
@@ -218,10 +222,13 @@ def response(changes: Sequence[float], bands: Sequence[int]) -> Response:
 def replay_settings(controls: Iterable[tuple[str, Sequence[Any]]]) -> Settings:
     """The replay `Settings` for `ensemble` controls in order (a trial's `messages`).
     Raises `ValueError` for a control the replay cannot play: `bass` other than
-    `loop`, or a control it does not know."""
+    `loop`, or a control it does not know. With `learn likes` or `demo` the replay
+    plays the recorded pads 15 and 16 as likes and wanted variations."""
     values: dict[str, Any] = {}
     for control, args in controls:
         if control == "bass" and list(args) == ["loop"]:
+            continue
+        if (control, tuple(args)) in _SAME:
             continue
         if control not in _FIELDS or len(args) != 1:
             raise ValueError(f"the replay cannot play {control} {' '.join(map(str, args))}")
