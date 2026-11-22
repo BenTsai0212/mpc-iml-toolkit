@@ -81,7 +81,7 @@ def test_a_recording_without_clock_or_too_long_is_refused() -> None:
 def test_upload_shows_the_song_and_the_hits() -> None:
     shown, hits = upload(DATA / "clock_practice.jsonl", Settings())
     assert len(shown.table) == 1 and len(shown.table[0]) == len(TABLE_HEADERS)
-    assert shown.table[0][2] == "11" and shown.midi.startswith(b"MThd")
+    assert shown.table[0][TABLE_HEADERS.index("hats")] == "11" and shown.midi.startswith(b"MThd")
     assert len(hits) == 6 and all(len(h) == len(HIT_HEADERS) for h in hits)
     assert hits[1][1:5] == ["1", "5", "A02", "90"] and hits[0][1] == "-"
 

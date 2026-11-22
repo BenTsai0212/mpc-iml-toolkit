@@ -85,6 +85,8 @@ HEADERS = ["drum", *(str(s + 1) for s in range(STEPS))]
 
 TABLE_HEADERS = [
     "bar",
+    "transform",
+    "took",
     "kicks",
     "hats",
     "hits",
@@ -96,13 +98,12 @@ TABLE_HEADERS = [
     "melody vel",
     "brightness",
     "surprise",
-    "transform",
-    "took",
 ]
-"""The bar table: the drums of a bar (as the rules read them), then what the band
-plays in the bar after it: `transform` is the bass's and the melody's rhythm
-transformation, as the reply `transform` gives them, and `took` the drums each moved
-line took and the steps its notes moved to (#189)."""
+"""The bar table: after `bar`, `transform` is the bass's and the melody's rhythm
+transformation in the bar after it, as the reply `transform` gives them, and `took`
+the drums each moved line took and the steps its notes moved to (next to `bar` so
+they show without scrolling, #189); then the drums of a bar (as the rules read them)
+and what the band plays in the bar after it."""
 
 Table = list[list[str | int]]
 
@@ -334,6 +335,8 @@ def _velocity(label: object, cell: object) -> int:
 def _table_row(row: BarRow) -> list[str | int]:
     return [
         f"{row.bar + 1} → {row.bar + 2}",
+        f"{_transform(row.bass)} / {_transform(row.melody)}",
+        "; ".join(filter(None, (_took("bass", row.bass), _took("melody", row.melody)))) or "-",
         _steps(row.kicks),
         _steps(row.hats),
         row.hits,
@@ -345,8 +348,6 @@ def _table_row(row: BarRow) -> list[str | int]:
         _plan_velocity(row.melody),
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",
-        f"{_transform(row.bass)} / {_transform(row.melody)}",
-        "; ".join(filter(None, (_took("bass", row.bass), _took("melody", row.melody)))) or "-",
     ]
 
 

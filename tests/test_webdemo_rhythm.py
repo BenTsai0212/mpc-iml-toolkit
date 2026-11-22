@@ -82,6 +82,8 @@ def test_rhythm_2_moves_the_melody_too() -> None:
 def test_the_table_shows_the_transformation_and_what_it_took() -> None:
     _, table, *_ = play(to_table([GROOVE] * 4), Settings())
     assert len(table[0]) == len(TABLE_HEADERS)
+    assert TABLE_HEADERS[:4] == ["bar", "transform", "took", "kicks"]
+    assert table[0][:3] == ["1 → 2", "lock / plain", "kick 1 7 11 → bass 7"]
     assert column(table, "transform") == [
         "lock / plain",
         "lock / plain",
