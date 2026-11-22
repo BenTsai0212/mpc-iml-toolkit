@@ -638,6 +638,23 @@ melody, and `chose` where each choice came from (`rule`, `bandit`, `model`, `wan
 `liked` for a liked answer). The **learning** box lists the likes, trained trees and
 what was learned. The demo has no data folder, so it never saves a profile.
 
+The **variations** tab (#221) plays new variations grown from a line, next to the
+line itself, so you can judge whether they sound like yours before anything reaches
+the band. Pick a loop: a built-in one, the name of one of your loops in the **data
+folder** (`mpc-iml-data` by default), a path to a loop file, or an uploaded loop
+file. Choose the variation, **novelty** (0 keeps the source, 0.2 the default stays
+close, 1 is freer), the **corpus** the generator learns from (`source`, `own` your
+loops of the same part, `all` every loop of the part), the number of candidates and
+the seed, then press **Generate**. The source and each candidate play over the
+progression and tempo at the top of the page, with a plain boom-bap drum pattern
+under them (untick **drums** for the line alone), each with its own audio and piano
+roll. The table below gives each one's provenance: the source, the seed, the
+distance (changed notes, and their share of the source's notes) and every change.
+Tick **blind** to shuffle the source and the candidates under letters `A`, `B`, …;
+the table shows `?` until you press **Reveal**. The same loop and settings always
+give the same candidates; `uv run python -m mpc_iml.vargen <loop> --midi` writes them
+as clips for Live. The tab only reads loop files and writes nothing.
+
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
 instead: the band answers it exactly as the engine would have, at the recording's
 tempo, from the clock's Start to the next Stop, at most 64 bars. Pads 1 and 5 are

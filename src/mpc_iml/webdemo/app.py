@@ -12,6 +12,11 @@ bars whose answer is liked, with `demo` the wanted variations (`parse_likes`,
 `parse_wants`); the table gains the contexts and where each choice came from, and
 the page shows the learning log and what was learned.
 
+The `variations` tab (#221) plays the variation generator's candidates next to their
+source loop (`webdemo.variations.listen`), each with its audio and piano roll, over
+a plain boom-bap pattern that can be turned off, and a provenance table; in blind
+mode the clips are shuffled under letters until **Reveal**. It only reads loop files.
+
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`, `upload`) work, and are tested, without the `demo` extra.
 
@@ -32,11 +37,13 @@ import numpy.typing as npt
 from mpc_iml.clock import tag_recording
 from mpc_iml.ensemble import LEARN_MODES, MELODY_MODES, PROGRESSIONS
 from mpc_iml.grid import COLUMNS, format_hit
-from mpc_iml.loops import load_loops
+from mpc_iml.launch import DEFAULT_DATA
+from mpc_iml.loops import VARIATIONS, load_loops
 from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
 from mpc_iml.recording import read_recording
 from mpc_iml.rhythm import Taken
-from mpc_iml.webdemo import midifile, roll
+from mpc_iml.vargen import CORPORA, DEFAULT_CORPUS, DEFAULT_NOVELTY
+from mpc_iml.webdemo import midifile, roll, variations
 from mpc_iml.webdemo.sim import (
     DRUMS,
     STEPS,
@@ -67,6 +74,7 @@ __all__ = [
     "parse_likes",
     "parse_wants",
     "play",
+    "play_variations",
     "resize",
     "show",
     "to_table",
@@ -239,6 +247,16 @@ def upload(path: str | Path, settings: Settings) -> Uploaded:
     return Uploaded(show(replay(events, settings)), hits)
 
 
+def play_variations(
+    listing: variations.Listing,
+) -> list[tuple[str, tuple[int, npt.NDArray[np.int16]], npt.NDArray[np.uint8]]]:
+    """Each clip of `listing` as its label, audio (`(RATE, samples)`) and piano roll."""
+    return [
+        (clip.label, (RATE, render(clip.song, clip.song.settings.seed)), roll.draw(clip.song))
+        for clip in listing.clips
+    ]
+
+
 def build() -> "gr.Blocks":
     """The demo page. Needs the `demo` extra (`uv sync --extra demo`). Turns
     Gradio's analytics off unless the environment sets them (`analytics_default_off`)."""
@@ -302,6 +320,49 @@ def build() -> "gr.Blocks":
             recording = gr.File(label="recording (.jsonl)", file_types=[".jsonl"], type="filepath")
             upload_button = gr.Button("Play the recording", variant="primary")
             hits = gr.Dataframe(headers=HIT_HEADERS, type="array", interactive=False)
+        with gr.Tab("variations"):
+            gr.Markdown(
+                "New variations grown from a line (`python -m mpc_iml.vargen`), played next "
+                "to their source over the progression and tempo above. Nothing is written."
+            )
+            with gr.Row():
+                var_loop = gr.Dropdown(
+                    library.names("bass") + library.names("melody"),
+                    value=default.bass_loop,
+                    allow_custom_value=True,
+                    label="loop: a name or a loop file (.json)",
+                )
+                var_file = gr.File(label="or upload a loop file", file_types=[".json"])
+                var_data = gr.Textbox(value=DEFAULT_DATA, label="data folder (your loops)")
+            with gr.Row():
+                var_variation = gr.Dropdown(
+                    sorted({v for names in VARIATIONS.values() for v in names}),
+                    value="home",
+                    label="variation",
+                )
+                var_novelty = gr.Slider(0, 1, value=DEFAULT_NOVELTY, step=0.05, label="novelty")
+                var_corpus = gr.Radio(list(CORPORA), value=DEFAULT_CORPUS, label="corpus")
+                var_count = gr.Slider(1, variations.MAX_COUNT, value=4, step=1, label="candidates")
+                var_seed = gr.Number(value=0, precision=0, minimum=0, label="seed")
+                var_drums = gr.Checkbox(value=True, label="drums")
+                var_blind = gr.Checkbox(value=False, label="blind")
+            with gr.Row():
+                var_button = gr.Button("Generate", variant="primary")
+                reveal = gr.Button("Reveal")
+            slots = []
+            for _ in range(variations.MAX_COUNT + 1):
+                with gr.Column(visible=False) as column:
+                    slots.append(
+                        (
+                            column,
+                            gr.Audio(type="numpy", interactive=False),
+                            gr.Image(type="numpy", interactive=False, show_label=False),
+                        )
+                    )
+            provenance = gr.Dataframe(
+                headers=variations.PROVENANCE_HEADERS, type="array", interactive=False
+            )
+            listed = gr.State(None)
         audio = gr.Audio(label="the band", type="numpy", interactive=False)
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
         image = gr.Image(label="piano roll", type="numpy", interactive=False)
@@ -363,6 +424,48 @@ def build() -> "gr.Blocks":
                 raise gr.Error(str(e)) from e
             return (*outputs(shown), rows)
 
+        def on_variations(name: str, file: str | None, data: str, *values: object) -> list[object]:
+            variation, novelty, setting, count, seed, drums, blind, tempo, chords = values
+            try:
+                listing = variations.listen(
+                    file or str(name or ""),
+                    str(data or DEFAULT_DATA),
+                    variation=str(variation),
+                    novelty=float(str(novelty)),
+                    setting=str(setting),
+                    seed=int(float(str(seed))),
+                    count=int(float(str(count))),
+                    progression=str(chords),
+                    tempo=float(str(tempo)),
+                    drums=bool(drums),
+                    blind=bool(blind),
+                )
+            except ValueError as e:
+                raise gr.Error(str(e)) from e
+            clips = play_variations(listing)
+            shown: list[object] = []
+            for i in range(len(slots)):
+                if i < len(clips):
+                    label, sound, picture = clips[i]
+                    shown += [
+                        gr.Column(visible=True),
+                        gr.Audio(sound, label=label),
+                        gr.Image(picture),
+                    ]
+                else:
+                    shown += [gr.Column(visible=False), None, None]
+            return [*shown, variations.table(listing), listing]
+
+        def on_reveal(listing: variations.Listing | None) -> list[list[str | int]]:
+            if listing is None:
+                raise gr.Error("generate the candidates first")
+            return variations.table(listing, reveal=True)
+
+        var_inputs = [var_loop, var_file, var_data, var_variation, var_novelty, var_corpus]
+        var_inputs += [var_count, var_seed, var_drums, var_blind, tempo, progression]
+        var_outputs = [part for slot in slots for part in slot] + [provenance, listed]
+        var_button.click(on_variations, var_inputs, var_outputs)
+        reveal.click(on_reveal, listed, provenance)
         bars.change(lambda cells, n: resize(cells, int(n)), [grid, bars], grid)
         results = [audio, table, image, midi, log]
         button.click(on_play, [grid, tempo, *controls], results)
