@@ -842,6 +842,40 @@ boom-bap 節奏（稀疏的小節、忙碌的小節，再停打一小節與兩�
 5. 按 preset 按鈕 `pressure`：群組顯示 `-`，在群組中點擊時狀態列得到 `inactive_preset`。
 6. 確認 Pd 視窗沒有紅色的錯誤。
 
+### 不需硬體試玩
+
+一個小網頁以真正的 `ensemble` 規則演奏你填寫的鼓格子，不需要 MPC、Live 或 MIDI clock，任何人都能
+聽到鼓如何決定樂團演奏的內容（#166）。需要選用的 `demo` extra（Gradio）：
+
+```bash
+uv sync --extra demo
+uv run python -m mpc_iml.webdemo
+```
+
+打開它印出的網址（`http://127.0.0.1:7860`）。格子的每一列是一個小節中的一種鼓（kick、snare、
+hat；0 是不打，1～127 是力度）。選一個範例或放上鼓點，選好設定，按 **Play**。網頁以一個小型
+合成器演奏鼓、bass 與鍵盤，並顯示一張表：每個小節的鼓，以及樂團為下一個小節選擇的變奏、裝飾音、
+力度與亮度。
+設定 **rhythm** 就是樂器的 `rhythm`（#189）：`off`（預設值，#194）照寫好的線條演奏；`bass` 時
+bass 線條的音移向上一小節的 kick；`bass and melody` 時旋律的音也移向 snare 與 hat。
+表的 `transform` 欄列出 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；不發聲時為
+`-`），`took` 欄列出每條移動的線條取用的鼓，以及其音移到的步，例如 `kick 1 7 11 → bass 7`。
+在鋼琴捲簾中，移動的音以該聲部顏色較淺的色調顯示。以 `bass` 演奏同一個格子，就能把移動的線條與
+原樣的線條對照來聽。
+相同的格子與 seed 一定發出相同的聲音。表的下方有鋼琴捲簾顯示鼓、bass 與鍵盤，**MIDI file**
+下載這首曲子（鼓在 channel 10，bass 在 2，鍵盤在 3，附亮度 CC 74），可在 DAW 中開啟。
+
+**recording** 分頁改為演奏以 `python -m mpc_iml.record --clock` 錄下的錄音：樂團的回應與
+engine 當時的回應完全相同，速度依錄音，範圍從 clock 的 Start 到下一個 Stop，最多 64 小節。
+pad 1 與 5 是 kick，2 與 6 是 snare，3、4 與 7 是 hat（任何 bank）。第二張表列出格子上的
+每一次 pad 敲擊，與 `python -m mpc_iml.grid` 印出的相同。
+
+要讓隊友從另一台電腦打開，加上 `--share`：Gradio 經由它的分享伺服器產生暫時的公開連結（72 小時
+內、demo 執行期間有效）。只在確定要分享時使用；預設只在本機。
+
+demo 會關閉 Gradio 的使用分析（除非你已經設定，否則把 `GRADIO_ANALYTICS_ENABLED` 設為
+`False`），所以它本身不會送出任何資料給 Gradio。`--share` 仍會經過 Gradio 的分享伺服器。
+
 ## Ableton Live 入門 set
 
 不需對應步驟就能演奏 preset `pressure` 的 Live set（RFC 0003、#104），放在
