@@ -15,6 +15,8 @@ carries over from the condition before. The questions live in the file, so they
 change without code. See [`examples/trial/rhythm.json`](../examples/trial/rhythm.json),
 which compares `rhythm 0` with `rhythm 1` and asks five 1-5 questions and two open
 questions.
+Trials keep the modes fixed: both example files send `mode-pads 0` in `base`, so
+pads 15 and 16 never switch the bass or melody mode during a condition (#216).
 
 ## Before a trial
 
@@ -82,10 +84,9 @@ one (or your own practice) learned:
   leaves none (#217). Summarise each with `python -m mpc_iml.learn summary <log>`.
 
 This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
-wanted bass variation in `demo` (pad 15 the melody's), and cycles the bass mode in
-`off`. Before the trial, tell the musician: press 16 whenever you like what the band
-plays; if the bass stops or changes to every-kick notes, press 16 until the loop
-comes back; if the band starts playing one variation over and over, you are marking
+wanted bass variation in `demo` (pad 15 the melody's), and does nothing in `off`
+(`mode-pads 0`). Before the trial, tell the musician: press 16 whenever you like
+what the band plays; if the band starts playing one variation over and over, you are marking
 what you want, so keep it while you drum the way you want it, and come back to
 `auto` (pads 16 and 15 again) to hear what it learned. The report's response
 measures are left empty beyond 64 bars.

@@ -400,6 +400,25 @@ The same `## Decision` covers this part (point 7).
   the control, so the bar line reports are as before. Pads 15 and 16, group 8 and
   the Max for Live device do not change.
 
+## Amendment: pads that keep the modes (#216)
+
+Issue #216 asks for this amendment. In the manual check of #196 pad 16 switched the
+bass mode during the `learn off` condition of a trial, so the condition did not
+compare what it said it compared.
+
+- New control `mode-pads 0|1` (default 1, preset version), a setting, not a
+  performance control (RFC 0005 principle 11). With 1 pads 15 and 16 behave as
+  before. With 0 they switch neither the melody mode nor the bass mode, in every
+  `learn` mode, and a press sends no reply; pad 16 is still a like with
+  `learn likes`, and pads 15 and 16 still set `want` with `learn demo`. Other
+  values are refused with `bad_arguments`.
+- New reply after `learn-log`: `mode-pads` (`i` 0 or 1). It changes only with the
+  control, so the bar line reports are as before.
+- Both example trial files send `mode-pads 0` in `base`; the replay of `measures`
+  takes it as `Settings.mode_pads`.
+- Group 8 and the Max for Live device do not change. No core message, reply, error
+  code or protocol version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with
