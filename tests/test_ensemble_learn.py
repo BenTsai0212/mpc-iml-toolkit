@@ -3,7 +3,8 @@ the control `like` and the replies `learn`, `likes`, `chose` and `learned`.
 
 On the simulated DAW clock of `test_ensemble.py` (`Rig`). `learn off` must play
 exactly what `main` played before the wiring: `tests/data/ensemble-learn-off.json`
-was written from `main` with `SESSIONS` before `learn` existed.
+was written from `main` with `SESSIONS` before `learn` existed, and written again
+for #218 with only the brightness CC values changed (`write_golden`).
 """
 
 import json

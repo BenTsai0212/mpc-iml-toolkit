@@ -53,7 +53,7 @@ def test_sparse_and_busy_examples_sound_and_read_different() -> None:
     assert set(column(busy, "bass")) == {"drive + ornaments"}
     assert set(column(sparse, "melody")) == {"open"}
     assert set(column(busy, "melody")) == {"busy + ornaments"}
-    assert (column(sparse, "brightness")[0], column(busy, "brightness")[0]) == (40, 127)
+    assert (column(sparse, "brightness")[0], column(busy, "brightness")[0]) == (48, 110)
 
 
 def test_the_table_names_the_no_drums_rule_when_the_drums_stop() -> None:

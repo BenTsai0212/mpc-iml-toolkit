@@ -16,8 +16,9 @@ Once per bar, at the bar line, a `Follower` decides the next bar from the drum h
 of the bar that just ended (RFC 0005, causality first): the hits choose the
 variation (`melody_variation`) and whether its ornaments play (`melody_ornaments`),
 so a sparse bar changes the line instead of thinning it; their average velocity
-sets the loudness and the hits on `hat` pads the brightness CC. Bars without drums
-follow the `no-drums` rule (`NO_DRUMS`).
+sets the loudness and the hits on `hat` pads the brightness CC (`brightness`, at
+most `BRIGHTNESS_STEP` from the value sent before, #218). Bars without drums follow
+the `no-drums` rule (`NO_DRUMS`).
 
 A little surprise (#158): at the last bar of each 4-bar phrase, with probability
 `SURPRISE_CHANCE`, one change the musician did not ask for (`surprise`): a bass fill
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
     from mpc_iml.rhythm import Taken
 
 __all__ = [
+    "BRIGHTNESS",
+    "BRIGHTNESS_STEP",
     "FADE",
     "MELODY_VARIATIONS",
     "NO_DRUMS",
@@ -48,6 +51,7 @@ __all__ = [
     "Loop",
     "LoopNote",
     "brightness",
+    "brightness_step",
     "chord_note",
     "loop_pitch",
     "melody_ornaments",
@@ -84,6 +88,12 @@ PHRASE = 4
 
 SURPRISE_CHANCE = 0.5
 """The probability of a surprise at the end of a phrase."""
+
+BRIGHTNESS = (48, 110)
+"""The brightness CC with no hats and with 16 or more (#218)."""
+
+BRIGHTNESS_STEP = 24
+"""The most the brightness CC changes from one bar to the next (#218)."""
 
 
 @dataclass(frozen=True)
@@ -167,8 +177,18 @@ def melody_ornaments(hits: int) -> int:
 
 
 def brightness(hats: int) -> int:
-    """The CC value after a bar with `hats` hat hits: 0 is 40, 16 or more is 127."""
-    return round(40 + min(hats, 16) * 87 / 16)
+    """The CC value a bar with `hats` hat hits aims at: 0 is 48, 16 or more is 110
+    (`BRIGHTNESS`); `brightness_step` limits the change from the bar before."""
+    low, high = BRIGHTNESS
+    return round(low + min(hats, 16) * (high - low) / 16)
+
+
+def brightness_step(last: int | None, target: int) -> int:
+    """The CC value to send toward `target` after `last` was sent: at most
+    `BRIGHTNESS_STEP` away from it (`target` itself when nothing was sent yet)."""
+    if last is None:
+        return target
+    return min(max(target, last - BRIGHTNESS_STEP), last + BRIGHTNESS_STEP)
 
 
 def surprise(rng: random.Random, bar: int, candidates: Sequence[str]) -> str | None:
@@ -236,7 +256,9 @@ class Follower:
     last bar's choice, both at the last velocity, for `fade_bars` empty bars (0:
     never stop), the last two at `FADE` of it; `thin` is #144's rule, the skeleton
     after one empty bar and silence after two. A bar that does not follow
-    (`follow` false) plays `home` at all levels at `FIXED_VELOCITY`.
+    (`follow` false) plays `home` at all levels at `FIXED_VELOCITY`. The brightness
+    CC of a bar with drums moves toward its `cc` from the last one planned, at most
+    `BRIGHTNESS_STEP` (`brightness_step`, #218), so the plan holds the value sent.
     """
 
     def __init__(self, lead: tuple[str, int]) -> None:
@@ -244,6 +266,7 @@ class Follower:
         self._last = ("home", 1)
         self._empty: int | None = None
         self._velocity = FIXED_VELOCITY
+        self._cc: int | None = None
 
     def plan_bar(
         self,
@@ -257,7 +280,7 @@ class Follower:
     ) -> BarPlan:
         """The plan for the bar that starts now, from the drum hits of the bar that
         ended: `velocities` of all counted hits, the variation and level they
-        `chosen`, and the brightness `cc` they set."""
+        `chosen`, and the brightness `cc` they aim at."""
         if velocities:
             self._empty = 0
             self._velocity = melody_velocity(sum(velocities) / len(velocities))
@@ -269,6 +292,8 @@ class Follower:
         if not follow:
             return BarPlan("home", ORNAMENTS, FIXED_VELOCITY, None)
         if velocities:
+            if cc is not None:
+                cc = self._cc = brightness_step(self._cc, cc)
             return BarPlan(*chosen, self._velocity, cc, surprise=True)
         empty = self._empty
         if empty is None or (no_drums == "thin" and empty > 1):
