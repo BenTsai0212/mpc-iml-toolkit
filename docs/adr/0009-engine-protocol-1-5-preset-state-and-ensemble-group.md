@@ -272,6 +272,45 @@ and hats.
   the group's `route`, and the control is OSC only.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
 
+## Amendment: learning from likes (#196)
+
+The `## Decision` on #196 (2026-11-22) accepts this amendment (RFC 0005 step 8,
+PR 2 of #196). Each loop can learn which variation the musician wants for a kind
+of drumming, starting from the rules of #158.
+
+- New `ensemble` controls (preset version):
+  - `learn off|likes` (default `off`), read at each bar line. It is a setting, not
+    one of the two controls changed while playing (RFC 0005 principle 11). `off`
+    plays exactly as before #196. With `likes`, each loop's variation in a bar
+    that follows the drums is drawn by `learn.Learner` (a weighted softmax that
+    starts at the rules, its own seeded generator), in the loop's context of the
+    last bar's drums. Other values are refused with `bad_arguments`; `demo` comes
+    in a later PR of #196.
+  - `like` (no arguments): credits each loop's choice in the bar playing, or in
+    the bar before in its first beat. Refused with `bad_arguments` with `learn
+    off`, while the clock is not running, and with arguments.
+- **Pad 16 changes meaning with `learn likes`:** the layer pad sends a like
+  instead of cycling the bass mode, so the two controls changed while playing
+  stay pads 15 and 16. The bass mode is then set before playing (`bass`, or group
+  8). With `learn off` both pads are as before.
+- New replies after `transform`, in this order:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `learn` | `s` mode |
+  | `likes` | `i` likes that credited a choice in this build |
+  | `chose` | `s` bass, `s` melody: where the variation playing came from, `rule` or `bandit` (later `model`, `want`), or `-` when that loop is silent, not a loop, or there is no `--clock` |
+  | `learned` | `s` … up to 4 `<part>:<context>><arm>` whose learned top arm differs from the rules, bass first, or one `-` for none |
+
+- `ensemble` calls `report()` after a press of pad 16 (as before), and at a bar
+  line where the playing modes, a variation, a transformation, **`chose` or
+  `learned`** changed; at most one report per bar line. With `learn off`, `chose`
+  follows `variation` and `learned` stays `-`, so the reports are as before.
+- Group 8 and the Max for Live device do not change: the new replies are dropped by
+  the group's `route`, and the controls are OSC only (a group 8 row is out of
+  scope for #196).
+- No core message, error code or protocol version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

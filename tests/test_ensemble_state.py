@@ -49,6 +49,10 @@ NAMES = [
     "loop-errors",
     "rhythm",
     "transform",
+    "learn",
+    "likes",
+    "chose",
+    "learned",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -99,6 +103,10 @@ def test_the_state_after_build() -> None:
         "loop-errors": [0],
         "rhythm": [0],
         "transform": ["-", "-"],
+        "learn": ["off"],
+        "likes": [0],
+        "chose": ["-", "-"],
+        "learned": ["-"],
     }
 
 
