@@ -22,6 +22,11 @@ The transformations (`TRANSFORMS`):
 - `backbeat` (melody): as `lock`, towards the snare steps and the hat steps (16ths
   if the hats played an odd step, else 8ths only).
 
+The phrase shapes the change (`bass_stage`): the first bar of each `melody.PHRASE`
+is the plain line (the statement), the next two `lock` and the last `answer`, where
+the surprise `fill` can still replace the last beat. `Taken` is what a bar took from
+the drums, for the musician to see (RFC 0005 principle 12).
+
 What never moves (RFC 0005 principle 10): the line's skeleton (`fixed_steps`: the
 loop's `skeleton` notes, or the bar's first note when none is marked) and every note
 taking the next bar's chord (`chord` 1, the approach notes). A moved note never
@@ -39,9 +44,10 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
 
 from mpc_iml.clock import GridHit
-from mpc_iml.melody import Loop, LoopNote
+from mpc_iml.melody import PHRASE, Loop, LoopNote
 
 __all__ = [
+    "BASS_STAGES",
     "FEEL",
     "MIN_HITS",
     "REACH",
@@ -51,8 +57,10 @@ __all__ = [
     "Move",
     "Onset",
     "Shaped",
+    "Taken",
     "answer",
     "backbeat",
+    "bass_stage",
     "fixed_steps",
     "lock",
     "motif",
@@ -61,6 +69,9 @@ __all__ = [
 
 TRANSFORMS = ("plain", "lock", "answer", "backbeat")
 """`plain` is the line as written."""
+
+BASS_STAGES = ("plain", "lock", "lock", "answer")
+"""The bass's transformation in each bar of a phrase (`melody.PHRASE` bars)."""
 
 REACH = 2
 """How far, in 16ths, a note moves to a hit."""
@@ -111,6 +122,21 @@ class Shaped:
     notes: tuple[LoopNote, ...]
     transform: str
     moves: tuple[Move, ...] = ()
+
+
+@dataclass(frozen=True)
+class Taken:
+    """What a bar took from the drums: the `role` it answered (`kick`), the `steps`
+    of that rhythm (the remembered motif) and the `moves` of the line's notes."""
+
+    role: str
+    steps: tuple[int, ...]
+    moves: tuple[Move, ...] = ()
+
+
+def bass_stage(bar: int) -> str:
+    """The bass's transformation in song `bar`, by its place in the phrase."""
+    return BASS_STAGES[bar % PHRASE]
 
 
 def _onsets(hits: Sequence[GridHit]) -> tuple[Onset, ...]:
