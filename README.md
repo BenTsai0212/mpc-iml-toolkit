@@ -791,6 +791,20 @@ a fading bar. With the rule bass there is no fill, and with the melody off only 
 fill. `surprise 0` turns them off. The choice is
 random, with a new seed each time `ensemble` is loaded.
 
+### Teach the band with likes
+
+With `learn likes` (#196; send `/mpciml/preset/ensemble/learn likes` before you
+play), the band learns which variation you want for each way of drumming. It
+starts from the rules above and still tries other variations now and then. Pad 16
+is then **like**: press it while the band plays something you like, and that
+choice becomes more likely the next time you drum that way. A press in the first
+beat of a bar likes the bar before. The terminal shows each like
+(`ensemble: like bar 12 bass push/beat>push melody mid/8ths>home`) and, at the
+start of each phrase, what changed (`ensemble: learned bass push/beat>drive (rule
+push)`). Choices you stop liking drift back to the rules. Set the bass mode before
+playing, since pad 16 no longer cycles it, and send `learn off` to play the rules
+again. What is learned is kept until `ensemble` is loaded again.
+
 ### Write your own bass line
 
 The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
@@ -907,6 +921,8 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 | `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
+| `/mpciml/preset/ensemble/learn` | `off` or `likes` | `off` | `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `off`: the rules (#196) |
+| `/mpciml/preset/ensemble/like` | none | - | As pad 16 with `learn likes`: likes what the band plays in this bar (in the first beat, the bar before); refused with `learn off` or while the clock is not running |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -933,6 +949,10 @@ melody mode, a playing variation or a playing transformation changes:
 | `loop-errors` | how many of your loop files were skipped at the last read |
 | `rhythm` | the value (0, 1 or 2) |
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `learn` | the learning mode (`off`, `likes`) |
+| `likes` | the likes that credited a choice since `ensemble` was loaded |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules (`-` for none) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
