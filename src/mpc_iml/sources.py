@@ -188,8 +188,9 @@ class RtMidiClockBackend:
 class ClockInput:
     """The port MIDI clock arrives on; passes each message to `on_message`.
 
-    `port_match` `None` opens a virtual input called `CLOCK_PORT_NAME`; otherwise
-    the first existing input port whose name contains it (case-insensitive).
+    `port_match` `None` opens a virtual input called `name` (`CLOCK_PORT_NAME`
+    unless given, for example `mpc-iml trial clock` for the trial's recorder, #197);
+    otherwise the first existing input port whose name contains it (case-insensitive).
     """
 
     def __init__(
@@ -197,9 +198,11 @@ class ClockInput:
         on_message: Callable[[bytes], None],
         port_match: str | None = None,
         backend: Callable[[], ClockInputBackend] = RtMidiClockBackend,
+        name: str = CLOCK_PORT_NAME,
     ) -> None:
         self._on_message = on_message
         self._port_match = port_match
+        self._name = name
         self._make_backend = backend
         self._backend: ClockInputBackend | None = None
         self.port_name: str | None = None
@@ -208,8 +211,8 @@ class ClockInput:
         """Open the port; raises `PortNotFoundError` when no port matches."""
         backend = self._make_backend()
         if self._port_match is None:
-            backend.open_virtual(CLOCK_PORT_NAME)
-            self.port_name = CLOCK_PORT_NAME
+            backend.open_virtual(self._name)
+            self.port_name = self._name
         else:
             names = backend.port_names()
             needle = self._port_match.casefold()
