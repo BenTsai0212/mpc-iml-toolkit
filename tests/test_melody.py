@@ -12,6 +12,7 @@ from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
 from mpc_iml.ensemble import NO_CLOCK, Ensemble
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import (
+    BRIGHTNESS_STEP,
     FADE,
     MELODY_VARIATIONS,
     ORNAMENTS,
@@ -19,6 +20,7 @@ from mpc_iml.melody import (
     Follower,
     Loop,
     brightness,
+    brightness_step,
     chord_note,
     melody_ornaments,
     melody_variation,
@@ -68,7 +70,33 @@ def test_chord_tones_follow_the_quality() -> None:
 
 def test_velocity_and_brightness() -> None:
     assert (melody_velocity(1), melody_velocity(127), melody_velocity(200)) == (50, 120, 120)
-    assert (brightness(0), brightness(8), brightness(16), brightness(40)) == (40, 84, 127, 127)
+    assert (brightness(0), brightness(8), brightness(16), brightness(40)) == (48, 79, 110, 110)
+
+
+def test_brightness_moves_at_most_one_step_per_bar() -> None:
+    assert BRIGHTNESS_STEP == 24
+    assert (brightness_step(None, 110), brightness_step(48, 110), brightness_step(100, 48)) == (
+        110,
+        72,
+        76,
+    )
+    follower = Follower(("open", ORNAMENTS))
+    hats = [0] * 3 + [16] * 5 + [0] * 5 + [3, 16, 1, 12, 0, 9, 40, 0]
+    sent = []
+    for count in hats:
+        plan = follower.plan_bar([100], ("home", 1), brightness(count), True, True)
+        assert plan.cc is not None
+        sent.append(plan.cc)
+    assert sent[:13] == [48, 48, 48, 72, 96, 110, 110, 110, 86, 62, 48, 48, 48]
+    assert all(isinstance(v, int) and 0 <= v <= 127 for v in sent)
+    assert all(abs(b - a) <= BRIGHTNESS_STEP for a, b in zip(sent, sent[1:], strict=False))
+
+
+def test_bars_without_drums_keep_the_brightness_for_the_next_step() -> None:
+    follower = Follower(("open", ORNAMENTS))
+    assert follower.plan_bar([100], ("home", 1), brightness(16), True, True).cc == 110
+    assert follower.plan_bar([], ("home", 1), brightness(0), True, True).cc is None
+    assert follower.plan_bar([100], ("home", 1), brightness(0), True, True).cc == 86
 
 
 def test_loops_have_levels_and_lengths() -> None:
@@ -209,8 +237,8 @@ def test_silent_until_the_first_hit_then_a_sparse_bar_plays_the_open_line() -> N
         (2 * BAR + 7 * STEP, 72),
         (2 * BAR + 14 * STEP, 76),
     ]
-    assert ccs(rig) == [(2 * BAR, 74, 40)]
-    assert rig.sent[[m for _, m in rig.sent].index(bytes([0xB2, 74, 40])) + 1][1][0] == 0x92
+    assert ccs(rig) == [(2 * BAR, 74, 48)]
+    assert rig.sent[[m for _, m in rig.sent].index(bytes([0xB2, 74, 48])) + 1][1][0] == 0x92
 
 
 def test_a_busy_bar_plays_every_level_louder_softer_and_brighter() -> None:
