@@ -428,6 +428,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/load-profile` | none | - | Reads that profile again; refused when it is missing or cannot be read |
 | `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
 | `/mpciml/preset/ensemble/learn-log` | 0 or 1 | 0 | 1: writes a line per bar to a new `learn/log-<time>.jsonl` in the data folder, to compare the learning modes; 0: finishes it ([Keep what the band learned](#keep-what-the-band-learned)) |
+| `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (still like in `learn likes` and want in `learn demo`), as trials send ([Blind comparison trials](trials.md)) |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -462,6 +463,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
 | `profile-errors` | 1 when the profile could not be read at the last try, else 0 |
 | `learn-log` | 1 while the per-bar log is written, else 0 |
+| `mode-pads` | 1 while pads 15 and 16 switch the modes, else 0 |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 

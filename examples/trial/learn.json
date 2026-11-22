@@ -11,7 +11,8 @@
     "learn-loops": [0],
     "learn": ["off"],
     "reset-learning": [],
-    "learn-log": [0]
+    "learn-log": [0],
+    "mode-pads": [0]
   },
   "conditions": [
     {"name": "learn-off", "settings": {"learn": ["off"], "learn-log": [1]}},

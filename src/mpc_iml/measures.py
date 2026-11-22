@@ -65,6 +65,7 @@ _FIELDS = {
     "surprise": "surprise",
     "rhythm": "rhythm",
     "learn": "learn",
+    "mode-pads": "mode_pads",
 }
 """`ensemble` controls the replay takes, and their `Settings` fields."""
 _SAME = {("reset-learning", ()), ("learn-log", (0,)), ("learn-log", (1,)), ("learn-loops", (0,))}
