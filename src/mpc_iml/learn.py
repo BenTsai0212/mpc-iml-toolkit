@@ -26,15 +26,25 @@ own seeded generator, so the rules' choice has about 80% at the start (explorati
 phrase, moves every weight `FORGET` of the way back to its starting value, so a
 context no longer liked drifts back to the rules. `liked_bar` is which bar a like
 refers to: the bar playing, or the bar before when pressed in its first beat.
+
+`Demonstrations` is the demonstration learner (B, Wekinator style): the musician
+marks the wanted variation while playing (`WANTS`, `auto` marks nothing), and each
+bar played with a wanted variation adds an `Example`, the bar's `features` (the
+numbers behind its context, named in `FEATURES`) mapped to that variation. A model
+(`mpc_iml.model.Model`, by default `sklearn_backend.Tree`, a shallow decision tree)
+is trained on the examples; with fewer than `MIN_EXAMPLES`, or only one variation
+among them, `predict` gives `None` and the rules play.
 """
 
 import math
 import random
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from mpc_iml.bass import BASS_VARIATIONS
 from mpc_iml.clock import GridHit
 from mpc_iml.melody import MELODY_VARIATIONS
+from mpc_iml.model import Model, ModelFactory
 
 __all__ = [
     "ARMS",
@@ -42,16 +52,22 @@ __all__ = [
     "CONTEXTS",
     "DENSE_HITS",
     "DENSE_KICKS",
+    "FEATURES",
     "FORGET",
     "GRACE",
+    "MIN_EXAMPLES",
     "PARTS",
     "PRIOR",
     "SPARSE_HITS",
     "STEP",
     "TEMPERATURE",
+    "WANTS",
+    "Demonstrations",
+    "Example",
     "Learner",
     "bass_context",
     "context",
+    "features",
     "liked_bar",
     "melody_context",
     "rule_choice",
@@ -90,6 +106,16 @@ FORGET = 0.05
 """How far each weight moves back to its starting value once per phrase."""
 GRACE = 4
 """A like in the first `GRACE` steps of a bar refers to the bar before."""
+WANTS: Mapping[str, tuple[str, ...]] = {p: ("auto", *ARMS[p]) for p in PARTS}
+"""What the musician can mark as wanted, in the order a pad cycles them; `auto`
+marks nothing and plays the model's prediction."""
+MIN_EXAMPLES = 4
+"""Examples a part needs before its model is trained."""
+FEATURES: Mapping[str, tuple[str, ...]] = {
+    "bass": ("kicks", "off-grid kicks", "backbeat"),
+    "melody": ("hits", "hats", "odd hats"),
+}
+"""The names of each part's `features`, in order."""
 
 
 def _steps(drums: Sequence[GridHit], roles: Sequence[str], role: str) -> list[int]:
@@ -121,6 +147,18 @@ def melody_context(drums: Sequence[GridHit], roles: Sequence[str]) -> str:
 def context(part: str, drums: Sequence[GridHit], roles: Sequence[str]) -> str:
     """The context of `part` (`bass` or `melody`) for a bar with the hits `drums`."""
     return bass_context(drums, roles) if part == "bass" else melody_context(drums, roles)
+
+
+def features(part: str, drums: Sequence[GridHit], roles: Sequence[str]) -> list[float]:
+    """The numbers behind the context of `part` for a bar with the hits `drums`
+    (`FEATURES`): for the bass the kicks, the kicks off the quarters and the
+    backbeat (1 or 0); for the melody the hits, the hats and the hats on odd steps."""
+    if part == "bass":
+        kicks = _steps(drums, roles, "kick")
+        backbeat = set(_steps(drums, roles, "snare")).issuperset(BACKBEAT)
+        return [len(kicks), sum(1 for step in kicks if step % 4), float(backbeat)]
+    hats = _steps(drums, roles, "hat")
+    return [len(drums), len(hats), sum(1 for step in hats if step % 2)]
 
 
 def rule_choice(part: str, context: str) -> str:
@@ -207,3 +245,69 @@ class Learner:
             for c in CONTEXTS[self.part]
             if self.top(c) != rule_choice(self.part, c)
         ]
+
+
+@dataclass(frozen=True)
+class Example:
+    """One demonstration: in `bar`, drums with these `features` wanted `label`."""
+
+    part: str
+    features: tuple[float, ...]
+    label: str
+    bar: int
+
+
+def _tree() -> Model:
+    from mpc_iml.sklearn_backend import Tree
+
+    return Tree()
+
+
+class Demonstrations:
+    """The demonstration learner of one part: its examples and the model trained on
+    them (module docstring). Not thread-safe; `ensemble` holds its lock."""
+
+    def __init__(self, part: str, factory: ModelFactory = _tree) -> None:
+        self.part = part
+        self.arms = ARMS[part]
+        self.examples: list[Example] = []
+        self._factory = factory
+        self._model: Model | None = None
+
+    @property
+    def trained(self) -> bool:
+        """Whether a model is trained, so `predict` gives a variation."""
+        return self._model is not None
+
+    def add(self, example: Example) -> None:
+        """Keep `example` (of this part, with one of its variations); `train` uses it."""
+        if example.part != self.part or example.label not in self.arms:
+            raise ValueError(f"not an example of the {self.part}: {example}")
+        self.examples.append(example)
+
+    def train(self) -> bool:
+        """Train a new model on the examples; `True` when one is trained. With fewer
+        than `MIN_EXAMPLES`, or one variation among them, there is none."""
+        labels = {e.label for e in self.examples}
+        if len(self.examples) < MIN_EXAMPLES or len(labels) < 2:
+            self._model = None
+            return False
+        model = self._factory()
+        model.fit(
+            [list(e.features) for e in self.examples],
+            [[float(self.arms.index(e.label) + 1)] for e in self.examples],
+        )
+        self._model = model
+        return True
+
+    def predict(self, features: Sequence[float]) -> str | None:
+        """The variation the model wants for `features`; `None` without a model."""
+        if self._model is None:
+            return None
+        number = round(self._model.predict(list(features))[0])
+        return self.arms[min(max(number, 1), len(self.arms)) - 1]
+
+    def reset(self) -> None:
+        """Forget the examples and the model: back to the rules."""
+        self.examples = []
+        self._model = None

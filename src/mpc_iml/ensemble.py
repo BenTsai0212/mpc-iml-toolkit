@@ -121,6 +121,20 @@ beat (`learn.liked_bar`). Once per phrase the weights move back towards the rule
 `likes` (credited likes in this build), `chose` (`rule` or `bandit` for each loop
 in the bar playing, `-` when it is silent) and `learned` (up to 4
 `<part>:<context>><arm>` that differ from the rules, `-` for none).
+
+With `learn demo` the musician shows what they want (#196, `learn.Demonstrations`):
+pad 16 cycles the wanted bass variation (`auto`, `home`, `push`, `drive`) and pad 15
+the wanted melody variation (`auto`, `home`, `open`, `busy`), as does the control
+`want bass|melody <want>`, instead of cycling the modes. A loop with a wanted
+variation plays it in each bar that follows the drums, and each complete bar with
+drums (kicks, for the bass) that wanted the same variation from its bar line to the
+next adds an example (the bar's `learn.features` mapped to that variation); the
+loop's decision tree is retrained at that bar line, after the next bar is planned
+(`ensemble: trained bass tree, 9 examples`). With `auto` the loop plays the
+tree's prediction, or the rules while it has fewer than `learn.MIN_EXAMPLES`
+examples or only one variation among them. `chose` then gives `want`, `model` or
+`rule`, and the replies `want` (bass, melody) and `examples` (bass, melody) follow
+`learned`. What is shown is kept until `ensemble` is loaded again.
 """
 
 import random
@@ -149,7 +163,17 @@ from mpc_iml.clock import (
 )
 from mpc_iml.content import Content
 from mpc_iml.frames import PADS
-from mpc_iml.learn import CONTEXTS, PARTS, Learner, liked_bar, rule_choice
+from mpc_iml.learn import (
+    CONTEXTS,
+    PARTS,
+    WANTS,
+    Demonstrations,
+    Example,
+    Learner,
+    features,
+    liked_bar,
+    rule_choice,
+)
 from mpc_iml.learn import context as learn_context
 from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
@@ -212,7 +236,7 @@ BASS_MODES = ("loop", "rule", "off")
 MELODY_MODES = ("follow", "fixed", "off")
 """The melody modes, in the order the melody pad cycles them; `follow` is the default."""
 
-LEARN_MODES = ("off", "likes")
+LEARN_MODES = ("off", "likes", "demo")
 """The learning modes (#196); `off`, the rules, is the default."""
 
 LEARNED_REPLY = 4
@@ -362,6 +386,11 @@ class Ensemble:
         """Bar -> part -> (context, arm) the learners chose for it, the last few bars."""
         self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
         """The top arm of each context at the last `learned` log."""
+        self._demos = {p: Demonstrations(p) for p in PARTS}
+        self.wants = {p: "auto" for p in PARTS}
+        """The variation the musician wants for each part with `learn demo` (#196)."""
+        self._bar_wants: dict[str, str] | None = None
+        """`wants` at the last bar line: what the bar playing was planned with."""
         self._chose = ("-", "-")
         self._variations = ("-", "-")
         self._plans: dict[str, BarPlan | None] = {"bass": None, "melody": None}
@@ -402,11 +431,16 @@ class Ensemble:
                 if self.learn == "likes":
                     grid = hit.grid
                     self._like(None if grid is None else (grid.bar, grid.step))
+                elif self.learn == "demo":
+                    self._cycle_want("bass")
                 else:
                     self._cycle()
                 return True
             if self.melody_pad and hit.pad == self.melody_pad - 1:
-                self._cycle_melody()
+                if self.learn == "demo":
+                    self._cycle_want("melody")
+                else:
+                    self._cycle_melody()
                 return True
             self._bass_hit(hit)
             return False
@@ -452,6 +486,8 @@ class Ensemble:
             self._transforms,
             self._chose,
             learned,
+            tuple(self.wants.values()),
+            tuple(len(d.examples) for d in self._demos.values()),
         )
 
     def _report(self) -> None:
@@ -468,7 +504,8 @@ class Ensemble:
             hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
             bass_choice = (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks)))
             melody_choice = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
-            chose = self._choose(start.bar, drums, bool(kicks))
+            plays = self._follows(drums, bool(kicks))
+            chose, source = self._choose(start.bar, drums, plays)
             if "bass" in chose:
                 bass_choice = (chose["bass"], bass_choice[1])
             if "melody" in chose:
@@ -497,38 +534,88 @@ class Ensemble:
             melody = self._plan_melody(start, melody_plan, heard, extra)
             self._variations = (bass, melody)
             self._chose = (
-                "-" if bass == "-" else "bandit" if "bass" in chose else "rule",
-                "-" if melody == "-" else "bandit" if "melody" in chose else "rule",
+                "-" if bass == "-" else source.get("bass", "rule"),
+                "-" if melody == "-" else source.get("melody", "rule"),
             )
             self._transforms = (
                 self._transform_of(self._plans["bass"]),
                 self._transform_of(self._plans["melody"]),
             )
+            if self.learn == "demo" and start.complete:
+                self._demonstrate(start.bar, drums, plays)
+            self._bar_wants = dict(self.wants)
 
-    def _choose(self, bar: int, drums: Sequence[GridHit], kicks: bool) -> dict[str, str]:
-        """With `learn likes`, the learners' variation for each loop that follows the
-        drums of the last bar in `bar` (no draw for the others, nor with `learn
-        off`); once per phrase, forget and log what was learned (#196)."""
-        if self.learn != "likes":
-            return {}
-        if bar % PHRASE == 0:
-            for learner in self._learners.values():
-                learner.forget()
-            self._log_learned()
+    def _follows(self, drums: Sequence[GridHit], kicks: bool) -> set[str]:
+        """The loops whose next bar follows the drums of the last one: with a running
+        clock and `follow`, the bass in `loop` after kicks, the melody after drums."""
         scheduler = self._access.scheduler if self._access else None
+        if scheduler is None or not self.follow:
+            return set()
         plays = {
             "bass": self._bass_active == "loop" and kicks,
             "melody": self.melody and bool(drums),
         }
+        return {part for part in PARTS if plays[part]}
+
+    def _choose(
+        self, bar: int, drums: Sequence[GridHit], plays: set[str]
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """The learned variation of each loop in `plays` (the loops that follow the
+        drums of the last bar in `bar`), and where it came from (`chose`); none with
+        `learn off`, the rules for the others (#196)."""
+        if self.learn == "demo":
+            return self._choose_demo(drums, plays)
+        if self.learn != "likes":
+            return {}, {}
+        if bar % PHRASE == 0:
+            for learner in self._learners.values():
+                learner.forget()
+            self._log_learned()
         heard: dict[str, tuple[str, str]] = {}
-        if scheduler is not None and self.follow:
-            for part in PARTS:
-                if plays[part]:
-                    context = learn_context(part, drums, self.roles)
-                    heard[part] = (context, self._learners[part].choose(context))
+        for part in PARTS:
+            if part in plays:
+                context = learn_context(part, drums, self.roles)
+                heard[part] = (context, self._learners[part].choose(context))
         self._heard = {b: h for b, h in self._heard.items() if b >= bar - 2}
         self._heard[bar] = heard
-        return {part: arm for part, (_, arm) in heard.items()}
+        return {part: arm for part, (_, arm) in heard.items()}, {p: "bandit" for p in heard}
+
+    def _choose_demo(
+        self, drums: Sequence[GridHit], plays: set[str]
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """With `learn demo`: the wanted variation, else the model's prediction."""
+        chose: dict[str, str] = {}
+        source: dict[str, str] = {}
+        for part in PARTS:
+            if part not in plays:
+                continue
+            if self.wants[part] != "auto":
+                chose[part], source[part] = self.wants[part], "want"
+                continue
+            predicted = self._demos[part].predict(features(part, drums, self.roles))
+            if predicted is not None:
+                chose[part], source[part] = predicted, "model"
+        return chose, source
+
+    def _demonstrate(self, bar: int, drums: Sequence[GridHit], plays: set[str]) -> None:
+        """The complete bar before `bar`, with the drums `drums` that the loops in
+        `plays` follow: an example for each loop that wanted a variation all through
+        that bar (from its bar line to this one), then retrain its model."""
+        for part in PARTS:
+            want = self._bar_wants[part] if self._bar_wants else "auto"
+            if part not in plays or want == "auto" or want != self.wants[part]:
+                continue
+            demos = self._demos[part]
+            values = tuple(features(part, drums, self.roles))
+            demos.add(Example(part, values, want, bar - 1))
+            if demos.train():
+                self._log(f"ensemble: trained {part} tree, {len(demos.examples)} examples")
+
+    def _cycle_want(self, part: str) -> None:
+        """auto -> each variation -> auto, for `part`, from the next bar line."""
+        wants = WANTS[part]
+        self.wants[part] = wants[(wants.index(self.wants[part]) + 1) % len(wants)]
+        self._log(f"ensemble: want {part} {self.wants[part]}")
 
     def _log_learned(self) -> None:
         """Log each context whose top arm changed since the last log."""
@@ -924,6 +1011,7 @@ class Ensemble:
             "rhythm": lambda a: self._set(lambda: setattr(self, "rhythm", _whole(a, 0, 2))),
             "learn": self._set_learn,
             "like": self._like_control,
+            "want": self._want_control,
         }
 
     def _set_learn(self, args: Sequence[float | int | str]) -> None:
@@ -944,6 +1032,16 @@ class Ensemble:
             assert self._access is not None
             clock = self._access.state()
             self._like((clock.bar, clock.step))
+
+    def _want_control(self, args: Sequence[float | int | str]) -> None:
+        """The control `want bass|melody <want>`: as pads 16 and 15 with `learn demo`."""
+        if len(args) != 2 or args[0] not in WANTS or args[1] not in WANTS[str(args[0])]:
+            raise ValueError(f"expected bass|melody and auto or a variation, got {list(args)}")
+        with self._lock:
+            if self.learn != "demo":
+                raise ValueError("learn is not demo; send learn demo first")
+            self.wants[str(args[0])] = str(args[1])
+        self._report()
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in NO_DRUMS:
@@ -1053,6 +1151,8 @@ class Ensemble:
                 ("likes", [self.likes]),
                 ("chose", list(self._chose if scheduler is not None else ("-", "-"))),
                 ("learned", list(self._learned() or ["-"])),
+                ("want", list(self.wants.values())),
+                ("examples", [len(d.examples) for d in self._demos.values()]),
             ]
 
     def data_folder(self, folder: Path) -> None:

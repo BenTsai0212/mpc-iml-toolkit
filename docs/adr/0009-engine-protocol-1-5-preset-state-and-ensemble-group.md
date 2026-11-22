@@ -311,6 +311,34 @@ of drumming, starting from the rules of #158.
   scope for #196).
 - No core message, error code or protocol version changes; the protocol stays 1.5.
 
+### Learning from demonstrations (#196, PR 3)
+
+The same `## Decision` covers this part (point 4, B).
+
+- `learn` also takes `demo`. Pads 16 and 15 then cycle the wanted bass and melody
+  variation (`auto`, then the part's variations) instead of the modes, so the two
+  controls changed while playing stay pads 15 and 16; the modes are set before
+  playing. `ensemble` calls `report()` after each press, as before.
+- New control `want bass|melody auto|<variation>`, as the pads. Refused with
+  `bad_arguments` unless `learn demo`, and for an unknown part or variation.
+- A loop with a wanted variation plays it in the bars that follow the drums. Each
+  complete bar with drums (kicks, for the bass) that wanted the same variation from
+  its bar line to the next adds an example (`learn.features` mapped to the
+  variation), and the loop's decision tree (`sklearn_backend.Tree`) is retrained at
+  that bar line. With `auto` the loop plays the tree's prediction, or the rules
+  with fewer than 4 examples or one variation among them.
+- `chose` also gives `model` and `want`. New replies after `learned`, in this
+  order:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `want` | `s` bass, `s` melody: the wanted variation, `auto` for none |
+  | `examples` | `i` bass, `i` melody: examples in this build |
+
+- A bar line also reports when `want` or `examples` changed; with `learn off` they
+  stay `auto` and 0, so the reports are as before. Group 8 and the Max for Live
+  device do not change.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

@@ -805,6 +805,21 @@ push)`). Choices you stop liking drift back to the rules. Set the bass mode befo
 playing, since pad 16 no longer cycles it, and send `learn off` to play the rules
 again. What is learned is kept until `ensemble` is loaded again.
 
+### Teach the band by showing it
+
+With `learn demo` (#196), you show the band what you want, as in Wekinator. Pad 16
+then cycles the bass variation you want (`auto`, `home`, `push`, `drive`) and pad
+15 the melody variation (`auto`, `home`, `open`, `busy`); the terminal shows each
+press (`ensemble: want bass push`). While a variation is chosen, the band plays it,
+and every bar you drum with it becomes an example: "this way of drumming wants this
+variation". Bars without drums, and bars where you changed the choice, are not
+used. Go back to `auto` and the band plays what it learned from your examples (a
+small decision tree, retrained after each example: `ensemble: trained bass tree,
+9 examples`), or the rules until it has at least 4 examples of 2 variations. Show
+a few bars of each way of drumming you use. Set the bass and melody modes before
+playing, since pads 15 and 16 no longer cycle them. The examples are kept until
+`ensemble` is loaded again.
+
 ### Write your own bass line
 
 The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
@@ -921,8 +936,9 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 | `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
-| `/mpciml/preset/ensemble/learn` | `off` or `likes` | `off` | `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `off`: the rules (#196) |
+| `/mpciml/preset/ensemble/learn` | `off`, `likes` or `demo` | `off` | `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `demo`: pads 16 and 15 choose the bass and melody variation you want, and `auto` plays what your examples taught ([Teach the band by showing it](#teach-the-band-by-showing-it)); `off`: the rules (#196) |
 | `/mpciml/preset/ensemble/like` | none | - | As pad 16 with `learn likes`: likes what the band plays in this bar (in the first beat, the bar before); refused with `learn off` or while the clock is not running |
+| `/mpciml/preset/ensemble/want` | `bass` or `melody`, then `auto` or one of its variations | `auto` | As pads 16 and 15 with `learn demo`: the variation you want that loop to play and learn; refused unless `learn demo` |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -949,10 +965,12 @@ melody mode, a playing variation or a playing transformation changes:
 | `loop-errors` | how many of your loop files were skipped at the last read |
 | `rhythm` | the value (0, 1 or 2) |
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
-| `learn` | the learning mode (`off`, `likes`) |
+| `learn` | the learning mode (`off`, `likes`, `demo`) |
 | `likes` | the likes that credited a choice since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules (`-` for none) |
+| `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
+| `examples` | the bass and the melody examples shown with `learn demo` since `ensemble` was loaded |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
