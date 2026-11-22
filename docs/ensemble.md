@@ -160,7 +160,7 @@ that just ended set the whole next bar; nothing changes in the middle of a bar:
 | Number of hits (all pads) and the hats | **Variation**: a hat on an odd 16th (16th hats) or 14 or more hits play `busy`; 5 or fewer hits (space in the drums) play `open`; else `home`. |
 | Number of hits | **Ornaments**: 8 or more hits add the ornaments to the full line. |
 | Average velocity | **Loudness**: velocity 1-127 becomes 50-120, as for the bass. |
-| Hits on `hat` pads | **Brightness**: CC 74 on channel 3 at the bar line, from 40 with no hats to 127 with 16 or more. Map it to a filter or brightness knob in Live. |
+| Hits on `hat` pads | **Brightness**: CC 74 on channel 3 at the bar line, aiming from 48 with no hats to 110 with 16 or more, and moving at most 24 from one bar to the next, so a sudden change spreads over a few bars (#218). Map it to a filter or brightness knob in Live. |
 
 So kick and snare alone give the more melodic `open` line, 8th hats the `home`
 line with its ornaments, and 16th hats `busy`. An empty bar follows `no-drums`

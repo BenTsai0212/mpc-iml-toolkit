@@ -79,8 +79,9 @@ one (or your own practice) learned:
   over that folder's profile, which would otherwise replace your "my band". Copy
   your `loops/` folder into it if you play your own loops.
 - `base` sends `learn-log 0` and each condition `learn-log 1`, so each condition
-  gets its own `<data folder>/learn/log-<time>.jsonl`, in play order. Summarise
-  each with `python -m mpc_iml.learn summary <log>`.
+  gets its own `<data folder>/learn/log-<time>.jsonl`, in play order. A log file
+  is created at its first bar, so the settings check before the first condition
+  leaves none (#217). Summarise each with `python -m mpc_iml.learn summary <log>`.
 
 This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
 wanted bass variation in `demo` (pad 15 the melody's), and does nothing in `off`

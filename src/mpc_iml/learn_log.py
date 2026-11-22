@@ -27,7 +27,9 @@ where its variation came from (`-` when silent), `rule` what the #158 rules chos
 variations it was planned with and `example` the label of the example the bar
 added (`learn demo`). A bar's line is written two bar lines later, once no like can
 refer to it, and the lines still waiting when the log stops (`learn-log 0`); when
-the engine quits, the last two bars are not written.
+the engine quits, the last two bars are not written. The file is created at the
+first bar, so a `learn-log 1` and `learn-log 0` with no bar between (as when a
+trial checks its settings, #217) leave no file.
 
 `python -m mpc_iml.learn summary <log>` prints `summary` of a log.
 """
@@ -73,30 +75,38 @@ def log_path(folder: Path, now: datetime | None = None) -> Path:
 
 
 class BarLog:
-    """An open log: the header is written at once, each bar's line once no like can
-    refer to it (module docstring). Not thread-safe; `ensemble` holds its lock."""
+    """An open log: the file and its header are written at the first bar (#217), each
+    bar's line once no like can refer to it (module docstring). Not thread-safe;
+    `ensemble` holds its lock."""
 
     def __init__(
         self, path: Path, settings: Mapping[str, str], seed: int | None, profile: str | None
     ) -> None:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._file: TextIO = path.open("x", encoding="utf-8")
+        self._file: TextIO | None = None
         self._pending: dict[int, dict[str, Any]] = {}
-        self._write(
-            {
-                "format": LOG_FORMAT,
-                "format_version": LOG_VERSION,
-                "toolkit": __version__,
-                "settings": dict(settings),
-                "seed": seed,
-                "profile": profile,
-            }
-        )
+        self._header = {
+            "format": LOG_FORMAT,
+            "format_version": LOG_VERSION,
+            "toolkit": __version__,
+            "settings": dict(settings),
+            "seed": seed,
+            "profile": profile,
+        }
+
+    @property
+    def written(self) -> bool:
+        """Whether the file exists: a bar was added."""
+        return self._file is not None
 
     def bar(self, record: dict[str, Any]) -> None:
         """Add the line of the bar `record["bar"]`, planned now; write the lines no
-        like can refer to any more (all of them after a song restart)."""
+        like can refer to any more (all of them after a song restart). The first
+        bar creates the file with the header."""
+        if self._file is None:
+            self._file = self.path.open("x", encoding="utf-8")
+            self._write(self._header)
         bar = int(record["bar"])
         record.setdefault("like", False)
         record.setdefault("example", {p: None for p in PARTS})
@@ -116,7 +126,9 @@ class BarLog:
             self._pending[bar]["example"][part] = label
 
     def close(self) -> None:
-        """Write the lines still waiting and close the file."""
+        """Write the lines still waiting and close the file (none without a bar)."""
+        if self._file is None:
+            return
         self._flush(None)
         self._file.close()
 
@@ -127,6 +139,7 @@ class BarLog:
             self._write(self._pending.pop(bar))
 
     def _write(self, data: Mapping[str, Any]) -> None:
+        assert self._file is not None
         self._file.write(json.dumps(data, separators=(",", ":")) + "\n")
         self._file.flush()
 

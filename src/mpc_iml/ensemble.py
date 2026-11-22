@@ -161,8 +161,9 @@ until a `save-profile`.
 With `learn-log 1` (#196 PR 4b, default 0, needs a data folder) each bar's context,
 choice, its source, the rules' choice, likes, wants and examples are written to
 `<data folder>/learn/log-<time>.jsonl` (`learn_log.BarLog`), in every `learn` mode
-and without changing what plays; `learn-log 0` writes the lines still waiting and
-closes it. The reply `learn-log` follows `playing-loops`.
+and without changing what plays; the file is created at the first bar (#217).
+`learn-log 0` writes the lines still waiting and closes it. The reply `learn-log`
+follows `playing-loops`.
 
 With `mode-pads 0` (#216, default 1, a setting) pads 15 and 16 switch neither the
 melody mode nor the bass mode, in every `learn` mode, and send no reply: a trial's
@@ -1208,7 +1209,10 @@ class Ensemble:
         except OSError as error:
             self._log(f"ensemble: cannot finish the learn log {log.path}: {error}")
             return
-        self._log(f"ensemble: closed the learn log {log.path}")
+        if log.written:
+            self._log(f"ensemble: closed the learn log {log.path}")
+        else:
+            self._log(f"ensemble: closed the learn log {log.path} with no bar: no file")
 
     def _profile_control(self, args: Sequence[float | int | str], act: Callable[[], None]) -> None:
         """`save-profile` and `load-profile`: no arguments, with a data folder."""

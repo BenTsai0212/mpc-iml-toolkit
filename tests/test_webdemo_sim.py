@@ -31,8 +31,8 @@ def test_sparse_and_busy_bars_choose_different_variations() -> None:
     assert (sparse.melody.level, busy.melody.level) == (1, ORNAMENTS)
     assert (sparse.kicks, sparse.hats, sparse.hits) == ((0, 4, 8, 12), (), 4)
     assert (busy.hits, len(busy.hats), busy.velocity) == (26, 16, pytest.approx(2100 / 26))
-    assert (sparse.melody.cc, busy.melody.cc) == (40, 127)
-    assert [v for _, v in song.brightness] == [40, 127]
+    assert (sparse.melody.cc, busy.melody.cc) == (48, 72)
+    assert [v for _, v in song.brightness] == [48, 72]
     assert (sparse.bass_rule, sparse.chord, busy.chord) == ("drums", "Am7", "Fmaj7")
 
 
