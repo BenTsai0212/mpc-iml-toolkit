@@ -48,7 +48,7 @@ def test_sparse_and_busy_examples_sound_and_read_different() -> None:
     (_, busy_audio), busy, *_ = play(to_table(EXAMPLES["busy"]), Settings())
     assert rate == RATE and sparse_audio.any() and busy_audio.any()
     assert len(sparse) == len(busy) == 8 and all(len(r) == len(TABLE_HEADERS) for r in sparse)
-    assert sparse[0][:6] == ["1 → 2", "1 5 9 13", "-", 4, "100", "Am7"]
+    assert sparse[0][:1] + sparse[0][3:8] == ["1 → 2", "1 5 9 13", "-", 4, "100", "Am7"]
     assert set(column(sparse, "bass")) == {"home + ornaments"}
     assert set(column(busy, "bass")) == {"drive + ornaments"}
     assert set(column(sparse, "melody")) == {"open"}

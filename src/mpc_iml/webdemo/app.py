@@ -30,6 +30,7 @@ from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
 from mpc_iml.recording import read_recording
+from mpc_iml.rhythm import Taken
 from mpc_iml.webdemo import midifile, roll
 from mpc_iml.webdemo.sim import (
     DRUMS,
@@ -84,6 +85,8 @@ HEADERS = ["drum", *(str(s + 1) for s in range(STEPS))]
 
 TABLE_HEADERS = [
     "bar",
+    "transform",
+    "took",
     "kicks",
     "hats",
     "hits",
@@ -96,8 +99,11 @@ TABLE_HEADERS = [
     "brightness",
     "surprise",
 ]
-"""The bar table: the drums of a bar (as the rules read them), then what the band
-plays in the bar after it."""
+"""The bar table: after `bar`, `transform` is the bass's and the melody's rhythm
+transformation in the bar after it, as the reply `transform` gives them, and `took`
+the drums each moved line took and the steps its notes moved to (next to `bar` so
+they show without scrolling, #189); then the drums of a bar (as the rules read them)
+and what the band plays in the bar after it."""
 
 Table = list[list[str | int]]
 
@@ -218,6 +224,11 @@ def build() -> "gr.Blocks":
             no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")
             fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
             surprise = gr.Checkbox(value=bool(default.surprise), label="surprise")
+            rhythm = gr.Radio(
+                [("off", 0), ("bass", 1), ("bass and melody", 2)],
+                value=default.rhythm,
+                label="rhythm",
+            )
             seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
         with gr.Tab("step grid"):
             grid = gr.Dataframe(
@@ -246,10 +257,10 @@ def build() -> "gr.Blocks":
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
         image = gr.Image(label="piano roll", type="numpy", interactive=False)
         midi = gr.File(label="MIDI file", interactive=False)
-        controls = [progression, bass_loop, loop, mode, no_drums, fade, surprise, seed]
+        controls = [progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed]
 
         def settings_of(tempo: float, *values: object) -> Settings:
-            progression, bass_loop, loop, mode, no_drums, fade, surprise, seed = values
+            progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values
             return Settings(
                 tempo,
                 str(progression),
@@ -259,6 +270,7 @@ def build() -> "gr.Blocks":
                 str(no_drums),
                 int(float(str(fade))),
                 int(bool(surprise)),
+                int(float(str(rhythm))),
                 int(float(str(seed))),
             )
 
@@ -323,6 +335,8 @@ def _velocity(label: object, cell: object) -> int:
 def _table_row(row: BarRow) -> list[str | int]:
     return [
         f"{row.bar + 1} → {row.bar + 2}",
+        f"{_transform(row.bass)} / {_transform(row.melody)}",
+        "; ".join(filter(None, (_took("bass", row.bass), _took("melody", row.melody)))) or "-",
         _steps(row.kicks),
         _steps(row.hats),
         row.hits,
@@ -335,6 +349,21 @@ def _table_row(row: BarRow) -> list[str | int]:
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",
     ]
+
+
+def _transform(plan: BarPlan | None) -> str:
+    """The transformation a loop plays, `-` when it does not play (as the reply)."""
+    return "-" if plan is None or plan.variation is None else plan.transform
+
+
+def _took(name: str, plan: BarPlan | None) -> str:
+    """For example `kick 1 7 11 → bass 7` (steps from 1); empty when `plan` took
+    nothing from the drums."""
+    taken: Taken | None = None if plan is None or plan.variation is None else plan.taken
+    if taken is None:
+        return ""
+    moved = sorted({m.step for m in taken.moves if m.step != m.start})
+    return f"{taken.role} {_steps(taken.steps)} → {name} {_steps(moved)}"
 
 
 def _steps(steps: Sequence[int]) -> str:

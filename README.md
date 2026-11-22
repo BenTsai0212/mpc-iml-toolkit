@@ -1071,6 +1071,14 @@ drum of one bar (kick, snare, hat; 0 is no hit, 1-127 the velocity). Pick an exa
 or place hits, choose the settings, and press **Play**. The page renders the drums,
 bass and keys with a small synth and shows a table: the drums of each bar and the
 variation, ornaments, velocity and brightness the band chose for the bar after it.
+The **rhythm** setting is the instrument's `rhythm` (#189): with `bass` (the
+default) the bass line's notes move to the last bar's kicks, with `bass and melody`
+the melody's also move to the snares and hats, and `off` plays the lines as written.
+The table's `transform` column names the bass's and the melody's transformation
+(`plain`, `lock`, `answer`, `backbeat`; `-` when silent), and `took` the drums each
+moved line took and the steps its notes moved to, for example `kick 1 7 11 → bass 7`.
+In the piano roll, moved notes are a lighter shade of their part's colour. Play the
+same grid with `off` to hear the plain line next to it.
 The same grid and seed always sound the same. Below the table, a piano roll shows
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
