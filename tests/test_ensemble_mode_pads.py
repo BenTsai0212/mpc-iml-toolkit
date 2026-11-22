@@ -64,6 +64,6 @@ def test_with_0_pads_15_and_16_still_set_want_in_learn_demo() -> None:
     rig = running("demo", 0)
     rig.hit(LAYER)
     rig.hit(MELODY)
-    assert reply(rig, "want") == ["home", "home"]
+    assert "auto" not in reply(rig, "want"), "a keep marks the rules' choice (#215)"
     assert reply(rig, "bass") == ["loop", "loop"]
     assert reply(rig, "melody-mode")[0] == "follow"

@@ -419,6 +419,36 @@ compare what it said it compared.
 - Group 8 and the Max for Live device do not change. No core message, reply, error
   code or protocol version changes; the protocol stays 1.5.
 
+## Amendment: choosing while drumming (#215)
+
+Issue #215 asks for this amendment (its `## Decision`). In the manual check of #196
+the musician held one `want` to the end: cycling from `auto` always started at the
+first variation, nothing showed the `want`, and coming back to `auto` took more
+presses. This replaces what pads 16 and 15 do with `learn demo` in "Learning from
+demonstrations"; the control `want` does not change.
+
+- In `auto`, a press keeps the variation chosen for the bar playing, or for the bar
+  before in the first beat (`learn.liked_bar`), and adds the example of the drums
+  that bar answered (`learn.features` mapped to it) when that loop played it. In a
+  bar where the loop is silent it keeps the rules' choice for those drums and adds
+  no example.
+- With a `want`, a press moves to the part's next variation, from the next bar line;
+  `auto` is not in the cycle.
+- A `want` set by a pad goes back to `auto` at the next phrase start, or at the one
+  after it when fewer than `WANT_MIN_BARS` (2) complete bars after the press bar are
+  left. A `want` set by the control holds until the control sends `auto` (it clears
+  a pad's end), so scripted sessions keep their meaning. The last bar of a pad's
+  `want` still adds its example at the bar line where it ends.
+- Log lines: `ensemble: want <part> <variation> (kept|kept, rules|next) to bar <N>`,
+  `ensemble: want <part> auto (phrase end), plays model|rules`, and
+  `ensemble: want <part> ignored, the clock is not running` (a press without a
+  running clock changes nothing).
+- The replies, the profile and the learn log formats do not change; `learn off`
+  and `learn likes` play as before (`tests/data/ensemble-learn-off.json`,
+  `tests/data/ensemble-learn-likes.json`). Group 8 and the Max for Live device do
+  not change. No core message, reply, error code or protocol version changes; the
+  protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with
