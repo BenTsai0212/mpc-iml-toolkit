@@ -245,20 +245,20 @@ unless the musician turns them on.
 
 The `## Decision` on #189 (2026-11-21) accepts this amendment (RFC 0005 step 6).
 The bass's onsets move towards the kicks of the last bar, as a layer on the
-variations of #158; the melody follows in a later PR of #189.
+variations of #158; with `rhythm 2` the melody's onsets move towards the snares
+and hats.
 
-- New `ensemble` control (preset version): `rhythm` 0 or 1 (default 1), read at
+- New `ensemble` control (preset version): `rhythm` 0-2 (default 1), read at
   each bar line. It is a setting, not one of the two controls changed while playing
   (RFC 0005 principle 11): pads 15 and 16 stay those. 0 plays the variations as
-  written, exactly as before #189; 1 reshapes the bass. Other values are refused
-  with `bad_arguments`. The melody's PR of #189 widens it to 0-2 (2: the bass and
-  the melody).
+  written, exactly as before #189; 1 reshapes the bass; 2 the bass and the melody.
+  Other values are refused with `bad_arguments`.
 - New replies after `loop-errors`, in this order:
 
   | Reply | Arguments |
   | --- | --- |
   | `rhythm` | `i` value |
-  | `transform` | `s` bass, `s` melody transformation playing: `plain`, `lock`, `answer` (the melody's PR adds `backbeat`), or `-` when that loop is silent, not a loop, or there is no `--clock` |
+  | `transform` | `s` bass, `s` melody transformation playing: `plain`, `lock`, `answer`, `backbeat` (the melody, with `rhythm 2`), or `-` when that loop is silent, not a loop, or there is no `--clock` |
 
 - `ensemble` calls `report()` at a bar line where the playing bass or melody mode,
   a playing variation **or a playing transformation** changed; at most one report

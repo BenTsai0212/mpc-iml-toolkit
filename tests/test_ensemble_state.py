@@ -144,7 +144,7 @@ def test_each_control_shows_in_the_state(
         ("no-drums", []),
         ("fade-bars", [33]),
         ("fade-bars", [-1]),
-        ("rhythm", [2]),
+        ("rhythm", [3]),
         ("rhythm", [-1]),
         ("rhythm", ["lock"]),
     ],

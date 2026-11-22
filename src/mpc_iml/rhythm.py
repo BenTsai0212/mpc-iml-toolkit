@@ -126,8 +126,9 @@ class Shaped:
 
 @dataclass(frozen=True)
 class Taken:
-    """What a bar took from the drums: the `role` it answered (`kick`), the `steps`
-    of that rhythm (the remembered motif) and the `moves` of the line's notes."""
+    """What a bar took from the drums: the `role` it answered (`kick` for the
+    bass, `snare hat` for the melody), the `steps` of that rhythm (the remembered
+    motif) and the `moves` of the line's notes."""
 
     role: str
     steps: tuple[int, ...]

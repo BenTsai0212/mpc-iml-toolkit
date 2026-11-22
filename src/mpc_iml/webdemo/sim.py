@@ -63,7 +63,7 @@ _TAKE_ENDS = frozenset((0xFA, 0xFB, 0xFC, 0xF2))
 """Start, Continue, Stop and Song Position: after the first Start, the end of the take."""
 _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
-_MOTIF = re.compile(r"ensemble: rhythm motif kick [\d ]+")
+_MOTIF = re.compile(r"ensemble: rhythm motif (kick|snare)[\w ]*")
 """The line `ensemble` logs for the motif at a phrase start (#189): information."""
 _NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 
