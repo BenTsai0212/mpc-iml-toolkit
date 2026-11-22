@@ -1,0 +1,25 @@
+{
+  "format": "mpc-iml-trial",
+  "format_version": 1,
+  "title": "Rhythm transformation off or on",
+  "bars": 16,
+  "base": {
+    "bass": ["loop"],
+    "melody-mode": ["follow"],
+    "surprise": [1],
+    "rhythm": [0]
+  },
+  "conditions": [
+    {"name": "rhythm-0", "settings": {"rhythm": [0]}},
+    {"name": "rhythm-1", "settings": {"rhythm": [1]}}
+  ],
+  "questions": [
+    {"id": "heard-me", "text": "It heard me", "scale": "1-5"},
+    {"id": "leading", "text": "I am leading it", "scale": "1-5"},
+    {"id": "mine", "text": "This is mine", "scale": "1-5"},
+    {"id": "sounds-good", "text": "It sounds good", "scale": "1-5"},
+    {"id": "fun", "text": "It is fun", "scale": "1-5"},
+    {"id": "heard-moment", "text": "A moment it heard me", "scale": "text"},
+    {"id": "broken-moment", "text": "A moment that felt broken", "scale": "text"}
+  ]
+}
