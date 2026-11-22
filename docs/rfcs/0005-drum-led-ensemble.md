@@ -1,9 +1,10 @@
 # RFC 0005: Drum-led ensemble
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-19
 - Related: RFC 0001, RFC 0002, RFC 0003, RFC 0004, ADR 0002, ADR 0004, #113, #130
 - Amended: 2026-11-21 (#174)
+- Accepted: 2026-11-22, steps 1-6 and 8 are built and have been played (#138 to #196); steps 7 and 9 stay as planned (#211)
 
 > **Amendment (2026-11-21, #174).** Steps 1–4 are built and have been played
 > several times. In those trials the band felt like an effects processor rather

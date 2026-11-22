@@ -1,9 +1,10 @@
 # ADR 0009: Engine protocol 1.5, preset state replies and a preset group in Pure Data
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 - Related: ADR 0004, ADR 0005, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed),
   #138, #144, #148, #153, #158, #159, #113 (Epic)
+- Accepted: 2026-11-22, implemented in #158 and #159 and the later amendments, and played on `main` (#211)
 
 ## Context
 
