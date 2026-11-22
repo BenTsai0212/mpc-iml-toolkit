@@ -21,6 +21,7 @@ musician's machine: it is never committed or uploaded (RFC 0005 Scope rules).
 `./mpc-iml-data/learn/ensemble.json`): per part, each context with the rules'
 choice and the learned weights, `*` where the learned top choice differs, what
 likes added to the loops, and the tree trained on the examples as rules.
+`python -m mpc_iml.learn summary <log>` prints a per-bar log (`learn_log.summary`).
 """
 
 import argparse
@@ -45,6 +46,7 @@ from mpc_iml.learn import (
     LoopLearner,
     rule_choice,
 )
+from mpc_iml.learn_log import read_log, summary
 
 __all__ = [
     "DEFAULT",
@@ -197,7 +199,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     shown = commands.add_parser("show", help="print a profile")
     shown.add_argument("profile", nargs="?", type=Path, default=DEFAULT)
+    summed = commands.add_parser("summary", help="summarise a per-bar log (learn-log)")
+    summed.add_argument("log", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "summary":
+        try:
+            header, bars = read_log(args.log)
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        print(summary(header, bars))
+        return 0
     try:
         profile = read_profile(args.profile)
     except ValueError as error:

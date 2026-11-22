@@ -382,6 +382,23 @@ The same `## Decision` covers this part (point 2).
   `0` the reports are as before. Pads 15 and 16, group 8 and the Max for Live
   device do not change.
 
+### The per-bar learning log (#196, PR 4b)
+
+The same `## Decision` covers this part (point 7).
+
+- New control `learn-log 0|1` (default 0, preset version), a setting. `1` opens a
+  new file `<data folder>/learn/log-<time>.jsonl` (`mpc-iml-ensemble-log`, format
+  version 1, `learn_log`): a header, then one line per bar with its context, the
+  choice of each loop and its source, the rules' choice, `like`, the wanted
+  variations and the examples it added, in every `learn` mode. `0` writes the lines
+  still waiting and closes the file. `1` is refused with `bad_arguments` without a
+  data folder.
+- The log changes nothing that plays: `learn off` with `learn-log 1` plays as with
+  `learn-log 0`.
+- New reply after `playing-loops`: `learn-log` (`i` 0 or 1). It changes only with
+  the control, so the bar line reports are as before. Pads 15 and 16, group 8 and
+  the Max for Live device do not change.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

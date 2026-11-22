@@ -157,6 +157,12 @@ and, while `learn` is not `off`, at each phrase start. `reset-learning` goes bac
 the rules in memory. A profile that cannot be read is logged, the reply
 `profile-errors` (after `examples`) is 1, and the phrase starts do not overwrite it
 until a `save-profile`.
+
+With `learn-log 1` (#196 PR 4b, default 0, needs a data folder) each bar's context,
+choice, its source, the rules' choice, likes, wants and examples are written to
+`<data folder>/learn/log-<time>.jsonl` (`learn_log.BarLog`), in every `learn` mode
+and without changing what plays; `learn-log 0` writes the lines still waiting and
+closes it. The reply `learn-log` follows `playing-loops`.
 """
 
 import contextlib
@@ -199,6 +205,7 @@ from mpc_iml.learn import (
     rule_choice,
 )
 from mpc_iml.learn import context as learn_context
+from mpc_iml.learn_log import BarLog, log_path
 from mpc_iml.learn_profile import PROFILE, apply_profile, read_profile, write_profile
 from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
@@ -402,6 +409,9 @@ class Ensemble:
         self._melody_memory = Memory()
         self._transforms = ("-", "-")
         self._random = random.Random(seed)
+        self._seed = seed
+        self._bar_log: BarLog | None = None
+        """The per-bar log while `learn-log 1` (#196 PR 4b)."""
         self.learn = "off"
         self.likes = 0
         """Likes that credited a choice, in this build (#196)."""
@@ -425,6 +435,8 @@ class Ensemble:
         self._bar_wants: dict[str, str] | None = None
         """`wants` at the last bar line: what the bar playing was planned with."""
         self._profile: Path | None = None
+        self._data: Path | None = None
+        """The engine's data folder (`Preset.data_folder`)."""
         self.profile_errors = 0
         """1 when the profile could not be read at the last try, else 0 (#196)."""
         self._autosave = True
@@ -543,6 +555,7 @@ class Ensemble:
             hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
             bass_choice = (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks)))
             melody_choice = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
+            rules = {"bass": bass_choice[0], "melody": melody_choice[0]}
             plays = self._follows(drums, bool(kicks))
             chose, source = self._choose(start.bar, drums, plays)
             if "bass" in chose:
@@ -587,8 +600,38 @@ class Ensemble:
             if self.learn == "demo" and start.complete:
                 self._demonstrate(start.bar, drums, plays)
             self._bar_wants = dict(self.wants)
+            if self._bar_log is not None:
+                self._log_bar(start, drums, rules)
             if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
                 self._autosave_profile()
+
+    def _log_bar(self, start: BarStart, drums: Sequence[GridHit], rules: dict[str, str]) -> None:
+        """Add the bar that starts now to the per-bar log (`learn_log`)."""
+        assert self._bar_log is not None
+        choice: dict[str, dict[str, object] | None] = {}
+        for i, part in enumerate(PARTS):
+            plan = self._plans[part]
+            playing = plan is not None and plan.variation is not None
+            choice[part] = (
+                {"loop": self._loop_names[i], "variation": plan.variation, "level": plan.level}
+                if plan is not None and playing
+                else None
+            )
+        record = {
+            "bar": start.bar,
+            "t": start.state.t_tick,
+            "learn": self.learn,
+            "context": {p: learn_context(p, drums, self.roles) for p in PARTS},
+            "choice": choice,
+            "source": dict(zip(PARTS, self._chose, strict=True)),
+            "rule": rules,
+            "want": dict(self.wants),
+        }
+        try:
+            self._bar_log.bar(record)
+        except OSError as error:
+            self._log(f"ensemble: stopped the learn log: {error}")
+            self._close_log()
 
     def _follows(self, drums: Sequence[GridHit], kicks: bool) -> set[str]:
         """The loops whose next bar follows the drums of the last one: with a running
@@ -687,6 +730,8 @@ class Ensemble:
             demos = self._demos[part]
             values = tuple(features(part, drums, self.roles))
             demos.add(Example(part, values, want, bar - 1))
+            if self._bar_log is not None:
+                self._bar_log.example(bar - 1, part, want)
             if demos.train():
                 self._log(f"ensemble: trained {part} tree, {len(demos.examples)} examples")
 
@@ -719,6 +764,8 @@ class Ensemble:
             self._log("ensemble: like ignored, the clock is not running")
             return
         bar = liked_bar(*at)
+        if self._bar_log is not None:
+            self._bar_log.like(bar)
         heard = self._heard.get(bar)
         if not heard:
             self._log(f"ensemble: like bar {bar}, no learned choice to credit")
@@ -1103,7 +1150,52 @@ class Ensemble:
             "load-profile": lambda a: self._profile_control(a, self._load_profile),
             "reset-learning": self._reset_learning,
             "learn-loops": lambda a: self._set(lambda: setattr(self, "learn_loops", _flag(a))),
+            "learn-log": self._set_learn_log,
         }
+
+    def _set_learn_log(self, args: Sequence[float | int | str]) -> None:
+        """`learn-log 0|1`: open a new per-bar log in the data folder, or close it."""
+        on = _flag(args)
+        with self._lock:
+            if not on:
+                self._close_log()
+                return
+            if self._bar_log is not None:
+                return
+            if self._data is None or self._profile is None:
+                raise ValueError("no data folder: ensemble is not loaded by the engine")
+            settings = {
+                "learn": self.learn,
+                "learn-loops": str(int(self.learn_loops)),
+                "bass": self.bass,
+                "melody-mode": self._melody_mode(),
+                "bass-loop": self.bass_loop.name,
+                "loop": self.loop.name,
+                "progression": self.progression.name,
+                "no-drums": self.no_drums,
+                "fade-bars": str(self.fade_bars),
+                "surprise": str(self.surprise),
+                "rhythm": str(self.rhythm),
+            }
+            profile = PROFILE.as_posix() if self._profile.exists() else None
+            path = log_path(self._data)
+            try:
+                self._bar_log = BarLog(path, settings, self._seed, profile)
+            except OSError as error:
+                raise ValueError(f"cannot write the learn log {path}: {error}") from error
+            self._log(f"ensemble: learn log {path}")
+
+    def _close_log(self) -> None:
+        """Write what the per-bar log still holds and close it (`learn-log 0`)."""
+        if self._bar_log is None:
+            return
+        log, self._bar_log = self._bar_log, None
+        try:
+            log.close()
+        except OSError as error:
+            self._log(f"ensemble: cannot finish the learn log {log.path}: {error}")
+            return
+        self._log(f"ensemble: closed the learn log {log.path}")
 
     def _profile_control(self, args: Sequence[float | int | str], act: Callable[[], None]) -> None:
         """`save-profile` and `load-profile`: no arguments, with a data folder."""
@@ -1318,6 +1410,7 @@ class Ensemble:
                 ("profile-errors", [self.profile_errors]),
                 ("learn-loops", [int(self.learn_loops)]),
                 ("playing-loops", list(self._loop_names if scheduler is not None else ("-", "-"))),
+                ("learn-log", [int(self._bar_log is not None)]),
             ]
 
     def data_folder(self, folder: Path) -> None:
@@ -1326,6 +1419,7 @@ class Ensemble:
         with self._lock:
             self._folder = folder / USER_FOLDER
             self._read_user_loops()
+            self._data = folder
             self._profile = folder / PROFILE
             if self._profile.exists():
                 with contextlib.suppress(ValueError):
