@@ -27,6 +27,15 @@ phrase, moves every weight `FORGET` of the way back to its starting value, so a
 context no longer liked drifts back to the rules. `liked_bar` is which bar a like
 refers to: the bar playing, or the bar before when pressed in its first beat.
 
+`LoopLearner` learns which loop a part plays (#196 PR 5, `ensemble`'s `learn-loops
+1`): per context a weight per loop name, 0 for the loop the musician selected and
+`LOOP_PRIOR` for the others, plus what likes added. A (loop, variation) pair weighs
+the sum of its loop's weight and its variation's `Learner` weight, so the loop and
+the variation are drawn apart: the loop once per phrase (`choose`), the variation
+each bar. `like` adds `STEP` to the loop heard and `forget` moves the added weight
+`FORGET` of the way back to 0. Weights are kept by loop name, so a loop that leaves
+the choice space (its file is gone) keeps them and finds them again when it comes back.
+
 `Demonstrations` is the demonstration learner (B, Wekinator style): the musician
 marks the wanted variation while playing (`WANTS`, `auto` marks nothing), and each
 bar played with a wanted variation adds an `Example`, the bar's `features` (the
@@ -58,6 +67,7 @@ __all__ = [
     "FEATURES",
     "FORGET",
     "GRACE",
+    "LOOP_PRIOR",
     "MIN_EXAMPLES",
     "PARTS",
     "PRIOR",
@@ -68,6 +78,7 @@ __all__ = [
     "Demonstrations",
     "Example",
     "Learner",
+    "LoopLearner",
     "bass_context",
     "context",
     "features",
@@ -107,6 +118,9 @@ STEP = 0.5
 """What a like adds to the weight of the arm heard."""
 FORGET = 0.05
 """How far each weight moves back to its starting value once per phrase."""
+LOOP_PRIOR = -1.0
+"""The starting weight of a loop the musician did not select (the selected one: 0);
+with two loops the selected one starts at about 90%, with four at about 70%."""
 GRACE = 4
 """A like in the first `GRACE` steps of a bar refers to the bar before."""
 WANTS: Mapping[str, tuple[str, ...]] = {p: ("auto", *ARMS[p]) for p in PARTS}
@@ -174,6 +188,26 @@ def rule_choice(part: str, context: str) -> str:
     return "open" if a == "sparse" else "home"
 
 
+def _probabilities(weights: Mapping[str, float]) -> dict[str, float]:
+    """The softmax of `weights` at `TEMPERATURE`."""
+    top = max(weights.values())
+    exp = {arm: math.exp((w - top) / TEMPERATURE) for arm, w in weights.items()}
+    total = sum(exp.values())
+    return {arm: e / total for arm, e in exp.items()}
+
+
+def _draw(rng: random.Random, probabilities: Mapping[str, float]) -> str:
+    """One draw from `rng` among `probabilities` (in their order)."""
+    draw = rng.random()
+    total = 0.0
+    arms = list(probabilities)
+    for arm in arms:
+        total += probabilities[arm]
+        if draw < total:
+            return arm
+    return arms[-1]
+
+
 def liked_bar(bar: int, step: int) -> int:
     """The bar a like pressed at `step` of `bar` refers to: in the first beat, the
     bar before (reaction time), else the bar playing."""
@@ -206,22 +240,11 @@ class Learner:
 
     def probabilities(self, context: str) -> dict[str, float]:
         """The probability `choose` gives each arm in `context`."""
-        weights = self._weights[context]
-        top = max(weights.values())
-        exp = {arm: math.exp((w - top) / TEMPERATURE) for arm, w in weights.items()}
-        total = sum(exp.values())
-        return {arm: e / total for arm, e in exp.items()}
+        return _probabilities(self._weights[context])
 
     def choose(self, context: str) -> str:
         """Draw the arm to play in `context` (one draw from the generator)."""
-        draw = self._rng.random()
-        total = 0.0
-        probabilities = self.probabilities(context)
-        for arm in self.arms:
-            total += probabilities[arm]
-            if draw < total:
-                return arm
-        return self.arms[-1]
+        return _draw(self._rng, self.probabilities(context))
 
     def table(self) -> dict[str, dict[str, float]]:
         """Every context's weights (a copy), for the profile."""
@@ -262,6 +285,66 @@ class Learner:
             for c in CONTEXTS[self.part]
             if self.top(c) != rule_choice(self.part, c)
         ]
+
+
+class LoopLearner:
+    """The loop learner of one part (module docstring): which of `loops` to play in a
+    context, starting from the loop the musician selected. Not thread-safe;
+    `ensemble` holds its lock."""
+
+    def __init__(self, part: str, rng: random.Random) -> None:
+        self.part = part
+        self._rng = rng
+        self._added: dict[str, dict[str, float]] = {}
+
+    def weights(self, context: str, loops: Sequence[str], selected: str) -> dict[str, float]:
+        """The weight of each of `loops` in `context`, with `selected` selected."""
+        added = self._added.get(context, {})
+        return {
+            name: (0.0 if name == selected else LOOP_PRIOR) + added.get(name, 0.0) for name in loops
+        }
+
+    def probabilities(self, context: str, loops: Sequence[str], selected: str) -> dict[str, float]:
+        """The probability `choose` gives each of `loops` in `context`."""
+        return _probabilities(self.weights(context, loops, selected))
+
+    def choose(self, context: str, loops: Sequence[str], selected: str) -> str:
+        """Draw the loop to play in `context` among `loops` (one draw)."""
+        return _draw(self._rng, self.probabilities(context, loops, selected))
+
+    def top(self, context: str, loops: Sequence[str], selected: str) -> str:
+        """The loop with the highest weight in `context`; `selected` on a tie."""
+        weights = self.weights(context, loops, selected)
+        return max(loops, key=lambda name: (weights[name], name == selected))
+
+    def like(self, context: str, loop: str) -> None:
+        """The musician liked the loop `loop` played in `context`."""
+        row = self._added.setdefault(context, {})
+        row[loop] = row.get(loop, 0.0) + STEP
+
+    def forget(self) -> None:
+        """Move every added weight `FORGET` of the way back to 0."""
+        for row in self._added.values():
+            for name, added in row.items():
+                row[name] = added * (1 - FORGET)
+
+    def reset(self) -> None:
+        """Forget everything learned: back to the selected loop."""
+        self._added = {}
+
+    def table(self) -> dict[str, dict[str, float]]:
+        """What likes added, per context and loop name (a copy), for the profile."""
+        return {c: dict(row) for c, row in self._added.items() if row}
+
+    def load(self, table: Mapping[str, Mapping[str, float]]) -> None:
+        """Take what `table` added (as `table` gives it). `ValueError` for an unknown
+        context or a loop name that is not a string."""
+        added: dict[str, dict[str, float]] = {}
+        for context, row in table.items():
+            if context not in CONTEXTS[self.part] or not all(isinstance(n, str) for n in row):
+                raise ValueError(f"not a {self.part} context with loop names: {context}")
+            added[context] = {name: float(value) for name, value in row.items()}
+        self._added = added
 
 
 @dataclass(frozen=True)

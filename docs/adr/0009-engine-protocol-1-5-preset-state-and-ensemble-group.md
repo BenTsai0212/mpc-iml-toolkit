@@ -357,6 +357,31 @@ The same `## Decision` covers this part (point 7).
   be read at the last try, else 0. `ensemble` calls `report()` after the three
   controls. Group 8 and the Max for Live device do not change.
 
+### Learning the loops (#196, PR 5)
+
+The same `## Decision` covers this part (point 2).
+
+- New control `learn-loops 0|1` (default 0, preset version), a setting. With
+  `learn likes` and `1`, each part draws the loop it plays at each phrase start
+  (`learn.LoopLearner`, its own seeded generator), among its loops by name and
+  starting from the selected one; `bass-loop` and `loop` stay what the musician
+  selected, and selecting one plays it from the next bar line until the next
+  phrase start. A like also credits the loop heard. With `0`, or `learn` not
+  `likes`, the selected loops play, as before.
+- The profile gains an optional key `loops` (what likes added to each loop, by
+  context and loop name); a profile without it is still read, and the format
+  version stays 1.
+- New replies after `profile-errors`, in this order:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `learn-loops` | `i` 0 or 1 |
+  | `playing-loops` | `s` bass, `s` melody: the loop playing, or `-` when that loop is silent, not a loop, or there is no `--clock` |
+
+- With `learn-loops 1` a bar line also reports when `playing-loops` changed; with
+  `0` the reports are as before. Pads 15 and 16, group 8 and the Max for Live
+  device do not change.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

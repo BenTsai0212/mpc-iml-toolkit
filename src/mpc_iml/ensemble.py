@@ -136,12 +136,27 @@ examples or only one variation among them. `chose` then gives `want`, `model` or
 `rule`, and the replies `want` (bass, melody) and `examples` (bass, melody) follow
 `learned`.
 
-What was learned is the profile (#196, `learn_profile`): the likes' weights and the
-examples in `<data folder>/learn/ensemble.json`, read when the preset gets its data
-folder and on `load-profile`, written on `save-profile` and, while `learn` is not
-`off`, at each phrase start. `reset-learning` goes back to the rules in memory. A
-profile that cannot be read is logged, the reply `profile-errors` (after
-`examples`) is 1, and the phrase starts do not overwrite it until a `save-profile`.
+With `learn likes` and `learn-loops 1` (#196 PR 5, default 0, a setting) the loops
+are learned too (`learn.LoopLearner`): at each phrase start, in a bar that follows
+the drums, each part draws the loop it plays in that phrase among its loops
+(built-in, installed and user loops, and the selected one), starting from the
+selected loop (`bass-loop`, `loop`, which do not change). The variation is still
+drawn each bar. A like also credits the loop heard, by name; a user loop joins at
+its starting weight on `reload-loops`, and one whose file is gone plays to the end
+of its phrase and keeps its weights. Selecting a loop plays it from the next bar
+line, until the next phrase start draws again. A phrase start that changes the loop logs it
+(`ensemble: bass loop walk from bar 8 (selected boom)`), and the replies
+`learn-loops` and `playing-loops` (bass, melody, `-` when silent) follow
+`profile-errors`. With `learn-loops 0`, or `learn` not `likes`, the selected loops
+play, as before.
+
+What was learned is the profile (#196, `learn_profile`): the likes' weights, the
+loops' weights and the examples in `<data folder>/learn/ensemble.json`, read when
+the preset gets its data folder and on `load-profile`, written on `save-profile`
+and, while `learn` is not `off`, at each phrase start. `reset-learning` goes back to
+the rules in memory. A profile that cannot be read is logged, the reply
+`profile-errors` (after `examples`) is 1, and the phrase starts do not overwrite it
+until a `save-profile`.
 """
 
 import contextlib
@@ -178,6 +193,7 @@ from mpc_iml.learn import (
     Demonstrations,
     Example,
     Learner,
+    LoopLearner,
     features,
     liked_bar,
     rule_choice,
@@ -391,11 +407,19 @@ class Ensemble:
         """Likes that credited a choice, in this build (#196)."""
         learn_seed = None if seed is None else f"learn {seed}"
         self._learners = {p: Learner(p, random.Random(learn_seed)) for p in PARTS}
-        self._heard: dict[int, dict[str, tuple[str, str]]] = {}
-        """Bar -> part -> (context, arm) the learners chose for it, the last few bars."""
+        self._heard: dict[int, dict[str, tuple[str, str, str]]] = {}
+        """Bar -> part -> (context, arm, loop) the learners chose for it, the last few
+        bars; the loop is `""` unless `learn-loops`."""
         self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
         """The top arm of each context at the last `learned` log."""
         self._demos = {p: Demonstrations(p) for p in PARTS}
+        self.learn_loops = False
+        """Whether `learn likes` also chooses the loop at each phrase start (#196 PR 5)."""
+        loops_seed = None if seed is None else f"learn-loops {seed}"
+        self._loop_learners = {p: LoopLearner(p, random.Random(loops_seed)) for p in PARTS}
+        self._chosen: dict[str, Loop | None] = {p: None for p in PARTS}
+        """The loop the loop learner chose for each part in this phrase, if any."""
+        self._loop_names = ("-", "-")
         self.wants = {p: "auto" for p in PARTS}
         """The variation the musician wants for each part with `learn demo` (#196)."""
         self._bar_wants: dict[str, str] | None = None
@@ -502,6 +526,7 @@ class Ensemble:
             learned,
             tuple(self.wants.values()),
             tuple(len(d.examples) for d in self._demos.values()),
+            self._loop_names if self.learn_loops else (),
         )
 
     def _report(self) -> None:
@@ -547,6 +572,10 @@ class Ensemble:
             bass = self._plan_bass(start, bass_plan, kicks, heard, extra == "fill")
             melody = self._plan_melody(start, melody_plan, heard, extra)
             self._variations = (bass, melody)
+            self._loop_names = (
+                "-" if bass == "-" else self._playing_loop("bass").name,
+                "-" if melody == "-" else self._playing_loop("melody").name,
+            )
             self._chose = (
                 "-" if bass == "-" else source.get("bass", "rule"),
                 "-" if melody == "-" else source.get("melody", "rule"),
@@ -579,6 +608,8 @@ class Ensemble:
         """The learned variation of each loop in `plays` (the loops that follow the
         drums of the last bar in `bar`), and where it came from (`chose`); none with
         `learn off`, the rules for the others (#196)."""
+        if not self._learning_loops():
+            self._chosen = {p: None for p in PARTS}
         if self.learn == "demo":
             return self._choose_demo(drums, plays)
         if self.learn != "likes":
@@ -586,15 +617,47 @@ class Ensemble:
         if bar % PHRASE == 0:
             for learner in self._learners.values():
                 learner.forget()
+            if self.learn_loops:
+                for loop_learner in self._loop_learners.values():
+                    loop_learner.forget()
             self._log_learned()
-        heard: dict[str, tuple[str, str]] = {}
+        heard: dict[str, tuple[str, str, str]] = {}
         for part in PARTS:
             if part in plays:
                 context = learn_context(part, drums, self.roles)
-                heard[part] = (context, self._learners[part].choose(context))
+                if self.learn_loops and bar % PHRASE == 0:
+                    self._choose_loop(part, context, bar)
+                loop = self._playing_loop(part).name if self.learn_loops else ""
+                heard[part] = (context, self._learners[part].choose(context), loop)
         self._heard = {b: h for b, h in self._heard.items() if b >= bar - 2}
         self._heard[bar] = heard
-        return {part: arm for part, (_, arm) in heard.items()}, {p: "bandit" for p in heard}
+        return {part: arm for part, (_, arm, _) in heard.items()}, {p: "bandit" for p in heard}
+
+    def _learning_loops(self) -> bool:
+        """Whether the loop learners choose the loops (`learn likes`, `learn-loops 1`)."""
+        return self.learn == "likes" and self.learn_loops
+
+    def _selected(self, part: str) -> Loop:
+        """The loop the musician selected for `part` (`bass-loop`, `loop`)."""
+        return self.bass_loop if part == "bass" else self.loop
+
+    def _playing_loop(self, part: str) -> Loop:
+        """The loop `part` plays: the loop learner's choice for this phrase while
+        learning loops, else the selected one."""
+        chosen = self._chosen[part]
+        return chosen if chosen is not None and self._learning_loops() else self._selected(part)
+
+    def _choose_loop(self, part: str, context: str, bar: int) -> None:
+        """At the phrase start `bar`: draw the loop `part` plays in this phrase among
+        its listed loops and the selected one (#196 PR 5)."""
+        selected = self._selected(part)
+        loops = dict(self.bass_loops if part == "bass" else self.loops)
+        loops.setdefault(selected.name, selected)
+        before = self._playing_loop(part).name
+        name = self._loop_learners[part].choose(context, list(loops), selected.name)
+        self._chosen[part] = loops[name]
+        if name != before:
+            self._log(f"ensemble: {part} loop {name} from bar {bar} (selected {selected.name})")
 
     def _choose_demo(
         self, drums: Sequence[GridHit], plays: set[str]
@@ -660,10 +723,15 @@ class Ensemble:
         if not heard:
             self._log(f"ensemble: like bar {bar}, no learned choice to credit")
             return
-        for part, (context, arm) in heard.items():
+        for part, (context, arm, loop) in heard.items():
             self._learners[part].like(context, arm)
+            if loop:
+                self._loop_learners[part].like(context, loop)
         self.likes += 1
-        credited = " ".join(f"{part} {context}>{arm}" for part, (context, arm) in heard.items())
+        credited = " ".join(
+            f"{part} {context}>{arm}{f' ({loop})' if loop else ''}"
+            for part, (context, arm, loop) in heard.items()
+        )
         self._log(f"ensemble: like bar {bar} {credited}")
 
     @staticmethod
@@ -703,7 +771,9 @@ class Ensemble:
             self._melody_notes.append(scheduler.at(start.bar, 0, [cc]))
         chords = self._chords(start.bar)
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
-        notes = tuple(n for n in plan.notes(self.loop, start.bar) if n.step < steps)
+        notes = tuple(
+            n for n in plan.notes(self._playing_loop("melody"), start.bar) if n.step < steps
+        )
         plan, notes = self._transform_melody(start.bar, plan, heard, notes, steps)
         self._plans["melody"] = plan
         if extra == "octave":
@@ -749,7 +819,7 @@ class Ensemble:
             )
         if bass_stage(bar) == "plain":
             return plan, notes
-        shaped = backbeat(notes, fixed_steps(self.loop, bar), snares, hats)
+        shaped = backbeat(notes, fixed_steps(self._playing_loop("melody"), bar), snares, hats)
         if shaped.transform == "plain":
             return plan, notes
         source = tuple(sorted({o.step for o in (*snares, *hats)}))
@@ -791,11 +861,12 @@ class Ensemble:
         accented = self.follow and (bool(kicks) or self.no_drums == "thin")
         accents = steps_hit if accented else None
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
-        notes = tuple(n for n in plan.notes(self.bass_loop, bar) if n.step < steps)
+        loop = self._playing_loop("bass")
+        notes = tuple(n for n in plan.notes(loop, bar) if n.step < steps)
         plan, notes = self._transform_bass(bar, plan, heard, notes, steps)
         self._plans["bass"] = plan
         if fill:
-            notes = bass_fill(notes, bar % self.bass_loop.bars, steps)
+            notes = bass_fill(notes, bar % loop.bars, steps)
         starts = [_tick(n) for n in notes]
         for note, tick in zip(notes, starts, strict=True):
             pitch = loop_pitch(note, *chords, self.octave)
@@ -831,7 +902,7 @@ class Ensemble:
         if bar % PHRASE == 0 and len(kicks) >= MIN_HITS:
             self._log(f"ensemble: rhythm motif kick {' '.join(map(str, steps_heard))}")
         stage = bass_stage(bar)
-        fixed = fixed_steps(self.bass_loop, bar)
+        fixed = fixed_steps(self._playing_loop("bass"), bar)
         if stage == "lock":
             shaped = lock(notes, fixed, kicks)
         elif stage == "answer":
@@ -1031,6 +1102,7 @@ class Ensemble:
             "save-profile": lambda a: self._profile_control(a, self._save_profile),
             "load-profile": lambda a: self._profile_control(a, self._load_profile),
             "reset-learning": self._reset_learning,
+            "learn-loops": lambda a: self._set(lambda: setattr(self, "learn_loops", _flag(a))),
         }
 
     def _profile_control(self, args: Sequence[float | int | str], act: Callable[[], None]) -> None:
@@ -1050,9 +1122,10 @@ class Ensemble:
             "progression": self.progression.name,
             "bass-loop": self.bass_loop.name,
             "loop": self.loop.name,
+            "learn-loops": str(int(self.learn_loops)),
         }
         try:
-            write_profile(self._profile, self._learners, self._demos, settings)
+            write_profile(self._profile, self._learners, self._demos, settings, self._loop_learners)
         except OSError as error:
             raise ValueError(f"cannot write the profile {self._profile}: {error}") from error
         self._autosave = True
@@ -1077,7 +1150,7 @@ class Ensemble:
             self.profile_errors, self._autosave = 1, False
             self._log(f"ensemble: skipped the profile: {error}")
             raise
-        apply_profile(profile, self._learners, self._demos)
+        apply_profile(profile, self._learners, self._demos, self._loop_learners)
         self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
         self.profile_errors, self._autosave = 0, True
         examples = sum(len(d.examples) for d in self._demos.values())
@@ -1094,6 +1167,8 @@ class Ensemble:
             for part in PARTS:
                 self._learners[part].reset()
                 self._demos[part].reset()
+                self._loop_learners[part].reset()
+            self._chosen = {p: None for p in PARTS}
             self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
             self._heard = {}
             self.likes = 0
@@ -1172,6 +1247,7 @@ class Ensemble:
         loop = self._pick(self.bass_loops, args)
         with self._lock:
             self.bass_loop = loop
+            self._chosen["bass"] = None
 
     def _set_melody(self, args: Sequence[float | int | str]) -> None:
         self._melody_to(_flag(args), None)
@@ -1240,6 +1316,8 @@ class Ensemble:
                 ("want", list(self.wants.values())),
                 ("examples", [len(d.examples) for d in self._demos.values()]),
                 ("profile-errors", [self.profile_errors]),
+                ("learn-loops", [int(self.learn_loops)]),
+                ("playing-loops", list(self._loop_names if scheduler is not None else ("-", "-"))),
             ]
 
     def data_folder(self, folder: Path) -> None:
@@ -1273,6 +1351,10 @@ class Ensemble:
         self.loops = library.played("melody")
         self.bass_loop = self.bass_loops.get(self.bass_loop.name, self.bass_loop)
         self.loop = self.loops.get(self.loop.name, self.loop)
+        for part, chosen in self._chosen.items():
+            if chosen is not None:
+                loops = self.bass_loops if part == "bass" else self.loops
+                self._chosen[part] = loops.get(chosen.name, chosen)
         users = len(library.loops) - len(self._library.loops)
         if users or errors:
             self._log(f"ensemble: {users} user loops from {self._folder}, {len(errors)} skipped")
@@ -1295,11 +1377,13 @@ class Ensemble:
                 self.bass_loop = loops[name]
             else:
                 self.loop = loops[name]
+            self._chosen[part] = None
 
     def _set_loop(self, args: Sequence[float | int | str]) -> None:
         loop = self._pick(self.loops, args)
         with self._lock:
             self.loop = loop
+            self._chosen["melody"] = None
 
     def _pick(self, loops: dict[str, Loop], args: Sequence[float | int | str]) -> Loop:
         if len(args) != 1 or args[0] not in loops:
