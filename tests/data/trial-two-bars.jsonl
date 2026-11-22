@@ -1,0 +1,264 @@
+{"type": "header", "format": "mpc-iml-recording", "format_version": 1, "toolkit_version": "0.0.0", "device": "MPC Sample", "firmware": "1.3.0", "settings": {}}
+{"t": 0.0, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 80}
+{"t": 0.1, "type": "midi", "bytes": [250]}
+{"t": 0.1, "type": "midi", "bytes": [248]}
+{"t": 0.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
+{"t": 0.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 0}
+{"t": 0.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 0.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 0.12083333333333333, "type": "midi", "bytes": [248]}
+{"t": 0.14166666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.1625, "type": "midi", "bytes": [248]}
+{"t": 0.18333333333333335, "type": "midi", "bytes": [248]}
+{"t": 0.20416666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.225, "type": "midi", "bytes": [248]}
+{"t": 0.24583333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.26666666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.2875, "type": "midi", "bytes": [248]}
+{"t": 0.30833333333333335, "type": "midi", "bytes": [248]}
+{"t": 0.32916666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.35, "type": "midi", "bytes": [248]}
+{"t": 0.35, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 0.36, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 0.37083333333333335, "type": "midi", "bytes": [248]}
+{"t": 0.3916666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.4125, "type": "midi", "bytes": [248]}
+{"t": 0.43333333333333335, "type": "midi", "bytes": [248]}
+{"t": 0.4541666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.475, "type": "midi", "bytes": [248]}
+{"t": 0.49583333333333335, "type": "midi", "bytes": [248]}
+{"t": 0.5166666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.5375, "type": "midi", "bytes": [248]}
+{"t": 0.5583333333333333, "type": "midi", "bytes": [248]}
+{"t": 0.5791666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.6, "type": "midi", "bytes": [248]}
+{"t": 0.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 100}
+{"t": 0.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 0}
+{"t": 0.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 0.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 0.6208333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.6416666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.6625, "type": "midi", "bytes": [248]}
+{"t": 0.6833333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.7041666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.725, "type": "midi", "bytes": [248]}
+{"t": 0.7458333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.7666666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.7875, "type": "midi", "bytes": [248]}
+{"t": 0.8083333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.8291666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.85, "type": "midi", "bytes": [248]}
+{"t": 0.85, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 0.86, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 0.8708333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.8916666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.9125, "type": "midi", "bytes": [248]}
+{"t": 0.9333333333333332, "type": "midi", "bytes": [248]}
+{"t": 0.9541666666666666, "type": "midi", "bytes": [248]}
+{"t": 0.975, "type": "midi", "bytes": [248]}
+{"t": 0.9958333333333332, "type": "midi", "bytes": [248]}
+{"t": 1.0166666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.0375, "type": "midi", "bytes": [248]}
+{"t": 1.0583333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.0791666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.1, "type": "midi", "bytes": [248]}
+{"t": 1.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
+{"t": 1.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 0}
+{"t": 1.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 1.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 1.1208333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.1416666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.1625, "type": "midi", "bytes": [248]}
+{"t": 1.1833333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.2041666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.225, "type": "midi", "bytes": [248]}
+{"t": 1.2458333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.2666666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.2875, "type": "midi", "bytes": [248]}
+{"t": 1.3083333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.3291666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.35, "type": "midi", "bytes": [248]}
+{"t": 1.35, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 1.36, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 1.3708333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.3916666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.4125, "type": "midi", "bytes": [248]}
+{"t": 1.4333333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.4541666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.475, "type": "midi", "bytes": [248]}
+{"t": 1.4958333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.5166666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.5375, "type": "midi", "bytes": [248]}
+{"t": 1.5583333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.5791666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.6, "type": "midi", "bytes": [248]}
+{"t": 1.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 100}
+{"t": 1.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 0}
+{"t": 1.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 1.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 1.6208333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.6416666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.6625, "type": "midi", "bytes": [248]}
+{"t": 1.6833333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.7041666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.725, "type": "midi", "bytes": [248]}
+{"t": 1.7458333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.7666666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.7875, "type": "midi", "bytes": [248]}
+{"t": 1.8083333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.8291666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.85, "type": "midi", "bytes": [248]}
+{"t": 1.85, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 1.86, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 1.8708333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.8916666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.9125, "type": "midi", "bytes": [248]}
+{"t": 1.9333333333333333, "type": "midi", "bytes": [248]}
+{"t": 1.9541666666666666, "type": "midi", "bytes": [248]}
+{"t": 1.975, "type": "midi", "bytes": [248]}
+{"t": 1.9958333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.0166666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.0375, "type": "midi", "bytes": [248]}
+{"t": 2.058333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.0791666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.1, "type": "midi", "bytes": [248]}
+{"t": 2.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
+{"t": 2.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 0}
+{"t": 2.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.120833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.1416666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.1625, "type": "midi", "bytes": [248]}
+{"t": 2.183333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.2041666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.225, "type": "midi", "bytes": [248]}
+{"t": 2.225, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.235, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.245833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.2666666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.2875, "type": "midi", "bytes": [248]}
+{"t": 2.308333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.3291666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.35, "type": "midi", "bytes": [248]}
+{"t": 2.35, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.36, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.370833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.3916666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.4125, "type": "midi", "bytes": [248]}
+{"t": 2.433333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.4541666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.475, "type": "midi", "bytes": [248]}
+{"t": 2.475, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.485, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.495833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.5166666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.5375, "type": "midi", "bytes": [248]}
+{"t": 2.558333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.5791666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.6, "type": "midi", "bytes": [248]}
+{"t": 2.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 100}
+{"t": 2.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 0}
+{"t": 2.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.620833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.6416666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.6625, "type": "midi", "bytes": [248]}
+{"t": 2.683333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.7041666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.725, "type": "midi", "bytes": [248]}
+{"t": 2.725, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.735, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.745833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.7666666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.7875, "type": "midi", "bytes": [248]}
+{"t": 2.808333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.8291666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.85, "type": "midi", "bytes": [248]}
+{"t": 2.85, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.86, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.870833333333333, "type": "midi", "bytes": [248]}
+{"t": 2.8916666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.9125, "type": "midi", "bytes": [248]}
+{"t": 2.933333333333333, "type": "midi", "bytes": [248]}
+{"t": 2.9541666666666666, "type": "midi", "bytes": [248]}
+{"t": 2.975, "type": "midi", "bytes": [248]}
+{"t": 2.975, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 2.985, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 2.995833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.0166666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.0375, "type": "midi", "bytes": [248]}
+{"t": 3.058333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.0791666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.1, "type": "midi", "bytes": [248]}
+{"t": 3.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
+{"t": 3.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 0}
+{"t": 3.1, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.11, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.120833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.1416666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.1625, "type": "midi", "bytes": [248]}
+{"t": 3.183333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.2041666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.225, "type": "midi", "bytes": [248]}
+{"t": 3.225, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.235, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.245833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.2666666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.2875, "type": "midi", "bytes": [248]}
+{"t": 3.308333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.3291666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.35, "type": "midi", "bytes": [248]}
+{"t": 3.35, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
+{"t": 3.36, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 0}
+{"t": 3.35, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.36, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.370833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.3916666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.4125, "type": "midi", "bytes": [248]}
+{"t": 3.433333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.4541666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.475, "type": "midi", "bytes": [248]}
+{"t": 3.475, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.485, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.495833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.5166666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.5375, "type": "midi", "bytes": [248]}
+{"t": 3.558333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.5791666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.6, "type": "midi", "bytes": [248]}
+{"t": 3.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 100}
+{"t": 3.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 37, "value": 0}
+{"t": 3.6, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.61, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.620833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.6416666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.6625, "type": "midi", "bytes": [248]}
+{"t": 3.683333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.7041666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.725, "type": "midi", "bytes": [248]}
+{"t": 3.725, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.735, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.745833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.7666666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.7875, "type": "midi", "bytes": [248]}
+{"t": 3.808333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.8291666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.85, "type": "midi", "bytes": [248]}
+{"t": 3.85, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.86, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.870833333333333, "type": "midi", "bytes": [248]}
+{"t": 3.8916666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.9125, "type": "midi", "bytes": [248]}
+{"t": 3.933333333333333, "type": "midi", "bytes": [248]}
+{"t": 3.9541666666666666, "type": "midi", "bytes": [248]}
+{"t": 3.975, "type": "midi", "bytes": [248]}
+{"t": 3.975, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 100}
+{"t": 3.985, "type": "midi", "kind": "note_on", "channel": 1, "note": 38, "value": 0}
+{"t": 3.995833333333333, "type": "midi", "bytes": [248]}
+{"t": 4.016666666666667, "type": "midi", "bytes": [248]}
+{"t": 4.0375, "type": "midi", "bytes": [248]}
+{"t": 4.058333333333333, "type": "midi", "bytes": [248]}
+{"t": 4.079166666666667, "type": "midi", "bytes": [248]}
+{"t": 4.1, "type": "midi", "bytes": [252]}
+{"t": 4.199999999999999, "type": "midi", "bytes": [250]}
+{"t": 4.3, "type": "midi", "kind": "note_on", "channel": 1, "note": 36, "value": 100}
