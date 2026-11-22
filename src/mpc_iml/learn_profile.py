@@ -6,18 +6,21 @@ One JSON file, `<data folder>/learn/ensemble.json` (`PROFILE`), written atomical
      "settings": {"progression": "minor-two", "bass-loop": "boom", "loop": "keys"},
      "weights": {"bass": {"push/beat": {"home": 0.0, "push": 1.5, "drive": 0.0}, ...},
                  "melody": {...}},
-     "examples": [{"part": "bass", "features": [6, 2, 1], "label": "drive", "bar": 3}]}
+     "examples": [{"part": "bass", "features": [6, 2, 1], "label": "drive", "bar": 3}],
+     "loops": {"bass": {"push/beat": {"walk": 1.0}}, "melody": {}}}
 
 `weights` are each `learn.Learner`'s table and `examples` each
-`learn.Demonstrations`' examples; no model is saved, the trees are trained again
+`learn.Demonstrations`' examples; `loops` (#196 PR 5, optional) is what likes added
+to each `learn.LoopLearner`'s loops, by loop name, so it outlives a loop file that
+is gone for a while; no model is saved, the trees are trained again
 from the examples when a profile is read (no pickle). `settings` records what the
 profile was learned with; reading does not apply them. The file stays on the
 musician's machine: it is never committed or uploaded (RFC 0005 Scope rules).
 
 `python -m mpc_iml.learn show [<profile>]` prints it (default
 `./mpc-iml-data/learn/ensemble.json`): per part, each context with the rules'
-choice and the learned weights, `*` where the learned top choice differs, and the
-tree trained on the examples as rules.
+choice and the learned weights, `*` where the learned top choice differs, what
+likes added to the loops, and the tree trained on the examples as rules.
 """
 
 import argparse
@@ -26,7 +29,7 @@ import os
 import random
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +42,7 @@ from mpc_iml.learn import (
     Demonstrations,
     Example,
     Learner,
+    LoopLearner,
     rule_choice,
 )
 
@@ -65,11 +69,13 @@ DEFAULT = Path("mpc-iml-data") / PROFILE
 
 @dataclass(frozen=True)
 class Profile:
-    """What a profile file holds: per part the weights and the examples."""
+    """What a profile file holds: per part the weights, the examples and what likes
+    added to the loops."""
 
     weights: Mapping[str, Mapping[str, Mapping[str, float]]]
     examples: Sequence[Example]
     settings: Mapping[str, str]
+    loops: Mapping[str, Mapping[str, Mapping[str, float]]] = field(default_factory=dict)
 
 
 def write_profile(
@@ -77,9 +83,10 @@ def write_profile(
     learners: Mapping[str, Learner],
     demos: Mapping[str, Demonstrations],
     settings: Mapping[str, str],
+    loops: Mapping[str, LoopLearner] | None = None,
 ) -> None:
-    """Write the profile of `learners` and `demos` to `path` atomically (a partial
-    file, then a rename), making its folder."""
+    """Write the profile of `learners`, `demos` and the loop learners `loops` to
+    `path` atomically (a partial file, then a rename), making its folder."""
     data = {
         "format": PROFILE_FORMAT,
         "format_version": PROFILE_VERSION,
@@ -91,6 +98,7 @@ def write_profile(
             for p in PARTS
             for e in demos[p].examples
         ],
+        "loops": {p: loops[p].table() if loops else {} for p in PARTS},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(f".{path.name}.partial")
@@ -128,15 +136,24 @@ def _parse(data: Any) -> Profile:
             raise ValueError(f"bad example {example}")
         Demonstrations(example.part).add(example)
     settings = {str(k): str(v) for k, v in dict(data.get("settings", {})).items()}
-    return Profile(weights, examples, settings)
+    loops = {p: dict(data.get("loops", {}).get(p, {})) for p in PARTS}
+    for part, table in loops.items():
+        LoopLearner(part, random.Random(0)).load(table)
+    return Profile(weights, examples, settings, loops)
 
 
 def apply_profile(
-    profile: Profile, learners: Mapping[str, Learner], demos: Mapping[str, Demonstrations]
+    profile: Profile,
+    learners: Mapping[str, Learner],
+    demos: Mapping[str, Demonstrations],
+    loops: Mapping[str, LoopLearner] | None = None,
 ) -> None:
-    """Load `profile` into `learners` and `demos`, training the trees again."""
+    """Load `profile` into `learners`, `demos` and the loop learners `loops`, training
+    the trees again."""
     for part in PARTS:
         learners[part].load(profile.weights[part])
+        if loops is not None:
+            loops[part].load(profile.loops.get(part, {}))
         demos[part].reset()
         for example in profile.examples:
             if example.part == part:
@@ -160,6 +177,9 @@ def show(profile: Profile) -> str:
             mark = f" * learned {top}" if top != rule else ""
             values = " ".join(f"{weights[a]:.2f}" for a in arms)
             lines.append(f"  {context:<12} {rule:<6} {values}{mark}")
+        for context, row in profile.loops.get(part, {}).items():
+            added = " ".join(f"{name} +{value:.2f}" for name, value in row.items())
+            lines.append(f"{part}: loops in {context}: {added}")
         count = len(demos[part].examples)
         rules = demos[part].rules()
         if rules is None:

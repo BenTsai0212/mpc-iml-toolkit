@@ -132,7 +132,7 @@ def test_a_phrase_start_saves_the_profile_while_learning(tmp_path: Path) -> None
         bar_of(rig, bar, press=8)
     rig.until(4 * BAR + 1)
     profile = read_profile(tmp_path / PROFILE)
-    assert profile.settings == SETTINGS
+    assert profile.settings == {**SETTINGS, "learn-loops": "0"}
     assert f"ensemble: saved the profile {tmp_path / PROFILE}" in rig.log
 
 

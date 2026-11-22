@@ -56,6 +56,8 @@ NAMES = [
     "want",
     "examples",
     "profile-errors",
+    "learn-loops",
+    "playing-loops",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -113,6 +115,8 @@ def test_the_state_after_build() -> None:
         "want": ["auto", "auto"],
         "examples": [0, 0],
         "profile-errors": [0],
+        "learn-loops": [0],
+        "playing-loops": ["-", "-"],
     }
 
 
