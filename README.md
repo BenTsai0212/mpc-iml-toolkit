@@ -843,6 +843,22 @@ examples trained, as rules. Give it a path to show another profile. The profile
 stays on your computer: the toolkit never uploads it, and `mpc-iml-data/` is in the
 `.gitignore` of this repo and of `python -m mpc_iml.new` projects.
 
+To compare `learn off`, `likes` and `demo` in a trial, send `learn-log 1` before
+you play (#196). Each bar then adds a line to a new file
+`mpc-iml-data/learn/log-<time>.jsonl`: the way you drummed (its context), what each
+loop played and where it came from (`rule`, `bandit`, `model`, `want`), what the
+rules would have chosen, whether you liked the bar, and the examples it added. It
+does not change what plays. `learn-log 0` finishes the file (when the engine
+quits, the last two bars are not written). `bar` counts from song start, as in a
+`record --clock` recording, so the two join by bar. Summarise a log:
+
+```bash
+uv run python -m mpc_iml.learn summary mpc-iml-data/learn/log-20261122-140509.jsonl
+```
+
+It prints, for each `learn` mode, the bars, how many you liked, how often each
+loop's variation differed from the rules, and your examples per variation.
+
 ### Write your own bass line
 
 The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
@@ -965,6 +981,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/save-profile` | none | - | Saves what was learned to `learn/ensemble.json` in the data folder now ([Keep what the band learned](#keep-what-the-band-learned)) |
 | `/mpciml/preset/ensemble/load-profile` | none | - | Reads that profile again; refused when it is missing or cannot be read |
 | `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
+| `/mpciml/preset/ensemble/learn-log` | 0 or 1 | 0 | 1: writes a line per bar to a new `learn/log-<time>.jsonl` in the data folder, to compare the learning modes; 0: finishes it ([Keep what the band learned](#keep-what-the-band-learned)) |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -998,6 +1015,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
 | `profile-errors` | 1 when the profile could not be read at the last try, else 0 |
+| `learn-log` | 1 while the per-bar log is written, else 0 |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 

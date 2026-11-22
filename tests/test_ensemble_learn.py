@@ -41,10 +41,10 @@ PRESSES = {3: LAYER, 5: MELODY, 7: LAYER, 9: MELODY, 10: LAYER, 11: MELODY}
 """Bar -> pad pressed at its step 2, in the session `pads`."""
 
 
-def session(name: str, learn: str | None) -> dict[str, list[Any]]:
+def session(name: str, learn: str | None, log: Path | None = None) -> dict[str, list[Any]]:
     """Every Note On and CC (tick, status, data 1, data 2) and every reported
     `variation` and `transform` of the session `name`; `learn` None keeps the
-    default of a new `Ensemble`."""
+    default of a new `Ensemble`; with the data folder `log`, `learn-log 1`."""
     settings = SESSIONS[name]
     rig = Rig(melody=True, bass="loop", surprise=settings["surprise"], seed=SEEDS[name])
     controls = rig.ensemble.controls()
@@ -53,6 +53,9 @@ def session(name: str, learn: str | None) -> dict[str, list[Any]]:
             controls[control]([value])
     if learn is not None:
         controls["learn"]([learn])
+    if log is not None:
+        rig.ensemble.data_folder(log)
+        controls["learn-log"]([1])
     rig.send(START)
     for repeat in range(2):
         for i, hits in enumerate(PATTERN):

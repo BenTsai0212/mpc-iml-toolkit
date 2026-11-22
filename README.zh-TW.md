@@ -722,6 +722,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/save-profile` | 無 | - | 立即把學到的內容存到資料夾的 `learn/ensemble.json`（profile）；`learn likes` 或 `demo` 時每個 4 小節樂句開頭也會儲存 |
 | `/mpciml/preset/ensemble/load-profile` | 無 | - | 重新讀取 profile（載入 `ensemble` 時也會讀取）；檔案不存在或無法讀取時拒絕 |
 | `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile |
+| `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
@@ -753,6 +754,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
 | `examples` | 以 `learn demo` 示範的 bass 與旋律範例數（含 profile 中的範例） |
 | `profile-errors` | 上次讀取 profile 失敗時為 1（演奏規則，樂句開頭不覆寫該檔），否則為 0 |
+| `learn-log` | 寫出每小節的 log 時為 1，否則為 0 |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
 

@@ -45,7 +45,8 @@ is trained on the examples; with fewer than `MIN_EXAMPLES`, or only one variatio
 among them, `predict` gives `None` and the rules play.
 
 What was learned is saved as a profile file by `mpc_iml.learn_profile`, which also
-holds `python -m mpc_iml.learn show [<profile>]`.
+holds `python -m mpc_iml.learn show [<profile>]` and `summary <log>` (the per-bar
+log of `mpc_iml.learn_log`).
 """
 
 import math
