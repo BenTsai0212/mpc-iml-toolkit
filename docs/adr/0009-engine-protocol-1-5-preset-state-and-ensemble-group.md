@@ -439,8 +439,16 @@ demonstrations"; the control `want` does not change.
   left. A `want` set by the control holds until the control sends `auto` (it clears
   a pad's end), so scripted sessions keep their meaning. The last bar of a pad's
   `want` still adds its example at the bar line where it ends.
+- Before a tree is trained (fewer than 4 examples, or one variation among them),
+  `auto` plays the marked contexts: a bar whose drums are in the `learn.context` of
+  one or more examples (`learn.feature_context` of their features) plays their most
+  common variation (ties: the one marked latest), and other bars the rules
+  (`learn.Demonstrations.choose`). `chose` gives `model` for those bars, as for the
+  tree; no reply value is added. In the #196 manual check one held `want` taught
+  nothing that could be heard; now the drumming that was marked brings it back.
 - Log lines: `ensemble: want <part> <variation> (kept|kept, rules|next) to bar <N>`,
-  `ensemble: want <part> auto (phrase end), plays model|rules`, and
+  `ensemble: want <part> auto (phrase end), plays model (tree)|model (marked
+  contexts, <n> label(s))|rules` (rules: no examples yet), and
   `ensemble: want <part> ignored, the clock is not running` (a press without a
   running clock changes nothing).
 - The replies, the profile and the learn log formats do not change; `learn off`

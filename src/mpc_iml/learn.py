@@ -42,7 +42,11 @@ bar played with a wanted variation adds an `Example`, the bar's `features` (the
 numbers behind its context, named in `FEATURES`) mapped to that variation. A model
 (`mpc_iml.model.Model`, by default `sklearn_backend.Tree`, a shallow decision tree)
 is trained on the examples; with fewer than `MIN_EXAMPLES`, or only one variation
-among them, `predict` gives `None` and the rules play.
+among them, `predict` gives `None`. Until a model is trained, `choose` plays the
+marked contexts (#215): a bar whose context (`feature_context`) is that of one or
+more examples gives their most common variation (ties: the one marked latest), and
+`None` elsewhere, where the rules play. `plays` says which (`tree`, `marked
+contexts` or `rules`).
 
 What was learned is saved as a profile file by `mpc_iml.learn_profile`, which also
 holds `python -m mpc_iml.learn show [<profile>]` and `summary <log>` (the per-bar
@@ -82,6 +86,7 @@ __all__ = [
     "LoopLearner",
     "bass_context",
     "context",
+    "feature_context",
     "features",
     "liked_bar",
     "melody_context",
@@ -177,6 +182,17 @@ def features(part: str, drums: Sequence[GridHit], roles: Sequence[str]) -> list[
         return [len(kicks), sum(1 for step in kicks if step % 4), float(backbeat)]
     hats = _steps(drums, roles, "hat")
     return [len(drums), len(hats), sum(1 for step in hats if step % 2)]
+
+
+def feature_context(part: str, values: Sequence[float]) -> str:
+    """The context of `part` whose numbers are `values` (`features`), so
+    `feature_context(part, features(part, drums, roles)) == context(part, drums, roles)`."""
+    a, b, c = values
+    if part == "bass":
+        kick = "none" if a == 0 else "dense" if a >= DENSE_KICKS else "push" if b else "grid"
+        return f"{kick}/{'beat' if c else '-'}"
+    density = "sparse" if a <= SPARSE_HITS else "dense" if a >= DENSE_HITS else "mid"
+    return f"{density}/{'none' if b == 0 else '16ths' if c else '8ths'}"
 
 
 def rule_choice(part: str, context: str) -> str:
@@ -407,6 +423,35 @@ class Demonstrations:
             return None
         number = round(self._model.predict(list(features))[0])
         return self.arms[min(max(number, 1), len(self.arms)) - 1]
+
+    def marked(self, context: str) -> str | None:
+        """The most common variation of the examples in `context` (ties: the one
+        whose latest example is the latest); `None` when no example is in it."""
+        counts: dict[str, int] = {}
+        latest: dict[str, int] = {}
+        for index, e in enumerate(self.examples):
+            if feature_context(self.part, e.features) == context:
+                counts[e.label] = counts.get(e.label, 0) + 1
+                latest[e.label] = index
+        if not counts:
+            return None
+        return max(counts, key=lambda label: (counts[label], latest[label]))
+
+    def choose(self, features: Sequence[float]) -> str | None:
+        """What `auto` plays for `features`: the model's prediction, or before a
+        model is trained the marked context's variation (`marked`); `None` for the
+        rules."""
+        if self._model is not None:
+            return self.predict(features)
+        return self.marked(feature_context(self.part, features))
+
+    @property
+    def plays(self) -> str:
+        """What `choose` uses: `tree`, `marked contexts` (examples but no model) or
+        `rules` (no examples)."""
+        if self._model is not None:
+            return "tree"
+        return "marked contexts" if self.examples else "rules"
 
     def rules(self) -> str | None:
         """The trained model as rules (`sklearn_backend.Tree.rules`, named by

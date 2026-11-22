@@ -136,8 +136,10 @@ drums (kicks, for the bass) that wanted the same variation from its bar line to 
 next adds an example (the bar's `learn.features` mapped to that variation); the
 loop's decision tree is retrained at that bar line, after the next bar is planned
 (`ensemble: trained bass tree, 9 examples`). With `auto` the loop plays the
-tree's prediction, or the rules while it has fewer than `learn.MIN_EXAMPLES`
-examples or only one variation among them. `chose` then gives `want`, `model` or
+tree's prediction. While it has fewer than `learn.MIN_EXAMPLES` examples or only
+one variation among them, drums in a marked context (one with examples) play their
+most common variation, and other drums the rules (#215; `ensemble: want bass auto
+(phrase end), plays model (marked contexts, 1 label)`). `chose` then gives `want`, `model` or
 `rule`, and the replies `want` (bass, melody) and `examples` (bass, melody) follow
 `learned`.
 
@@ -749,7 +751,8 @@ class Ensemble:
     def _choose_demo(
         self, drums: Sequence[GridHit], plays: set[str]
     ) -> tuple[dict[str, str], dict[str, str]]:
-        """With `learn demo`: the wanted variation, else the model's prediction."""
+        """With `learn demo`: the wanted variation, else the model's prediction or,
+        before a model is trained, the marked context's variation (#215)."""
         chose: dict[str, str] = {}
         source: dict[str, str] = {}
         for part in PARTS:
@@ -758,7 +761,7 @@ class Ensemble:
             if self.wants[part] != "auto":
                 chose[part], source[part] = self.wants[part], "want"
                 continue
-            predicted = self._demos[part].predict(features(part, drums, self.roles))
+            predicted = self._demos[part].choose(features(part, drums, self.roles))
             if predicted is not None:
                 chose[part], source[part] = predicted, "model"
         return chose, source
@@ -824,9 +827,19 @@ class Ensemble:
             if self.wants[part] != "auto":
                 self.wants[part] = "auto"
                 ended.add(part)
-                plays = "model" if self._demos[part].trained else "rules"
-                self._log(f"ensemble: want {part} auto (phrase end), plays {plays}")
+                self._log(f"ensemble: want {part} auto (phrase end), plays {self._plays(part)}")
         return ended
+
+    def _plays(self, part: str) -> str:
+        """What `auto` plays for `part` with `learn demo`, for the log (#215):
+        `model (tree)`, `model (marked contexts, 1 label)` or `rules`."""
+        demos = self._demos[part]
+        if demos.plays == "rules":
+            return "rules"
+        if demos.plays == "tree":
+            return "model (tree)"
+        labels = len({e.label for e in demos.examples})
+        return f"model (marked contexts, {labels} label{'s' if labels > 1 else ''})"
 
     def _log_learned(self) -> None:
         """Log each context whose top arm changed since the last log."""
