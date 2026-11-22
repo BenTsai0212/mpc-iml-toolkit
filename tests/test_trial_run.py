@@ -16,6 +16,7 @@ import pytest
 from test_engine import Receiver
 
 from mpc_iml.engine import Engine
+from mpc_iml.ensemble import Ensemble
 from mpc_iml.recording import read_recording
 from mpc_iml.trial.__main__ import build_parser
 from mpc_iml.trial.run import TRIAL_CLOCK_NAME, EngineLink, Musician, Settings, TickCounter, run
@@ -123,21 +124,49 @@ class FakeEngine:
         pass
 
 
-def trial_file(tmp_path: Path) -> Path:
-    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+class EnsembleEngine:
+    """A handle that gives the settings to an `Ensemble` with a data folder."""
+
+    def __init__(self, data: Path) -> None:
+        self.ensemble = Ensemble()
+        self.ensemble.data_folder(data)
+
+    def apply(self, settings: Settings) -> list[str]:
+        controls = self.ensemble.controls()
+        errors: list[str] = []
+        for name, args in settings:
+            try:
+                controls[name](list(args))
+            except ValueError as error:
+                errors.append(f"{name}: {error}")
+        return errors
+
+    def close(self) -> None:
+        pass
+
+
+def trial_file(tmp_path: Path, example: Path = EXAMPLE) -> Path:
+    data = json.loads(example.read_text(encoding="utf-8"))
     data["bars"] = 1
     path = tmp_path / "trial.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
 
-def play_trial(tmp_path: Path, answers: list[str], engine: FakeEngine) -> tuple[int, list[str]]:
+def play_trial(
+    tmp_path: Path,
+    answers: list[str],
+    engine: FakeEngine | EnsembleEngine,
+    example: Path = EXAMPLE,
+    heard: Callable[[str], None] = lambda line: None,
+) -> tuple[int, list[str]]:
     said: list[str] = []
     replies = iter(answers)
     done = threading.Event()
 
     def say(line: str) -> None:
         said.append(line)
+        heard(line)
         if line.startswith("Done."):
             done.set()
 
@@ -148,7 +177,8 @@ def play_trial(tmp_path: Path, answers: list[str], engine: FakeEngine) -> tuple[
 
     musician = Musician(ask=lambda prompt: next(replies), say=say, enter=enter)
     daw = FakeDaw()
-    args = build_parser().parse_args(["run", str(trial_file(tmp_path)), str(tmp_path / "data")])
+    trial = trial_file(tmp_path, example)
+    args = build_parser().parse_args(["run", str(trial), str(tmp_path / "data")])
     args.seed = 0
     status = run(args, musician, lambda *_: engine, lambda: FakeMpc(daw), lambda: daw)
     assert daw.opened == TRIAL_CLOCK_NAME
@@ -185,3 +215,22 @@ def test_a_refused_setting_stops_before_playing(tmp_path: Path) -> None:
     assert status == 1 and said[0].startswith("error: the engine refused")
     (folder,) = (tmp_path / "data" / "trials").iterdir()
     assert not (folder / "session.jsonl").exists()
+
+
+def test_the_learn_trial_leaves_no_learning_log_before_a_condition_plays(
+    tmp_path: Path,
+) -> None:
+    """#217: the settings check sends each condition's `learn-log 1`; no log is left."""
+    engine = EnsembleEngine(tmp_path / "data")
+    logs: list[list[Path]] = []
+
+    def heard(line: str) -> None:
+        if "press Play" in line:
+            logs.append(sorted((tmp_path / "data").glob("learn/log-*.jsonl")))
+            assert dict(engine.ensemble.state())["learn-log"] == [1]
+
+    answers = (["3"] * 6 + ["", ""]) * 3 + ["ABC"]
+    learn = EXAMPLE.with_name("learn.json")
+    status, said = play_trial(tmp_path, answers, engine, learn, heard)
+    assert status == 0, said
+    assert logs == [[], [], []]
