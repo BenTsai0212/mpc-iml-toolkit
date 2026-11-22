@@ -906,7 +906,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/no-drums` | `lead`, `hold` or `thin` | `lead` | What both loops play in bars without drums ([When the drums stop](#when-the-drums-stop)) |
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
-| `/mpciml/preset/ensemble/rhythm` | 0 or 1 | 1 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 0: the line as written |
+| `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 1 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -931,8 +931,8 @@ melody mode, a playing variation or a playing transformation changes:
 | `fade-bars`, `surprise` | the value (`surprise` as 0-2) |
 | `variation` | the bass variation and the melody variation playing (`-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `loop-errors` | how many of your loop files were skipped at the last read |
-| `rhythm` | the value (0 or 1) |
-| `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `rhythm` | the value (0, 1 or 2) |
+| `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 

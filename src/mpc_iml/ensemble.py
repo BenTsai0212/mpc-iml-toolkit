@@ -62,7 +62,8 @@ stop; #158), and `surprise 0-2` (#158, #178: at the last bar of each 4-bar
 phrase, with probability 1/2, a change the musician did not ask for, only in bars
 that follow the drums or keep playing without them; 0 is off, 1, the default, only
 the bass fill, 2 the bass fill, the melody an octave up or a passing note; seeded
-with `Ensemble(seed=…)`, a fresh seed in each `make_preset`). Bass mode and melody
+with `Ensemble(seed=…)`, a fresh seed in each `make_preset`), and `rhythm 0-2`
+(#189, default 1: 0 off, 1 the bass, 2 the bass and the melody). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
 
@@ -97,6 +98,12 @@ skeleton and `rhythm 0` play the line as written. The plan of each bar
 (`Ensemble.plans`) carries its `transform` and what it took (`rhythm.Taken`), the
 reply `transform` gives both loops' transformation, and each phrase start logs the
 motif (`ensemble: rhythm motif kick 0 6 10`).
+
+With `rhythm 2` the melody follows too (`rhythm.backbeat`): in the same phrase
+bars as the bass's `lock` and `answer`, its onsets move to the snares and hats of
+the last bar (its own `rhythm.Memory`, the same rules for bars without them), and
+each phrase start logs that motif too (`ensemble: rhythm motif snare 4 12 hat 0 2`).
+The melody's surprises (`octave`, `passing`) apply to the moved notes.
 """
 
 import random
@@ -150,6 +157,7 @@ from mpc_iml.rhythm import (
     Shaped,
     Taken,
     answer,
+    backbeat,
     bass_stage,
     fixed_steps,
     lock,
@@ -316,6 +324,7 @@ class Ensemble:
         self.surprise = 1
         self.rhythm = 1
         self._memory = Memory()
+        self._melody_memory = Memory()
         self._transforms = ("-", "-")
         self._random = random.Random(seed)
         self._variations = ("-", "-")
@@ -430,7 +439,8 @@ class Ensemble:
             extra = self._surprise(start.bar, bass_plan, melody_plan)
             heard = motif(drums, self.roles)
             bass = self._plan_bass(start, bass_plan, kicks, heard, extra == "fill")
-            self._variations = (bass, self._plan_melody(start, melody_plan, extra))
+            melody = self._plan_melody(start, melody_plan, heard, extra)
+            self._variations = (bass, melody)
             self._transforms = (
                 self._transform_of(self._plans["bass"]),
                 self._transform_of(self._plans["melody"]),
@@ -456,14 +466,15 @@ class Ensemble:
             self._log(f"ensemble: surprise {chosen} in bar {bar}")
         return chosen
 
-    def _plan_melody(self, start: BarStart, plan: BarPlan, extra: str | None) -> str:
-        """Schedule the melody's notes of the bar that starts now, with the surprise
-        `extra` if it is the melody's; the variation it plays (`-`: none)."""
+    def _plan_melody(self, start: BarStart, plan: BarPlan, heard: Motif, extra: str | None) -> str:
+        """Schedule the melody's notes of the bar that starts now, reshaped by the
+        last bar's snares and hats `heard` with `rhythm 2` (#189) and with the
+        surprise `extra` if it is the melody's; the variation it plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or not self.melody:
             self._plans["melody"] = None
+            self._melody_memory.reset()
             return "-"
-        self._plans["melody"] = plan
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._melody_notes = [h for h in self._melody_notes if h.tick >= last_bar]
         channel = self.melody_channel
@@ -473,6 +484,8 @@ class Ensemble:
         chords = self._chords(start.bar)
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
         notes = tuple(n for n in plan.notes(self.loop, start.bar) if n.step < steps)
+        plan, notes = self._transform_melody(start.bar, plan, heard, notes, steps)
+        self._plans["melody"] = plan
         if extra == "octave":
             notes = octave_up(notes)
         elif extra == "passing":
@@ -487,6 +500,42 @@ class Ensemble:
                 )
             )
         return plan.variation or "-"
+
+    def _transform_melody(
+        self,
+        bar: int,
+        plan: BarPlan,
+        heard: Motif,
+        notes: tuple[LoopNote, ...],
+        steps: int,
+    ) -> tuple[BarPlan, tuple[LoopNote, ...]]:
+        """The melody's rhythm transformation in `bar` with `rhythm 2` (#189): as
+        `_transform_bass`, `rhythm.backbeat` towards the snares and hats in the
+        phrase bars where the bass moves."""
+        if self.rhythm < 2 or not self.follow or plan.skeleton or plan.variation is None:
+            self._melody_memory.reset()
+            return plan, notes
+        if heard.snares or heard.hats:
+            taken = self._melody_memory.take(heard)
+        else:
+            remembered = self._melody_memory.motif
+            taken = remembered if self.no_drums == "hold" else Motif()
+        snares, hats = taken.snares, taken.hats
+        if bar % PHRASE == 0 and len(snares) + len(hats) >= MIN_HITS:
+            self._log(
+                "ensemble: rhythm motif "
+                f"snare {' '.join(str(o.step) for o in snares)} "
+                f"hat {' '.join(str(o.step) for o in hats)}".rstrip()
+            )
+        if bass_stage(bar) == "plain":
+            return plan, notes
+        shaped = backbeat(notes, fixed_steps(self.loop, bar), snares, hats)
+        if shaped.transform == "plain":
+            return plan, notes
+        source = tuple(sorted({o.step for o in (*snares, *hats)}))
+        moved = Taken("snare hat", source, shaped.moves)
+        played = tuple(n for n in shaped.notes if n.step < steps)
+        return replace(plan, transform=shaped.transform, taken=moved), played
 
     def _chords(self, bar: int) -> tuple[tuple[int, str], tuple[int, str]]:
         """The (pitch class, quality) of the chords of `bar` and of the next bar."""
@@ -755,7 +804,7 @@ class Ensemble:
             "no-drums": self._set_no_drums,
             "fade-bars": lambda a: self._set(lambda: setattr(self, "fade_bars", _whole(a, 0, 32))),
             "surprise": lambda a: self._set(lambda: setattr(self, "surprise", _whole(a, 0, 2))),
-            "rhythm": lambda a: self._set(lambda: setattr(self, "rhythm", _whole(a, 0, 1))),
+            "rhythm": lambda a: self._set(lambda: setattr(self, "rhythm", _whole(a, 0, 2))),
         }
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
