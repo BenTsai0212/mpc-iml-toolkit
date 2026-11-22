@@ -57,8 +57,17 @@ def test_a_new_log_never_overwrites_one(tmp_path: Path) -> None:
     now = datetime(2026, 11, 22, 14, 5, 9)
     first = log_path(tmp_path, now)
     assert first == tmp_path / "learn" / "log-20261122-140509.jsonl"
-    BarLog(first, {}, None, None).close()
+    log = BarLog(first, {}, None, None)
+    log.bar(record(0))
+    log.close()
     assert log_path(tmp_path, now).name == "log-20261122-140509-2.jsonl"
+
+
+def test_a_log_with_no_bar_leaves_no_file(tmp_path: Path) -> None:
+    log = BarLog(tmp_path / "learn" / "log.jsonl", {}, None, None)
+    assert not log.written
+    log.close()
+    assert list((tmp_path / "learn").iterdir()) == []
 
 
 @pytest.mark.parametrize("text", ["", "{", '{"format": "other", "format_version": 1}\n'])
@@ -95,6 +104,16 @@ def test_learn_log_needs_a_data_folder() -> None:
         rig.ensemble.controls()["learn-log"]([1])
     rig.ensemble.controls()["learn-log"]([0])
     assert reply(rig, "learn-log") == [0]
+
+
+def test_learn_log_on_then_off_with_no_bar_leaves_no_file(tmp_path: Path) -> None:
+    rig = Rig(melody=True, bass="loop")
+    rig.ensemble.data_folder(tmp_path)
+    for _ in range(3):
+        rig.ensemble.controls()["learn-log"]([1])
+        assert reply(rig, "learn-log") == [1]
+        rig.ensemble.controls()["learn-log"]([0])
+    assert not list(tmp_path.glob("learn/log-*.jsonl"))
 
 
 def test_learn_off_with_the_log_still_plays_what_main_played(tmp_path: Path) -> None:
