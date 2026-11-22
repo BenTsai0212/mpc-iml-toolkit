@@ -86,9 +86,9 @@ one (or your own practice) learned:
 This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
 wanted bass variation in `demo` (pad 15 the melody's), and does nothing in `off`
 (`mode-pads 0`). Before the trial, tell the musician: press 16 whenever you like
-what the band plays; if the band starts playing one variation over and over, you are marking
-what you want, so keep it while you drum the way you want it, and come back to
-`auto` (pads 16 and 15 again) to hear what it learned. The report's response
+what the band plays (16 for the bass, 15 for the melody); press again to hear
+the next variation; whatever you chose goes back by itself at the end of the
+4-bar phrase, and then the band plays what it learned (#215). The report's response
 measures are left empty beyond 64 bars.
 
 ## Reports

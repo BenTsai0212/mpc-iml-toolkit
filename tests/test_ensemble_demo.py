@@ -1,5 +1,6 @@
-"""`learn demo` in `ensemble` (#196, RFC 0005 step 8): pads 16 and 15 and the control
-`want` mark the wanted variation, examples are added and the tree plays `auto`.
+"""`learn demo` in `ensemble` (#196, RFC 0005 step 8): pads 16 and 15 keep the variation
+playing or move to the next one until the phrase end (#215), the control `want` marks
+the wanted variation, examples are added and the tree plays `auto`.
 
 On the simulated DAW clock of `test_ensemble.py` (`Rig`).
 """
@@ -10,6 +11,8 @@ import pytest
 from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, Rig
 from test_ensemble_learn import MELODY, STEADY, bar_of, reply
 from test_melody import HAT
+
+from mpc_iml.clock import PadHit
 
 PUSHED = [(0, KICK), (6, KICK), (4, SNARE), (12, SNARE), (2, HAT)]
 """A bar in the bass context `push/beat` (rule `push`)."""
@@ -22,28 +25,110 @@ def demo(seed: int = 0) -> Rig:
     return rig
 
 
-def press(rig: Rig, note: int) -> None:
-    rig.until(14 * STEP)
-    rig.hit(note, 100)
-
-
 def play(rig: Rig, bars: range, hits: Any) -> None:
     for bar in bars:
         bar_of(rig, bar, hits=hits)
 
 
-def test_pads_16_and_15_cycle_the_wanted_variations_and_keep_the_modes() -> None:
+def test_a_press_in_auto_keeps_the_variation_playing_and_adds_its_example() -> None:
     rig = demo()
-    for _ in range(3):
-        press(rig, LAYER)
-    press(rig, MELODY)
-    assert reply(rig, "want") == ["drive", "home"]
+    bar_of(rig, 0, hits=PUSHED)
+    bar_of(rig, 1, press=8)
+    assert reply(rig, "want") == ["push", "auto"], "the rules answered bar 0 with push"
+    assert reply(rig, "examples") == [1, 0]
+    assert "ensemble: want bass push (kept) to bar 4" in rig.log
     assert reply(rig, "bass") == ["loop", "loop"]
     assert reply(rig, "melody-mode") == ["follow", "follow"]
-    assert rig.reports[-1]["want"] == ["drive", "home"]
-    press(rig, LAYER)
+    assert rig.reports[-1]["want"] == ["push", "auto"]
+
+
+def test_a_keep_in_the_first_beat_keeps_the_bar_before() -> None:
+    rig = demo()
+    bar_of(rig, 0, hits=PUSHED)
+    bar_of(rig, 1)
+    bar_of(rig, 2, press=1)
+    assert reply(rig, "want")[0] == "push", "bar 2 plays home, bar 1 played push"
+    assert reply(rig, "examples") == [1, 0]
+
+
+def test_a_keep_in_a_silent_bar_marks_the_rules_choice_without_an_example() -> None:
+    rig = demo()
+    bar_of(rig, 0, hits=[])
+    bar_of(rig, 1, press=8, hits=[])
+    assert reply(rig, "want")[0] != "auto"
+    assert reply(rig, "examples") == [0, 0]
+    assert any(line.endswith("(kept, rules) to bar 4") for line in rig.log)
+
+
+def test_more_presses_cycle_the_variations_without_auto_from_the_next_bar_line() -> None:
+    rig = demo()
+    bar_of(rig, 0)
+    rig.until(BAR + 4 * STEP)
+    wants = []
+    for _ in range(4):
+        rig.hit(LAYER)
+        wants.append(reply(rig, "want")[0])
+    assert wants == ["home", "push", "drive", "home"]
+    rig.hit(MELODY)
+    rig.hit(MELODY)
+    assert reply(rig, "want")[1] != "auto"
+    assert "ensemble: want bass push (next) to bar 4" in rig.log
+    rig.hit(LAYER)
+    rig.until(BAR + 8 * STEP)
+    rig.hit(KICK)
+    rig.until(2 * BAR + STEP)
+    assert reply(rig, "variation")[0] == "push"
+    assert reply(rig, "chose")[0] == "want"
+
+
+def test_a_pad_want_lasts_to_the_phrase_end_and_its_last_bar_adds_an_example() -> None:
+    rig = demo()
+    bar_of(rig, 0)
+    bar_of(rig, 1, press=8)
+    play(rig, range(2, 4), STEADY)
+    rig.until(4 * BAR + STEP)
+    assert reply(rig, "want") == ["auto", "auto"]
+    assert reply(rig, "examples") == [3, 0], "bar 0 (the keep), bars 2 and 3"
+    assert "ensemble: want bass auto (phrase end), plays rules" in rig.log
+    assert rig.reports[-1]["want"] == ["auto", "auto"]
+
+
+def test_a_press_with_fewer_than_2_bars_left_lasts_one_phrase_more() -> None:
+    rig = demo()
+    play(rig, range(2), STEADY)
+    bar_of(rig, 2, press=8)
+    assert "ensemble: want bass home (kept) to bar 8" in rig.log
+    play(rig, range(3, 8), STEADY)
+    rig.until(7 * BAR + STEP)
+    assert reply(rig, "want")[0] == "home"
+    rig.until(8 * BAR + STEP)
     assert reply(rig, "want")[0] == "auto"
-    assert "ensemble: want bass drive" in rig.log
+
+
+def test_a_bar_whose_want_changed_adds_no_example() -> None:
+    rig = demo()
+    bar_of(rig, 0)
+    bar_of(rig, 1, press=8)
+    bar_of(rig, 2, press=8)
+    rig.until(3 * BAR + STEP)
+    assert reply(rig, "want")[0] == "push"
+    assert reply(rig, "examples") == [1, 0], "only the keep's example"
+
+
+def test_the_want_control_holds_past_the_phrase_end() -> None:
+    rig = demo()
+    rig.ensemble.controls()["want"](["bass", "drive"])
+    play(rig, range(6), STEADY)
+    assert reply(rig, "want")[0] == "drive"
+    assert not [line for line in rig.log if "phrase end" in line]
+
+
+def test_a_pad_want_needs_a_running_clock() -> None:
+    rig = Rig(clock=False, melody=True, bass="loop")
+    rig.ensemble.controls()["learn"](["demo"])
+    rig.ensemble.on_pad(PadHit(0.0, LAYER - 36, 0, 100, None))
+    assert reply(rig, "want") == ["auto", "auto"]
+    assert "ensemble: want bass ignored, the clock is not running" in rig.log
 
 
 def test_a_wanted_variation_plays_and_adds_examples() -> None:
@@ -54,16 +139,6 @@ def test_a_wanted_variation_plays_and_adds_examples() -> None:
     assert reply(rig, "variation")[0] == "drive"
     assert reply(rig, "chose") == ["want", "rule"]
     assert reply(rig, "examples") == [3, 0]
-
-
-def test_a_bar_whose_want_changed_adds_no_example() -> None:
-    rig = demo()
-    rig.ensemble.controls()["want"](["bass", "drive"])
-    bar_of(rig, 0)
-    bar_of(rig, 1, press=8)
-    rig.until(2 * BAR + STEP)
-    assert reply(rig, "want")[0] == "auto"
-    assert reply(rig, "examples") == [1, 0]
 
 
 def test_auto_plays_the_tree_after_enough_examples() -> None:

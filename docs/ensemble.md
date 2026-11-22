@@ -249,14 +249,29 @@ learned](#keep-what-the-band-learned)).
 ### Teach the band by showing it
 
 With `learn demo` (#196), you show the band what you want, as in Wekinator. Pad 16
-then cycles the bass variation you want (`auto`, `home`, `push`, `drive`) and pad
-15 the melody variation (`auto`, `home`, `open`, `busy`); the terminal shows each
-press (`ensemble: want bass push`). While a variation is chosen, the band plays it,
-and every bar you drum with it becomes an example: "this way of drumming wants this
-variation". Bars without drums, and bars where you changed the choice, are not
-used. Go back to `auto` and the band plays what it learned from your examples (a
-small decision tree, retrained after each example: `ensemble: trained bass tree,
-9 examples`), or the rules until it has at least 4 examples of 2 variations. Show
+chooses the bass variation you want and pad 15 the melody variation (#215):
+
+- **Keep:** the first press keeps the variation playing now ("this one"). Nothing
+  changes in the sound, and the way you drummed in the bar before, which the band
+  is answering, becomes an example at once. In the first beat of a bar the press
+  keeps the bar before, as a like does. In a bar where that loop is silent (no
+  kicks for the bass, no drums for the melody), it keeps what the rules choose.
+- **Next:** each further press moves to that loop's next variation (`home`,
+  `push`, `drive` for the bass; `home`, `open`, `busy` for the melody), from the
+  next bar line.
+- **Back to `auto` by itself:** the choice lasts to the end of the 4-bar phrase,
+  or to the end of the next phrase when fewer than 2 complete bars of this one are
+  left. You do not press anything to come back.
+
+The terminal shows each press and the bar where it ends (`ensemble: want bass push
+(kept) to bar 16`, `ensemble: want bass drive (next) to bar 16`) and each return
+(`ensemble: want bass auto (phrase end), plays model`). While a variation is
+chosen, the band plays it, and every bar you drum with it becomes an example:
+"this way of drumming wants this variation". Bars without drums, and bars where you
+pressed again, are not used. In `auto` the band plays what it learned from your
+examples (a small decision tree, retrained after each example: `ensemble: trained
+bass tree, 9 examples`), or the rules until it has at least 4 examples of 2
+variations: keep what you like in different ways of drumming. Show
 a few bars of each way of drumming you use. Set the bass and melody modes before
 playing, since pads 15 and 16 no longer cycle them. The examples are kept in your
 profile.
@@ -423,7 +438,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
 | `/mpciml/preset/ensemble/learn` | `off`, `likes` or `demo` | `off` | `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `demo`: pads 16 and 15 choose the bass and melody variation you want, and `auto` plays what your examples taught ([Teach the band by showing it](#teach-the-band-by-showing-it)); `off`: the rules (#196) |
 | `/mpciml/preset/ensemble/like` | none | - | As pad 16 with `learn likes`: likes what the band plays in this bar (in the first beat, the bar before); refused with `learn off` or while the clock is not running |
-| `/mpciml/preset/ensemble/want` | `bass` or `melody`, then `auto` or one of its variations | `auto` | As pads 16 and 15 with `learn demo`: the variation you want that loop to play and learn; refused unless `learn demo` |
+| `/mpciml/preset/ensemble/want` | `bass` or `melody`, then `auto` or one of its variations | `auto` | With `learn demo`: the variation you want that loop to play and learn, until you send `auto` (unlike pads 16 and 15, it does not end at the phrase end, #215); refused unless `learn demo` |
 | `/mpciml/preset/ensemble/save-profile` | none | - | Saves what was learned to `learn/ensemble.json` in the data folder now ([Keep what the band learned](#keep-what-the-band-learned)) |
 | `/mpciml/preset/ensemble/load-profile` | none | - | Reads that profile again; refused when it is missing or cannot be read |
 | `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
