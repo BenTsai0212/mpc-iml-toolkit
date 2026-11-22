@@ -634,12 +634,18 @@ bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
 
 The **learn** setting (#196) shows the band learning over the grid: with `likes`,
 list the bars whose answer you like (for example `2 3 7`); with `demo`, list from
-which bar's answer each part wants a variation (for example
-`1 bass push, 6 bass home, 10 bass auto`: from bar 10 the decision tree plays). The
-table's `context` column gives the way each bar was drummed, for the bass and the
-melody, and `chose` where each choice came from (`rule`, `bandit`, `model`, `want`;
-`liked` for a liked answer). The **learning** box lists the likes, trained trees and
-what was learned. The demo has no data folder, so it never saves a profile.
+which bar's answer each part wants a variation (for example `1 bass push, 6 bass
+home, 10 bass auto`: from bar 10 the decision tree plays), or list in which bar's
+answer you press pad 16 (`bass`) or 15 (`melody`), as you would while drumming
+(#215; for example `1 bass, 1 bass, 5 bass`: keep the variation playing, then the
+next one, until the phrase ends, then keep what plays over the busier drums of bar
+5). The **wants** field sends the control `want`, which holds until `auto`; a press
+lasts to the end of its phrase. The table's `context` column gives the way each bar
+was drummed, for the bass and the melody, and `chose` where each choice came from
+(`rule`, `bandit`, `model`, `want`; `liked` for a liked answer, `pressed bass` for a
+press). The **learning** box lists the likes, the presses and their phrase ends,
+trained trees and what was learned. The demo has no data folder, so it never saves a
+profile.
 
 The **variations** tab (#221) plays new variations grown from a line, next to the
 line itself, so you can judge whether they sound like yours before anything reaches

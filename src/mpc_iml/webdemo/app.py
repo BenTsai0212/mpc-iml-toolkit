@@ -8,9 +8,10 @@ rules, `synth.render` makes the audio, `roll.draw` the piano roll and
 `midifile.write` the MIDI file.
 
 The `learn` setting (#196) shows learning over a scripted session: with `likes` the
-bars whose answer is liked, with `demo` the wanted variations (`parse_likes`,
-`parse_wants`); the table gains the contexts and where each choice came from, and
-the page shows the learning log and what was learned.
+bars whose answer is liked, with `demo` the wanted variations and the presses of
+pads 16 and 15 (`parse_likes`, `parse_wants`, `parse_presses`, #215); the table
+gains the contexts and where each choice came from, and the page shows the learning
+log and what was learned.
 
 The `variations` tab (#221) plays the variation generator's candidates next to their
 source loop (`webdemo.variations.listen`), each with its audio and piano roll, over
@@ -72,6 +73,7 @@ __all__ = [
     "analytics_default_off",
     "build",
     "parse_likes",
+    "parse_presses",
     "parse_wants",
     "play",
     "play_variations",
@@ -122,7 +124,7 @@ the drums each moved line took and the steps its notes moved to (next to `bar` s
 they show without scrolling, #189); then the drums of a bar (as the rules read them)
 and what the band plays in the bar after it; `context` is the bass's and the melody's
 learning context of the bar and `chose` where their choice came from, `liked` when
-the answer was liked (#196)."""
+the answer was liked (#196) and `pressed` the pads pressed in it (#215)."""
 
 Table = list[list[str | int]]
 
@@ -222,6 +224,20 @@ def parse_wants(text: str) -> tuple[tuple[int, str, str], ...]:
     return tuple(wants)
 
 
+def parse_presses(text: str) -> tuple[tuple[int, str], ...]:
+    """`"3 bass, 5 bass, 9 melody"`: in the answer to each grid bar (from 1), the
+    musician presses pad 16 (bass) or 15 (melody), as `Settings.presses` (#215).
+    Raises `ValueError` for an entry that is not `<bar> <part>`; `sim` checks the
+    part."""
+    presses: list[tuple[int, str]] = []
+    for entry in filter(None, (e.strip() for e in text.replace(";", ",").split(","))):
+        words = entry.split()
+        if len(words) != 2 or not words[0].isdigit() or int(words[0]) < 1:
+            raise ValueError(f"presses: expected <bar> <part>, got {entry!r}")
+        presses.append((int(words[0]) - 1, words[1]))
+    return tuple(presses)
+
+
 def play(table: Sequence[Sequence[object]], settings: Settings) -> Shown:
     """What the band plays for the page's grid `table`.
 
@@ -297,6 +313,7 @@ def build() -> "gr.Blocks":
             learn = gr.Radio(list(LEARN_MODES), value=default.learn, label="learn")
             likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
             wants = gr.Textbox(label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto")
+            presses = gr.Textbox(label="presses (learn demo): pads 16 and 15, 3 bass, 9 melody")
         with gr.Tab("step grid"):
             grid = gr.Dataframe(
                 to_table(EXAMPLES["sparse"]),
@@ -381,11 +398,12 @@ def build() -> "gr.Blocks":
             learn,
             likes,
             wants,
+            presses,
         ]
 
         def settings_of(tempo: float, *values: object) -> Settings:
             progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values[:9]
-            learn, likes, wants = (str(v or "") for v in values[9:])
+            learn, likes, wants, presses = (str(v or "") for v in values[9:])
             return Settings(
                 tempo,
                 str(progression),
@@ -400,6 +418,7 @@ def build() -> "gr.Blocks":
                 learn,
                 parse_likes(likes) if learn == "likes" else (),
                 parse_wants(wants) if learn == "demo" else (),
+                presses=parse_presses(presses) if learn == "demo" else (),
             )
 
         def outputs(shown: Shown) -> tuple[object, ...]:
@@ -519,7 +538,9 @@ def _table_row(row: BarRow) -> list[str | int]:
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",
         " / ".join(row.context),
-        " / ".join(row.chose) + (", liked" if row.liked else ""),
+        " / ".join(row.chose)
+        + (", liked" if row.liked else "")
+        + "".join(f", pressed {part}" for part in row.pressed),
     ]
 
 
