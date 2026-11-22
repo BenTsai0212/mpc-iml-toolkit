@@ -114,6 +114,9 @@ class Settings:
     wants: tuple[tuple[int, str, str], ...] = ()
     """With `learn demo`: `(bar, part, want)`, the musician wants `want` (`auto` or a
     variation of `part`) in the answer to grid bar `bar` (from 0) and after it."""
+    mode_pads: int = 1
+    """The setting `mode-pads` (#216): 1 (the default, as in the instrument) pads 15
+    and 16 of a replayed recording switch the modes, 0 they do not."""
 
 
 @dataclass(frozen=True)
@@ -323,6 +326,7 @@ class _Run:
         controls["surprise"]([settings.surprise])
         controls["rhythm"]([settings.rhythm])
         controls["learn"]([settings.learn])
+        controls["mode-pads"]([settings.mode_pads])
         self.ensemble, self._like = ensemble, controls["like"]
 
         def send_wants(start: BarStart) -> None:

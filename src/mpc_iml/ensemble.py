@@ -164,6 +164,12 @@ choice, its source, the rules' choice, likes, wants and examples are written to
 and without changing what plays; the file is created at the first bar (#217).
 `learn-log 0` writes the lines still waiting and closes it. The reply `learn-log`
 follows `playing-loops`.
+
+With `mode-pads 0` (#216, default 1, a setting) pads 15 and 16 switch neither the
+melody mode nor the bass mode, in every `learn` mode, and send no reply: a trial's
+condition then keeps the modes its settings give. Pad 16 is still a like with
+`learn likes`, and pads 15 and 16 still set `want` with `learn demo`. The reply
+`mode-pads` follows `learn-log`.
 """
 
 import contextlib
@@ -399,6 +405,8 @@ class Ensemble:
         self.melody_channel = 3
         self.filter_cc = 74
         self.melody_pad = 15
+        self.mode_pads = True
+        """Pads 15 and 16 switch the modes (`mode-pads`, #216)."""
         self._learn_down = False
         self._melody_playing = "follow"
         self._follower = Follower(("open", ORNAMENTS))
@@ -484,14 +492,18 @@ class Ensemble:
                     self._like(None if grid is None else (grid.bar, grid.step))
                 elif self.learn == "demo":
                     self._cycle_want("bass")
-                else:
+                elif self.mode_pads:
                     self._cycle()
+                else:
+                    return False
                 return True
             if self.melody_pad and hit.pad == self.melody_pad - 1:
                 if self.learn == "demo":
                     self._cycle_want("melody")
-                else:
+                elif self.mode_pads:
                     self._cycle_melody()
+                else:
+                    return False
                 return True
             self._bass_hit(hit)
             return False
@@ -1152,6 +1164,7 @@ class Ensemble:
             "reset-learning": self._reset_learning,
             "learn-loops": lambda a: self._set(lambda: setattr(self, "learn_loops", _flag(a))),
             "learn-log": self._set_learn_log,
+            "mode-pads": lambda a: self._set(lambda: setattr(self, "mode_pads", _flag(a))),
         }
 
     def _set_learn_log(self, args: Sequence[float | int | str]) -> None:
@@ -1415,6 +1428,7 @@ class Ensemble:
                 ("learn-loops", [int(self.learn_loops)]),
                 ("playing-loops", list(self._loop_names if scheduler is not None else ("-", "-"))),
                 ("learn-log", [int(self._bar_log is not None)]),
+                ("mode-pads", [int(self.mode_pads)]),
             ]
 
     def data_folder(self, folder: Path) -> None:

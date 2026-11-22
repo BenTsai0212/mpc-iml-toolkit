@@ -7,7 +7,8 @@
     "bass": ["loop"],
     "melody-mode": ["follow"],
     "surprise": [1],
-    "rhythm": [0]
+    "rhythm": [0],
+    "mode-pads": [0]
   },
   "conditions": [
     {"name": "rhythm-0", "settings": {"rhythm": [0]}},

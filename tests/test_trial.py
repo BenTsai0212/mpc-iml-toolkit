@@ -125,6 +125,19 @@ def test_learn_trial_starts_every_condition_from_the_rules() -> None:
         assert dict(ensemble.state())["learn"] == [condition.name.removeprefix("learn-")]
 
 
+@pytest.mark.parametrize("name", ["rhythm.json", "learn.json"])
+def test_example_trials_keep_the_modes_from_the_pads(name: str) -> None:
+    trial, _ = load_trial(EXAMPLE.with_name(name))
+    assert trial.base["mode-pads"] == (0,)
+    ensemble = Ensemble()
+    controls = ensemble.controls()
+    for condition in trial.conditions:
+        for control, args in trial.messages(condition):
+            if control != "learn-log":
+                controls[control](list(args))
+        assert dict(ensemble.state())["mode-pads"] == [0]
+
+
 def test_load_trial_reports_unreadable_files(tmp_path: Path) -> None:
     path = tmp_path / "bad.json"
     path.write_text("{", encoding="utf-8")
