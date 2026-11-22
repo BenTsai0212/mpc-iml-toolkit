@@ -7,6 +7,11 @@ only gathers input and shows output: `sim.simulate` and `sim.replay` run the rea
 rules, `synth.render` makes the audio, `roll.draw` the piano roll and
 `midifile.write` the MIDI file.
 
+The `learn` setting (#196) shows learning over a scripted session: with `likes` the
+bars whose answer is liked, with `demo` the wanted variations (`parse_likes`,
+`parse_wants`); the table gains the contexts and where each choice came from, and
+the page shows the learning log and what was learned.
+
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`, `upload`) work, and are tested, without the `demo` extra.
 
@@ -25,7 +30,7 @@ import numpy as np
 import numpy.typing as npt
 
 from mpc_iml.clock import tag_recording
-from mpc_iml.ensemble import MELODY_MODES, PROGRESSIONS
+from mpc_iml.ensemble import LEARN_MODES, MELODY_MODES, PROGRESSIONS
 from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
@@ -59,6 +64,8 @@ __all__ = [
     "Uploaded",
     "analytics_default_off",
     "build",
+    "parse_likes",
+    "parse_wants",
     "play",
     "resize",
     "show",
@@ -98,12 +105,16 @@ TABLE_HEADERS = [
     "melody vel",
     "brightness",
     "surprise",
+    "context",
+    "chose",
 ]
 """The bar table: after `bar`, `transform` is the bass's and the melody's rhythm
 transformation in the bar after it, as the reply `transform` gives them, and `took`
 the drums each moved line took and the steps its notes moved to (next to `bar` so
 they show without scrolling, #189); then the drums of a bar (as the rules read them)
-and what the band plays in the bar after it."""
+and what the band plays in the bar after it; `context` is the bass's and the melody's
+learning context of the bar and `chose` where their choice came from, `liked` when
+the answer was liked (#196)."""
 
 Table = list[list[str | int]]
 
@@ -113,12 +124,13 @@ HIT_HEADERS = list(COLUMNS)
 
 class Shown(NamedTuple):
     """What the page shows for a song: the audio (`(RATE, samples)`), the bar table,
-    the piano roll and the MIDI file's bytes."""
+    the piano roll, the MIDI file's bytes and the learning log (`learning`)."""
 
     audio: tuple[int, npt.NDArray[np.int16]]
     table: Table
     roll: npt.NDArray[np.uint8]
     midi: bytes
+    learning: str = ""
 
 
 class Uploaded(NamedTuple):
@@ -166,7 +178,40 @@ def resize(table: Sequence[Sequence[object]], bars: int) -> Table:
 def show(song: Song) -> Shown:
     """The audio, bar table, piano roll and MIDI file of `song`."""
     audio = (RATE, render(song, song.settings.seed))
-    return Shown(audio, [_table_row(r) for r in song.rows], roll.draw(song), midifile.write(song))
+    table = [_table_row(r) for r in song.rows]
+    return Shown(audio, table, roll.draw(song), midifile.write(song), learning(song))
+
+
+def learning(song: Song) -> str:
+    """The learning log lines, then `learned: …` (`-` for none); empty with `learn off`."""
+    if song.settings.learn == "off":
+        return ""
+    return "\n".join([*song.learning, "learned: " + (" ".join(song.learned) or "-")])
+
+
+def parse_likes(text: str) -> tuple[int, ...]:
+    """`"2 3 7"`: the grid bars (from 1) whose answer is liked, as `Settings.likes`
+    (from 0). Raises `ValueError` for anything but whole numbers from 1."""
+    bars: list[int] = []
+    for word in text.replace(",", " ").split():
+        if not word.isdigit() or int(word) < 1:
+            raise ValueError(f"likes: {word!r} is not a bar number from 1")
+        bars.append(int(word) - 1)
+    return tuple(sorted(set(bars)))
+
+
+def parse_wants(text: str) -> tuple[tuple[int, str, str], ...]:
+    """`"1 bass push, 6 bass home, 10 bass auto"`: from the answer to each grid bar
+    (from 1), the part wants that variation, as `Settings.wants`. Raises
+    `ValueError` for an entry that is not `<bar> <part> <want>`; `sim` checks the
+    part and the want."""
+    wants: list[tuple[int, str, str]] = []
+    for entry in filter(None, (e.strip() for e in text.replace(";", ",").split(","))):
+        words = entry.split()
+        if len(words) != 3 or not words[0].isdigit() or int(words[0]) < 1:
+            raise ValueError(f"wants: expected <bar> <part> <want>, got {entry!r}")
+        wants.append((int(words[0]) - 1, words[1], words[2]))
+    return tuple(wants)
 
 
 def play(table: Sequence[Sequence[object]], settings: Settings) -> Shown:
@@ -230,6 +275,10 @@ def build() -> "gr.Blocks":
                 label="rhythm",
             )
             seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
+        with gr.Row():
+            learn = gr.Radio(list(LEARN_MODES), value=default.learn, label="learn")
+            likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
+            wants = gr.Textbox(label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto")
         with gr.Tab("step grid"):
             grid = gr.Dataframe(
                 to_table(EXAMPLES["sparse"]),
@@ -257,10 +306,25 @@ def build() -> "gr.Blocks":
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
         image = gr.Image(label="piano roll", type="numpy", interactive=False)
         midi = gr.File(label="MIDI file", interactive=False)
-        controls = [progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed]
+        log = gr.Textbox(label="learning", lines=4, interactive=False)
+        controls = [
+            progression,
+            bass_loop,
+            loop,
+            mode,
+            no_drums,
+            fade,
+            surprise,
+            rhythm,
+            seed,
+            learn,
+            likes,
+            wants,
+        ]
 
         def settings_of(tempo: float, *values: object) -> Settings:
-            progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values
+            progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values[:9]
+            learn, likes, wants = (str(v or "") for v in values[9:])
             return Settings(
                 tempo,
                 str(progression),
@@ -272,6 +336,9 @@ def build() -> "gr.Blocks":
                 int(bool(surprise)),
                 int(float(str(rhythm))),
                 int(float(str(seed))),
+                learn,
+                parse_likes(likes) if learn == "likes" else (),
+                parse_wants(wants) if learn == "demo" else (),
             )
 
         def outputs(shown: Shown) -> tuple[object, ...]:
@@ -279,7 +346,7 @@ def build() -> "gr.Blocks":
                 prefix="ensemble-", suffix=".mid", delete=False
             ) as file:
                 file.write(shown.midi)
-            return shown.audio, shown.table, shown.roll, file.name
+            return shown.audio, shown.table, shown.roll, file.name, shown.learning
 
         def on_play(cells: Table, tempo: float, *values: object) -> tuple[object, ...]:
             try:
@@ -297,7 +364,7 @@ def build() -> "gr.Blocks":
             return (*outputs(shown), rows)
 
         bars.change(lambda cells, n: resize(cells, int(n)), [grid, bars], grid)
-        results = [audio, table, image, midi]
+        results = [audio, table, image, midi, log]
         button.click(on_play, [grid, tempo, *controls], results)
         upload_button.click(on_upload, [recording, *controls], [*results, hits])
     return page
@@ -348,6 +415,8 @@ def _table_row(row: BarRow) -> list[str | int]:
         _plan_velocity(row.melody),
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",
+        " / ".join(row.context),
+        " / ".join(row.chose) + (", liked" if row.liked else ""),
     ]
 
 

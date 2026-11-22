@@ -859,6 +859,12 @@ uv run python -m mpc_iml.learn summary mpc-iml-data/learn/log-20261122-140509.js
 It prints, for each `learn` mode, the bars, how many you liked, how often each
 loop's variation differed from the rules, and your examples per variation.
 
+The trial file [`examples/trial/learn.json`](examples/trial/learn.json) plays
+`learn off`, `likes` and `demo` as three conditions of a blind trial (#197), each
+starting from the rules and with its own log; see
+[docs/trials.md](docs/trials.md#comparing-learning-modes) for how to run it and keep
+your profile out of it.
+
 ### Write your own bass line
 
 The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
@@ -1165,6 +1171,15 @@ same grid with `bass` to hear the moved line next to the plain one.
 The same grid and seed always sound the same. Below the table, a piano roll shows
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
+
+The **learn** setting (#196) shows the band learning over the grid: with `likes`,
+list the bars whose answer you like (for example `2 3 7`); with `demo`, list from
+which bar's answer each part wants a variation (for example
+`1 bass push, 6 bass home, 10 bass auto`: from bar 10 the decision tree plays). The
+table's `context` column gives the way each bar was drummed, for the bass and the
+melody, and `chose` where each choice came from (`rule`, `bandit`, `model`, `want`;
+`liked` for a liked answer). The **learning** box lists the likes, trained trees and
+what was learned. The demo has no data folder, so it never saves a profile.
 
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
 instead: the band answers it exactly as the engine would have, at the recording's

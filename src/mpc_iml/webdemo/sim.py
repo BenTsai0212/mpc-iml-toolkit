@@ -13,6 +13,16 @@ answers each bar in the bar after it (RFC 0005). The bass plays the bass loop
 (`bass loop`); the other settings go through the preset's controls. The surprises
 (#158) are drawn from `Settings.seed`, so the same grid and settings always give
 the same song.
+
+`Settings.learn` is the setting `learn` (#196). With `likes`, `Settings.likes`
+presses like (the control `like`) in the middle of the bar that answers each listed
+grid bar, so the like credits that answer; with `demo`, `Settings.wants` sends
+`want <part> <want>` at the bar line after each listed grid bar, so the band plays
+it in the answer to that bar, and each later bar with drums that wanted it all
+through becomes an example (`auto` plays the model's prediction). Each row then shows the
+contexts of its bar and where each choice came from (`chose`), and the song keeps
+the learning log lines and the final `learned` reply. Nothing is saved: the demo has
+no data folder, so there is no profile and no learn log.
 """
 
 import re
@@ -20,9 +30,11 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 
 from mpc_iml.clock import SIXTEENTHS, TICKS_PER_BEAT, BarStart, ClockAccess, MidiClock, Scheduler
-from mpc_iml.ensemble import DEFAULT_ROLES, PROGRESSIONS, Ensemble
+from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_MODES, PROGRESSIONS, Ensemble
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.frames import bank_pad_to_note, note_to_bank_pad
+from mpc_iml.learn import PARTS, WANTS
+from mpc_iml.learn import context as learn_context
 from mpc_iml.melody import BarPlan
 from mpc_iml.sources import CLOCK_BYTES
 
@@ -65,6 +77,11 @@ _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _MOTIF = re.compile(r"ensemble: rhythm motif (kick|snare)[\w ]*")
 """The line `ensemble` logs for the motif at a phrase start (#189): information."""
+_LEARNING = re.compile(r"ensemble: (like|learned|trained|want) .*")
+"""The lines `ensemble` logs while learning (#196): kept in `Song.learning`."""
+LIKE_STEP = 8
+"""The step of the answering bar where `Settings.likes` presses like: past the
+first beat, so the like credits the bar playing (`learn.liked_bar`)."""
 _NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 
 
@@ -89,6 +106,14 @@ class Settings:
     follows the snares and hats."""
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
+    learn: str = "off"
+    """The setting `learn` (#196): `off` (the default, the rules), `likes` or `demo`."""
+    likes: tuple[int, ...] = ()
+    """With `learn likes`: the grid bars (from 0) whose answer, the bar after each,
+    the musician likes."""
+    wants: tuple[tuple[int, str, str], ...] = ()
+    """With `learn demo`: `(bar, part, want)`, the musician wants `want` (`auto` or a
+    variation of `part`) in the answer to grid bar `bar` (from 0) and after it."""
 
 
 @dataclass(frozen=True)
@@ -126,6 +151,13 @@ class BarRow:
     melody: BarPlan | None
     melody_rule: str
     surprise: str | None = None
+    context: tuple[str, str] = ("-", "-")
+    """The bass and melody contexts of the bar's drums (`learn.context`, #196)."""
+    chose: tuple[str, str] = ("-", "-")
+    """Where the bass and melody choice for the bar after it came from, as the reply
+    `chose`: `rule`, `bandit`, `model`, `want`, or `-` when the loop is silent."""
+    liked: bool = False
+    """The musician liked the bar after it (`Settings.likes`)."""
 
 
 @dataclass(frozen=True)
@@ -139,6 +171,11 @@ class Song:
     notes: tuple[Note, ...]
     brightness: tuple[tuple[int, int], ...]
     rows: tuple[BarRow, ...]
+    learning: tuple[str, ...] = ()
+    """The learning log lines (likes, wants, learned contexts, trained trees)."""
+    learned: tuple[str, ...] = ()
+    """The reply `learned` at the end: up to 4 `<part>:<context>><arm>` that differ
+    from the rules (empty: none)."""
 
     @property
     def seconds_per_tick(self) -> float:
@@ -170,12 +207,14 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
 
     Raises `ValueError` for a grid of no bars or more than `MAX_BARS`, a drum or step
     count other than `DRUMS` and `STEPS`, a velocity outside 0-127, a tempo outside
-    `TEMPO_RANGE`, or a setting the preset's controls refuse.
+    `TEMPO_RANGE`, a like or a want outside the grid or the `learn` mode, or a setting
+    the preset's controls refuse.
     """
     hits = _hits(grid)
     low, high = TEMPO_RANGE
     if not low <= settings.tempo <= high:
         raise ValueError(f"tempo must be {low:g}-{high:g}, got {settings.tempo:g}")
+    _check_learning(settings, len(grid))
     run = _Run(settings)
     interval = 60.0 / settings.tempo / TICKS_PER_BEAT
     song_bars = len(grid) + 1
@@ -201,8 +240,10 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
     (`DEFAULT_ROLES`, any bank) while the clock runs, at their clock position. The
     song's tempo (`Settings.tempo`) is the clock's at the end of the take, and the
     audio renders at that tempo. Raises `ValueError` for a recording without a Start
-    and 24 ticks, or of more than `MAX_BARS` bars.
+    and 24 ticks, or of more than `MAX_BARS` bars, and as `simulate` for the learning
+    settings (a like or a want after the take does nothing).
     """
+    _check_learning(settings, MAX_BARS)
     run: _Run | None = None
     t = 0.0
     for event in events:
@@ -233,12 +274,37 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
     return run.song(grid_bars, replace(settings, tempo=state.bpm))
 
 
+def _check_learning(settings: Settings, bars: int) -> None:
+    """Refuse a `learn` mode, like or want `simulate` and `replay` cannot play."""
+    if settings.learn not in LEARN_MODES:
+        raise ValueError(f"learn must be one of {', '.join(LEARN_MODES)}, got {settings.learn!r}")
+    if settings.likes and settings.learn != "likes":
+        raise ValueError("likes need learn likes")
+    if settings.wants and settings.learn != "demo":
+        raise ValueError("wants need learn demo")
+    for bar in settings.likes:
+        if not 0 <= bar < bars:
+            raise ValueError(f"a like must be in bars 1-{bars}, got bar {bar + 1}")
+    for bar, part, want in settings.wants:
+        if not 0 <= bar < bars:
+            raise ValueError(f"a want must be in bars 1-{bars}, got bar {bar + 1}")
+        if part not in WANTS or want not in WANTS[part]:
+            raise ValueError(f"a want is bass|melody and auto or a variation, got {part} {want}")
+
+
 class _Run:
     """A new `Ensemble` with `settings` on a simulated clock, collecting what it plays."""
 
     def __init__(self, settings: Settings) -> None:
         self.log: list[str] = []
+        self.learning: list[str] = []
         self.surprises: dict[int, str] = {}
+        self.chose: dict[int, tuple[str, str]] = {}
+        self._likes = {bar + 1 for bar in settings.likes}
+        self._liked: set[int] = set()
+        wants: dict[int, list[tuple[str, str]]] = {}
+        for bar, part, want in settings.wants:
+            wants.setdefault(bar + 1, []).append((part, want))
         self.clock = MidiClock(BEATS_PER_BAR)
         self.sent: list[tuple[int, bytes]] = []
         self.drums: list[Note] = []
@@ -256,21 +322,46 @@ class _Run:
         controls["fade-bars"]([settings.fade_bars])
         controls["surprise"]([settings.surprise])
         controls["rhythm"]([settings.rhythm])
+        controls["learn"]([settings.learn])
+        self.ensemble, self._like = ensemble, controls["like"]
+
+        def send_wants(start: BarStart) -> None:
+            for part, value in wants.get(start.bar, ()):
+                controls["want"]([part, value])
+
+        self.access.on_bar(send_wants)
         ensemble.attach(self.access)
         self.bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
-        self.access.on_bar(lambda start: self.bars.__setitem__(start.bar, (start, ensemble.plans)))
+        self.access.on_bar(self._bar)
+
+    def _bar(self, start: BarStart) -> None:
+        """After `ensemble` planned the bar that starts now: keep its plans and `chose`."""
+        self.bars[start.bar] = (start, self.ensemble.plans)
+        state = dict(self.ensemble.state())
+        bass, melody = state["chose"]
+        self.chose[start.bar] = (str(bass), str(melody))
 
     def _ensemble_log(self, line: str) -> None:
         match = _SURPRISE.fullmatch(line)
         if match:
             self.surprises[int(match[2])] = match[1]
+        elif _LEARNING.fullmatch(line):
+            self.learning.append(line)
         elif not _MOTIF.fullmatch(line):
             self.log.append(line)
 
     def feed(self, data: bytes, t: float) -> None:
-        """One clock message at `t`, then the bar lines and the notes now due."""
+        """One clock message at `t`, then the bar lines, a like due and the notes now due."""
         self.clock.feed(data, t)
         self.access.bar_line()
+        state = self.clock.state()
+        if (
+            state.status == "running"
+            and state.step >= LIKE_STEP
+            and state.bar in self._likes - self._liked
+        ):
+            self._liked.add(state.bar)
+            self._like([])
         self.scheduler.update(t)
 
     def hit(self, event: MidiEvent) -> None:
@@ -297,15 +388,22 @@ class _Run:
             (tick, m[2]) for tick, m in sent if m[0] & 0xF0 == 0xB0 and m[0] & 0x0F == 2
         )
         rows = tuple(
-            _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1))
+            replace(
+                _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1)),
+                chose=self.chose[b + 1],
+                liked=b + 1 in self._liked,
+            )
             for b in range(grid_bars)
         )
+        learned = [str(c) for c in dict(self.ensemble.state())["learned"] if c != "-"]
         return Song(
             settings,
             song_bars,
             tuple(sorted(notes, key=lambda n: (n.tick, n.part))),
             brightness,
             rows,
+            tuple(self.learning),
+            tuple(learned),
         )
 
 
@@ -417,4 +515,8 @@ def _row(
         plans["melody"],
         rule(bool(start.hits)),
         surprise,
+        (
+            learn_context(PARTS[0], start.hits, DEFAULT_ROLES),
+            learn_context(PARTS[1], start.hits, DEFAULT_ROLES),
+        ),
     )

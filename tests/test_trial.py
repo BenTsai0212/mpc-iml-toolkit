@@ -108,6 +108,23 @@ def test_example_file_has_the_issue_questions_and_ensemble_accepts_its_settings(
             controls[control](list(args))
 
 
+def test_learn_trial_starts_every_condition_from_the_rules() -> None:
+    trial, _ = load_trial(EXAMPLE.with_name("learn.json"))
+    assert [c.name for c in trial.conditions] == ["learn-off", "learn-likes", "learn-demo"]
+    assert trial.base["reset-learning"] == () and trial.base["learn-log"] == (0,)
+    ensemble = Ensemble()
+    controls = ensemble.controls()
+    for condition in trial.conditions:
+        for _ in range(4):
+            ensemble._learners["bass"].like("grid/-", "drive")
+        assert ensemble._learned() == ["bass:grid/->drive"]
+        for control, args in trial.messages(condition):
+            if control != "learn-log":
+                controls[control](list(args))
+        assert ensemble._learned() == []
+        assert dict(ensemble.state())["learn"] == [condition.name.removeprefix("learn-")]
+
+
 def test_load_trial_reports_unreadable_files(tmp_path: Path) -> None:
     path = tmp_path / "bad.json"
     path.write_text("{", encoding="utf-8")
