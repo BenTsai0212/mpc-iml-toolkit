@@ -53,6 +53,8 @@ NAMES = [
     "likes",
     "chose",
     "learned",
+    "want",
+    "examples",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -107,6 +109,8 @@ def test_the_state_after_build() -> None:
         "likes": [0],
         "chose": ["-", "-"],
         "learned": ["-"],
+        "want": ["auto", "auto"],
+        "examples": [0, 0],
     }
 
 

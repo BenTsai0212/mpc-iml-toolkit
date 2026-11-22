@@ -169,7 +169,7 @@ def test_the_like_control_needs_likes_and_a_running_clock() -> None:
     with pytest.raises(ValueError, match="not running"):
         rig.ensemble.controls()["like"]([])
     with pytest.raises(ValueError):
-        rig.ensemble.controls()["learn"](["demo"])
+        rig.ensemble.controls()["learn"](["teach"])
 
 
 if __name__ == "__main__":

@@ -716,8 +716,9 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | loop 停止前的空小節數（最後兩個淡出）；0 不會停止 |
 | `/mpciml/preset/ensemble/surprise` | 0-2（0 關閉，1 只有 bass fill，2 再加上旋律的 surprise） | 1 | 每個 4 小節樂句結尾的 surprise（[一點驚喜](#一點驚喜)） |
 | `/mpciml/preset/ensemble/rhythm` | 0、1 或 2 | 0 | 1：bass 線條的音移向上一小節的 kick（每個 4 小節樂句的第一小節照原樣，之後移動，最後一小節再晚一個 16 分音符）；2：旋律的音也移向上一小節的 snare 與 hat（每個樂句的第一小節照原樣）；0：照寫好的線條。#194 之前預設為 1：人工檢查時，在 hip-hop 等穩定的風格中，移動的 bass 有時聽起來不在拍上 |
-| `/mpciml/preset/ensemble/learn` | `off` 或 `likes` | `off` | `likes`：每個 loop 的變奏來自你的「喜歡」教給它的選擇，從規則開始，pad 16 改為**喜歡**而不切換 bass 模式（bass 模式在演奏前設定）；`off`：規則（#196） |
+| `/mpciml/preset/ensemble/learn` | `off`、`likes` 或 `demo` | `off` | `likes`：每個 loop 的變奏來自你的「喜歡」教給它的選擇，從規則開始，pad 16 改為**喜歡**而不切換 bass 模式（bass 模式在演奏前設定）；`demo`：pad 16 與 15 選擇你要的 bass 與旋律變奏，該 loop 演奏它，每個這樣打鼓的小節成為一個範例，`auto` 演奏範例教給的選擇（決策樹；少於 4 個範例或只有一種變奏時用規則）；`off`：規則（#196） |
 | `/mpciml/preset/ensemble/like` | 無 | - | 與 `learn likes` 時的 pad 16 相同：喜歡樂團在這個小節演奏的內容（第一拍內是上一小節）；`learn off` 或 clock 未執行時拒絕 |
+| `/mpciml/preset/ensemble/want` | `bass` 或 `melody`，接 `auto` 或它的一個變奏 | `auto` | 與 `learn demo` 時的 pad 16、15 相同：你要該 loop 演奏並學習的變奏；不是 `learn demo` 時拒絕 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
@@ -742,10 +743,12 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `loop-errors` | 上次讀取時略過的 loop 檔案數 |
 | `rhythm` | 值（0、1 或 2） |
 | `transform` | 正在演奏的 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
-| `learn` | 學習模式（`off`、`likes`） |
+| `learn` | 學習模式（`off`、`likes`、`demo`） |
 | `likes` | 載入 `ensemble` 之後計入選擇的「喜歡」次數 |
-| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learned` | 最多 4 個 `<部分>:<情境>><變奏>`，學到的最高選擇與規則不同的情境（沒有時為 `-`） |
+| `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
+| `examples` | 載入 `ensemble` 之後以 `learn demo` 示範的 bass 與旋律範例數 |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
 
