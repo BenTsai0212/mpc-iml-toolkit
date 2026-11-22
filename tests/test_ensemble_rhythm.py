@@ -14,6 +14,8 @@ from test_bass_loop import bass_off, bass_on
 from test_ensemble import BAR, KICK, SNARE, START, STEP, Rig
 from test_melody import HAT, play_bar
 
+from mpc_iml.ensemble import Ensemble
+
 DATA = Path(__file__).parent / "data" / "ensemble-rhythm-0.json"
 """What `main` played before #189 for `PATTERN` (bass and melody Note Ons)."""
 
@@ -32,9 +34,11 @@ PATTERN = [
 KICKS = [(0, KICK), (5, KICK), (10, KICK)]
 
 
-def played(bass_loop: str, rhythm: int) -> list[list[int]]:
-    """(tick, note, velocity) of every Note On for `PATTERN`, with the surprises on."""
-    rig = Rig(melody=True, bass="loop", surprise=2, seed=5, rhythm=rhythm)
+def played(bass_loop: str, rhythm: int | None) -> list[list[int]]:
+    """(tick, note, velocity) of every Note On for `PATTERN`, with the surprises on;
+    `rhythm` None keeps the default of a new `Ensemble` (#194)."""
+    rig = Rig(melody=True, bass="loop", surprise=2, seed=5)
+    rig.ensemble.rhythm = Ensemble().rhythm if rhythm is None else rhythm
     rig.ensemble.controls()["bass-loop"]([bass_loop])
     rig.send(START)
     for repeat in range(2):
@@ -52,6 +56,7 @@ def test_rhythm_0_plays_exactly_what_main_played() -> None:
     before = json.loads(DATA.read_text())
     for name in ("boom", "walk"):
         assert played(name, 0) == before[name]
+        assert played(name, None) == before[name]
         assert played(name, 1) != before[name]
 
 

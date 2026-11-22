@@ -83,9 +83,9 @@ class Settings:
     """The phrase-end surprises (#158) as the control `surprise`: 0 off, 1 (the
     default, as in the instrument) the bass fill only, 2 also the melody surprises
     (#178)."""
-    rhythm: int = 1
-    """The rhythm transformation (#189) as the setting `rhythm`: 0 off, 1 (the
-    default, as in the instrument) the bass follows the kicks, 2 also the melody
+    rhythm: int = 0
+    """The rhythm transformation (#189) as the setting `rhythm`: 0 (the default, as
+    in the instrument, #194) off, 1 the bass follows the kicks, 2 also the melody
     follows the snares and hats."""
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""

@@ -70,6 +70,7 @@ def running(bass: str = "loop") -> Rig:
 
 def test_the_state_after_build() -> None:
     ensemble = Ensemble()
+    assert ensemble.rhythm == 0 and ("rhythm", [0]) in ensemble.state()
     assert [name for name, _ in ensemble.state()] == NAMES
     assert state(ensemble) == {
         "bass": ["loop", "loop"],
@@ -96,7 +97,7 @@ def test_the_state_after_build() -> None:
         "surprise": [1],
         "variation": ["-", "-"],
         "loop-errors": [0],
-        "rhythm": [1],
+        "rhythm": [0],
         "transform": ["-", "-"],
     }
 
@@ -126,6 +127,7 @@ def test_the_preset_has_the_state_hook() -> None:
         ("no-drums", ["thin"], "no-drums", ["thin"]),
         ("fade-bars", [0], "fade-bars", [0]),
         ("fade-bars", [32], "fade-bars", [32]),
+        ("rhythm", [1], "rhythm", [1]),
         ("rhythm", [0], "rhythm", [0]),
     ],
 )
