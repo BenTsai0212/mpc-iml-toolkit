@@ -265,13 +265,16 @@ chooses the bass variation you want and pad 15 the melody variation (#215):
 
 The terminal shows each press and the bar where it ends (`ensemble: want bass push
 (kept) to bar 16`, `ensemble: want bass drive (next) to bar 16`) and each return
-(`ensemble: want bass auto (phrase end), plays model`). While a variation is
+(`ensemble: want bass auto (phrase end), plays model (tree)`). While a variation is
 chosen, the band plays it, and every bar you drum with it becomes an example:
 "this way of drumming wants this variation". Bars without drums, and bars where you
 pressed again, are not used. In `auto` the band plays what it learned from your
 examples (a small decision tree, retrained after each example: `ensemble: trained
-bass tree, 9 examples`), or the rules until it has at least 4 examples of 2
-variations: keep what you like in different ways of drumming. Show
+bass tree, 9 examples`). Until it has at least 4 examples of 2 variations, the
+ways of drumming you marked play what you marked there (the most common, or the
+latest on a tie), and other drumming plays the rules (`plays model (marked
+contexts, 1 label)`): drumming the same way again brings back what you kept. Keep
+what you like in different ways of drumming to teach the tree. Show
 a few bars of each way of drumming you use. Set the bass and melody modes before
 playing, since pads 15 and 16 no longer cycle them. The examples are kept in your
 profile.

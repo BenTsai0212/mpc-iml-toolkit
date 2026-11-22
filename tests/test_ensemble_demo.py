@@ -89,7 +89,9 @@ def test_a_pad_want_lasts_to_the_phrase_end_and_its_last_bar_adds_an_example() -
     rig.until(4 * BAR + STEP)
     assert reply(rig, "want") == ["auto", "auto"]
     assert reply(rig, "examples") == [3, 0], "bar 0 (the keep), bars 2 and 3"
-    assert "ensemble: want bass auto (phrase end), plays rules" in rig.log
+    assert (
+        "ensemble: want bass auto (phrase end), plays model (marked contexts, 1 label)" in rig.log
+    )
     assert rig.reports[-1]["want"] == ["auto", "auto"]
 
 
@@ -167,6 +169,39 @@ def test_auto_plays_the_rules_before_a_tree() -> None:
     assert reply(rig, "chose") == ["rule", "rule"]
     assert reply(rig, "variation")[0] == "push"
     assert reply(rig, "examples") == [0, 0]
+
+
+def test_before_a_tree_the_marked_drums_play_what_was_marked() -> None:
+    rig = demo()
+    rig.ensemble.controls()["want"](["bass", "drive"])
+    play(rig, range(3), STEADY)
+    rig.ensemble.controls()["want"](["bass", "auto"])
+    assert reply(rig, "examples") == [2, 0], "one variation: no tree"
+    bar_of(rig, 3, hits=STEADY)
+    rig.until(4 * BAR + STEP)
+    assert reply(rig, "variation")[0] == "drive", "the rules play home here"
+    assert reply(rig, "chose")[0] == "model"
+    bar_of(rig, 4, hits=PUSHED)
+    rig.until(5 * BAR + STEP)
+    assert reply(rig, "variation")[0] == "push", "other drums play the rules"
+    assert reply(rig, "chose")[0] == "rule"
+
+
+def test_a_phrase_end_logs_what_auto_plays() -> None:
+    rig = demo()
+    play(rig, range(2), STEADY)
+    bar_of(rig, 2, press=8)
+    play(rig, range(3, 8), STEADY)
+    rig.until(8 * BAR + STEP)
+    assert (
+        "ensemble: want bass auto (phrase end), plays model (marked contexts, 1 label)" in rig.log
+    )
+    bar_of(rig, 8, press=8, hits=PUSHED)
+    bar_of(rig, 9, press=8, hits=PUSHED)
+    play(rig, range(10, 12), PUSHED)
+    rig.until(12 * BAR + STEP)
+    assert "ensemble: trained bass tree" in " ".join(rig.log)
+    assert "ensemble: want bass auto (phrase end), plays model (tree)" in rig.log
 
 
 def test_bars_without_drums_add_no_example() -> None:
