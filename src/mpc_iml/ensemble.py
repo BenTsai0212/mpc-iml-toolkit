@@ -70,8 +70,9 @@ State replies (`Preset.state`, ADR 0009, #153): `bass` and `melody-mode` give th
 mode asked for (next) and the one playing, the other replies the current settings
 (`Ensemble.state`). The preset asks the engine to send them again
 (`ClockAccess.report()`) after a press of the layer pad or the melody pad, and at a
-bar line where the playing bass or melody mode or a playing variation (the reply
-`variation`, #158) changes.
+bar line where the playing bass or melody mode, a playing variation (the reply
+`variation`, #158) or a playing transformation (the reply `transform`, #189)
+changes.
 
 The loops are loop files (#173, ADR 0010): the built-in `boom`, `walk`, `keys` and
 `pluck` live in `mpc_iml/loops/ensemble/` (registered as `CONTENT`), and installed
@@ -82,13 +83,27 @@ are read from `<data folder>/loops/*.json` (`Preset.data_folder`) when the prese
 loads and on `reload-loops`; a bad file is skipped with a log line and counted in
 the reply `loop-errors`. `bass-loop-step 1|-1` and `loop-step 1|-1` move to the
 next or previous loop of the lists (built-in, installed, then user loops).
+
+Rhythm transformation (#189, RFC 0005 step 6, `rhythm`): with `rhythm 1` (the
+default; a setting, not changed while playing) the bass's rhythm comes from the
+kicks of the last bar. The variation the kicks chose keeps its notes and pitches,
+and its onsets move to the kicks (`rhythm.lock`, `rhythm.answer`), the skeleton
+and the approach notes staying put. The phrase shapes it (`rhythm.bass_stage`):
+its first bar plays the line as written, the next two `lock`, the last `answer`,
+where the surprise fill still takes the last beat. The kicks of the phrase are
+remembered (`rhythm.Memory`): a bar close to them keeps their rhythm, and with
+`no-drums hold` a bar without kicks answers it. Bars that do not follow, `thin`'s
+skeleton and `rhythm 0` play the line as written. The plan of each bar
+(`Ensemble.plans`) carries its `transform` and what it took (`rhythm.Taken`), the
+reply `transform` gives both loops' transformation, and each phrase start logs the
+motif (`ensemble: rhythm motif kick 0 6 10`).
 """
 
 import random
 import sys
 import threading
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -114,6 +129,7 @@ from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
     NO_DRUMS,
     ORNAMENTS,
+    PHRASE,
     BarPlan,
     Follower,
     Loop,
@@ -127,6 +143,18 @@ from mpc_iml.melody import (
     surprise,
 )
 from mpc_iml.presets import ControlHandler, Preset
+from mpc_iml.rhythm import (
+    MIN_HITS,
+    Memory,
+    Motif,
+    Shaped,
+    Taken,
+    answer,
+    bass_stage,
+    fixed_steps,
+    lock,
+    motif,
+)
 
 __all__ = [
     "BASS_MODES",
@@ -286,6 +314,9 @@ class Ensemble:
         self.no_drums = "lead"
         self.fade_bars = 8
         self.surprise = 1
+        self.rhythm = 1
+        self._memory = Memory()
+        self._transforms = ("-", "-")
         self._random = random.Random(seed)
         self._variations = ("-", "-")
         self._plans: dict[str, BarPlan | None] = {"bass": None, "melody": None}
@@ -351,15 +382,20 @@ class Ensemble:
 
     def on_bar(self, start: BarStart) -> None:
         """Plan the bass loop and the melody of the bar that starts now from the drums
-        of the last one; report when the playing bass or melody mode or a playing
-        variation changes."""
+        of the last one; report when the playing bass or melody mode, a playing
+        variation or a playing transformation changes."""
         with self._lock:
-            playing = (self._bass_active, self._melody_playing, self._variations)
+            playing = self._playing()
             self._plan(start)
             self._melody_playing = self._melody_mode()
-            changed = playing != (self._bass_active, self._melody_playing, self._variations)
+            changed = playing != self._playing()
         if changed:
             self._report()
+
+    def _playing(self) -> tuple[object, ...]:
+        """What a bar line reports when it changes: the playing modes, variations and
+        transformations."""
+        return (self._bass_active, self._melody_playing, self._variations, self._transforms)
 
     def _report(self) -> None:
         """Ask the engine to send the state again (outside the lock, ADR 0009)."""
@@ -392,8 +428,18 @@ class Ensemble:
                 self.fade_bars,
             )
             extra = self._surprise(start.bar, bass_plan, melody_plan)
-            bass = self._plan_bass(start, bass_plan, kicks, extra == "fill")
+            heard = motif(drums, self.roles)
+            bass = self._plan_bass(start, bass_plan, kicks, heard, extra == "fill")
             self._variations = (bass, self._plan_melody(start, melody_plan, extra))
+            self._transforms = (
+                self._transform_of(self._plans["bass"]),
+                self._transform_of(self._plans["melody"]),
+            )
+
+    @staticmethod
+    def _transform_of(plan: BarPlan | None) -> str:
+        """The reply `transform` of a loop's plan: `-` when it does not play."""
+        return "-" if plan is None or plan.variation is None else plan.transform
 
     def _surprise(self, bar: int, bass: BarPlan, melody: BarPlan) -> str | None:
         """The surprise of `bar`, among those that can sound in it (#158): with
@@ -452,15 +498,21 @@ class Ensemble:
         )
 
     def _plan_bass(
-        self, start: BarStart, plan: BarPlan, kicks: Sequence[GridHit], fill: bool
+        self,
+        start: BarStart,
+        plan: BarPlan,
+        kicks: Sequence[GridHit],
+        heard: Motif,
+        fill: bool,
     ) -> str:
-        """Schedule the bass loop's notes of the bar that starts now, with the surprise
-        `fill`; the variation it plays (`-`: none)."""
+        """Schedule the bass loop's notes of the bar that starts now, reshaped by the
+        last bar's kicks `heard` (#189) and with the surprise `fill`; the variation it
+        plays (`-`: none)."""
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or self._bass_active != "loop":
             self._plans["bass"] = None
+            self._memory.reset()
             return "-"
-        self._plans["bass"] = plan
         last_bar = start.state.tick - start.state.beats_per_bar * TICKS_PER_BEAT
         self._bass_notes = [h for h in self._bass_notes if h.tick >= last_bar]
         bar = start.bar
@@ -471,6 +523,8 @@ class Ensemble:
         accents = steps_hit if accented else None
         steps = start.state.beats_per_bar * STEPS_PER_BEAT
         notes = tuple(n for n in plan.notes(self.bass_loop, bar) if n.step < steps)
+        plan, notes = self._transform_bass(bar, plan, heard, notes, steps)
+        self._plans["bass"] = plan
         if fill:
             notes = bass_fill(notes, bar % self.bass_loop.bars, steps)
         starts = [_tick(n) for n in notes]
@@ -484,6 +538,42 @@ class Ensemble:
                 scheduler.note(bar, tick, pitch, velocity, ticks, self.channel, 1)
             )
         return plan.variation or "-"
+
+    def _transform_bass(
+        self,
+        bar: int,
+        plan: BarPlan,
+        heard: Motif,
+        notes: tuple[LoopNote, ...],
+        steps: int,
+    ) -> tuple[BarPlan, tuple[LoopNote, ...]]:
+        """The bass's rhythm transformation in `bar` (#189): the plan with its
+        `transform` and `taken`, and the notes it plays. Off with `rhythm 0`, in bars
+        that do not follow the drums and in `thin`'s skeleton; a bar without kicks
+        answers the remembered motif with `no-drums hold`, else plays the line."""
+        if not self.rhythm or not self.follow or plan.skeleton or plan.variation is None:
+            self._memory.reset()
+            return plan, notes
+        if heard.kicks:
+            kicks = self._memory.take(heard).kicks
+        else:
+            kicks = self._memory.motif.kicks if self.no_drums == "hold" else ()
+        steps_heard = tuple(o.step for o in kicks)
+        if bar % PHRASE == 0 and len(kicks) >= MIN_HITS:
+            self._log(f"ensemble: rhythm motif kick {' '.join(map(str, steps_heard))}")
+        stage = bass_stage(bar)
+        fixed = fixed_steps(self.bass_loop, bar)
+        if stage == "lock":
+            shaped = lock(notes, fixed, kicks)
+        elif stage == "answer":
+            shaped = answer(notes, fixed, kicks)
+        else:
+            shaped = Shaped(notes, "plain")
+        if shaped.transform == "plain":
+            return plan, notes
+        taken = Taken("kick", steps_heard, shaped.moves)
+        played = tuple(n for n in shaped.notes if n.step < steps)
+        return replace(plan, transform=shaped.transform, taken=taken), played
 
     def _set_bass(self, mode: str) -> None:
         """Ask for a bass mode: it starts at the next bar line, or at once while the
@@ -665,6 +755,7 @@ class Ensemble:
             "no-drums": self._set_no_drums,
             "fade-bars": lambda a: self._set(lambda: setattr(self, "fade_bars", _whole(a, 0, 32))),
             "surprise": lambda a: self._set(lambda: setattr(self, "surprise", _whole(a, 0, 2))),
+            "rhythm": lambda a: self._set(lambda: setattr(self, "rhythm", _whole(a, 0, 1))),
         }
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
@@ -769,6 +860,8 @@ class Ensemble:
                 ("surprise", [self.surprise]),
                 ("variation", list(self._variations if scheduler is not None else ("-", "-"))),
                 ("loop-errors", [self.loop_errors]),
+                ("rhythm", [self.rhythm]),
+                ("transform", list(self._transforms if scheduler is not None else ("-", "-"))),
             ]
 
     def data_folder(self, folder: Path) -> None:

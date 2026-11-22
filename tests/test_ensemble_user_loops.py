@@ -210,5 +210,5 @@ def test_ensemble_in_the_engine_lists_and_reloads_user_loops(start: Any) -> None
     assert (PREFIX + "bass-loops", ["boom", "walk"]) in front.ask("/mpciml/state/get")
     replies = front.ask(PREFIX + "reload-loops")
     assert (PREFIX + "bass-loops", ["boom", "walk", "line"]) in replies
-    assert replies[-1] == (PREFIX + "loop-errors", [0])
+    assert (PREFIX + "loop-errors", [0]) in replies
     assert (PREFIX + "bass-loop", ["line"]) in front.ask(PREFIX + "bass-loop-step", -1)

@@ -241,6 +241,32 @@ unless the musician turns them on.
   stays 1.5. A preset's controls are versioned by the preset version (ADR 0004),
   and the message, its type and the reply's place are unchanged.
 
+## Amendment: rhythm transformation (#189)
+
+The `## Decision` on #189 (2026-11-21) accepts this amendment (RFC 0005 step 6).
+The bass's onsets move towards the kicks of the last bar, as a layer on the
+variations of #158; the melody follows in a later PR of #189.
+
+- New `ensemble` control (preset version): `rhythm` 0 or 1 (default 1), read at
+  each bar line. It is a setting, not one of the two controls changed while playing
+  (RFC 0005 principle 11): pads 15 and 16 stay those. 0 plays the variations as
+  written, exactly as before #189; 1 reshapes the bass. Other values are refused
+  with `bad_arguments`. The melody's PR of #189 widens it to 0-2 (2: the bass and
+  the melody).
+- New replies after `loop-errors`, in this order:
+
+  | Reply | Arguments |
+  | --- | --- |
+  | `rhythm` | `i` value |
+  | `transform` | `s` bass, `s` melody transformation playing: `plain`, `lock`, `answer` (the melody's PR adds `backbeat`), or `-` when that loop is silent, not a loop, or there is no `--clock` |
+
+- `ensemble` calls `report()` at a bar line where the playing bass or melody mode,
+  a playing variation **or a playing transformation** changed; at most one report
+  per bar line.
+- Group 8 and the Max for Live device do not change: the new replies are dropped by
+  the group's `route`, and the control is OSC only.
+- No core message, error code or protocol version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

@@ -29,6 +29,10 @@ only the bass fill can come; the melody surprises need `surprise 2` (#178).
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mpc_iml.rhythm import Taken
 
 __all__ = [
     "FADE",
@@ -198,7 +202,9 @@ class BarPlan:
     silence), at `velocity`, after sending the brightness CC `cc` (`None`: no CC).
     `skeleton` (`no-drums thin`) plays the loop's own level 1 instead (#144).
     `surprise` is whether the bar may carry a surprise: it follows the drums or keeps
-    playing without them, not fixed, `thin`, fading or silent."""
+    playing without them, not fixed, `thin`, fading or silent. `transform` is the
+    rhythm transformation the bar plays (`rhythm.TRANSFORMS`, #189) and `taken` what
+    it took from the drums (`None`: nothing, the line as written)."""
 
     variation: str | None
     level: int
@@ -206,6 +212,8 @@ class BarPlan:
     cc: int | None
     skeleton: bool = False
     surprise: bool = False
+    transform: str = "plain"
+    taken: "Taken | None" = None
 
     def notes(self, loop: Loop, bar: int) -> tuple[LoopNote, ...]:
         """The notes of `loop` this plan plays in song bar `bar`."""

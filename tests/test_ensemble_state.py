@@ -47,6 +47,8 @@ NAMES = [
     "surprise",
     "variation",
     "loop-errors",
+    "rhythm",
+    "transform",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -94,6 +96,8 @@ def test_the_state_after_build() -> None:
         "surprise": [1],
         "variation": ["-", "-"],
         "loop-errors": [0],
+        "rhythm": [1],
+        "transform": ["-", "-"],
     }
 
 
@@ -122,6 +126,7 @@ def test_the_preset_has_the_state_hook() -> None:
         ("no-drums", ["thin"], "no-drums", ["thin"]),
         ("fade-bars", [0], "fade-bars", [0]),
         ("fade-bars", [32], "fade-bars", [32]),
+        ("rhythm", [0], "rhythm", [0]),
     ],
 )
 def test_each_control_shows_in_the_state(
@@ -134,7 +139,15 @@ def test_each_control_shows_in_the_state(
 
 @pytest.mark.parametrize(
     ("control", "args"),
-    [("no-drums", ["stop"]), ("no-drums", []), ("fade-bars", [33]), ("fade-bars", [-1])],
+    [
+        ("no-drums", ["stop"]),
+        ("no-drums", []),
+        ("fade-bars", [33]),
+        ("fade-bars", [-1]),
+        ("rhythm", [2]),
+        ("rhythm", [-1]),
+        ("rhythm", ["lock"]),
+    ],
 )
 def test_bad_no_drums_and_fade_bars_are_rejected(control: str, args: list[Any]) -> None:
     ensemble = Ensemble()
