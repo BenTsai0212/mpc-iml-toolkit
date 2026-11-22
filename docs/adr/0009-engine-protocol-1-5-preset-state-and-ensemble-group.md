@@ -248,11 +248,16 @@ The bass's onsets move towards the kicks of the last bar, as a layer on the
 variations of #158; with `rhythm 2` the melody's onsets move towards the snares
 and hats.
 
-- New `ensemble` control (preset version): `rhythm` 0-2 (default 1), read at
+- New `ensemble` control (preset version): `rhythm` 0-2 (default 0 since #194;
+  1 before), read at
   each bar line. It is a setting, not one of the two controls changed while playing
   (RFC 0005 principle 11): pads 15 and 16 stay those. 0 plays the variations as
   written, exactly as before #189; 1 reshapes the bass; 2 the bass and the melody.
-  Other values are refused with `bad_arguments`.
+  Other values are refused with `bad_arguments`. The default changed from 1 to 0
+  after the manual check on #189 (#194): `rhythm 1` sounded about the same as
+  `rhythm 0`, and in steady styles such as hip-hop the moved bass sometimes
+  sounded off the beat, where the bass's grid position is part of the skeleton
+  (RFC 0005 principle 10).
 - New replies after `loop-errors`, in this order:
 
   | Reply | Arguments |

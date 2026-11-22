@@ -715,7 +715,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/no-drums` | `lead`、`hold` 或 `thin` | `lead` | 兩個 loop 在沒有鼓的小節演奏什麼（[鼓停下時](#鼓停下時)） |
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | loop 停止前的空小節數（最後兩個淡出）；0 不會停止 |
 | `/mpciml/preset/ensemble/surprise` | 0-2（0 關閉，1 只有 bass fill，2 再加上旋律的 surprise） | 1 | 每個 4 小節樂句結尾的 surprise（[一點驚喜](#一點驚喜)） |
-| `/mpciml/preset/ensemble/rhythm` | 0、1 或 2 | 1 | 1：bass 線條的音移向上一小節的 kick（每個 4 小節樂句的第一小節照原樣，之後移動，最後一小節再晚一個 16 分音符）；2：旋律的音也移向上一小節的 snare 與 hat（每個樂句的第一小節照原樣）；0：照寫好的線條 |
+| `/mpciml/preset/ensemble/rhythm` | 0、1 或 2 | 0 | 1：bass 線條的音移向上一小節的 kick（每個 4 小節樂句的第一小節照原樣，之後移動，最後一小節再晚一個 16 分音符）；2：旋律的音也移向上一小節的 snare 與 hat（每個樂句的第一小節照原樣）；0：照寫好的線條。#194 之前預設為 1：人工檢查時，在 hip-hop 等穩定的風格中，移動的 bass 有時聽起來不在拍上 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到

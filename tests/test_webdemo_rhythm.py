@@ -30,9 +30,9 @@ def column(table: list[list[str | int]], name: str) -> list[str | int]:
 
 
 def test_the_bass_moves_to_the_kicks_in_phrase_bars_1_to_3() -> None:
-    song = simulate([GROOVE] * 8)
-    plain = simulate([GROOVE] * 8, Settings(rhythm=0))
-    assert Settings().rhythm == 1
+    song = simulate([GROOVE] * 8, Settings(rhythm=1))
+    plain = simulate([GROOVE] * 8)
+    assert Settings().rhythm == 0
     assert [r.bass.transform for r in song.rows if r.bass is not None] == [
         "lock",
         "lock",
@@ -54,7 +54,7 @@ def test_rhythm_0_plays_the_lines_as_written() -> None:
 
 
 def test_moved_notes_are_marked_and_drawn_lighter() -> None:
-    song = simulate([GROOVE] * 4)
+    song = simulate([GROOVE] * 4, Settings(rhythm=1))
     moved = [n for n in song.notes if n.moved]
     assert moved and {n.part for n in moved} == {"bass"}
     assert {(n.tick // BAR, round(n.tick % BAR / SIXTEENTHS)) for n in moved} == {(1, 6), (2, 6)}
@@ -80,7 +80,7 @@ def test_rhythm_2_moves_the_melody_too() -> None:
 
 
 def test_the_table_shows_the_transformation_and_what_it_took() -> None:
-    _, table, *_ = play(to_table([GROOVE] * 4), Settings())
+    _, table, *_ = play(to_table([GROOVE] * 4), Settings(rhythm=1))
     assert len(table[0]) == len(TABLE_HEADERS)
     assert TABLE_HEADERS[:4] == ["bar", "transform", "took", "kicks"]
     assert table[0][:3] == ["1 → 2", "lock / plain", "kick 1 7 11 → bass 7"]
@@ -98,9 +98,15 @@ def test_the_table_shows_the_transformation_and_what_it_took() -> None:
     assert column(off, "transform") == ["plain / -"] * 2
 
 
+def test_the_default_plays_the_lines_as_written() -> None:
+    _, table, *_ = play(to_table([GROOVE] * 4), Settings())
+    assert {str(t) for t in column(table, "transform")} <= {"plain / plain", "plain / -"}
+    assert set(column(table, "took")) == {"-"}
+
+
 def test_a_recording_replays_with_rhythm_on() -> None:
     events = take([GROOVE] * 4)
-    song = replay(events)
+    song = replay(events, Settings(rhythm=1))
     assert song.settings.rhythm == 1 and song.bars == 5
     assert [r.bass.transform for r in song.rows if r.bass is not None][:3] == [
         "lock",
@@ -118,6 +124,6 @@ def test_a_bad_rhythm_is_refused(value: int) -> None:
 
 
 def test_the_same_grid_with_rhythm_gives_the_same_audio() -> None:
-    first = play(to_table([GROOVE] * 2), Settings())
-    second = play(to_table([GROOVE] * 2), Settings())
+    first = play(to_table([GROOVE] * 2), Settings(rhythm=1))
+    second = play(to_table([GROOVE] * 2), Settings(rhythm=1))
     assert np.array_equal(first.audio[1], second.audio[1])

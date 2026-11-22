@@ -85,9 +85,11 @@ loads and on `reload-loops`; a bad file is skipped with a log line and counted i
 the reply `loop-errors`. `bass-loop-step 1|-1` and `loop-step 1|-1` move to the
 next or previous loop of the lists (built-in, installed, then user loops).
 
-Rhythm transformation (#189, RFC 0005 step 6, `rhythm`): with `rhythm 1` (the
-default; a setting, not changed while playing) the bass's rhythm comes from the
-kicks of the last bar. The variation the kicks chose keeps its notes and pitches,
+Rhythm transformation (#189, RFC 0005 step 6, `rhythm`): off by default
+(`rhythm 0`, #194: in the manual check the moved bass sometimes sounded off the
+beat in steady styles, where the bass's grid position is part of the skeleton).
+With `rhythm 1` (a setting, not changed while playing) the bass's rhythm comes
+from the kicks of the last bar. The variation the kicks chose keeps its notes and pitches,
 and its onsets move to the kicks (`rhythm.lock`, `rhythm.answer`), the skeleton
 and the approach notes staying put. The phrase shapes it (`rhythm.bass_stage`):
 its first bar plays the line as written, the next two `lock`, the last `answer`,
@@ -322,7 +324,7 @@ class Ensemble:
         self.no_drums = "lead"
         self.fade_bars = 8
         self.surprise = 1
-        self.rhythm = 1
+        self.rhythm = 0
         self._memory = Memory()
         self._melody_memory = Memory()
         self._transforms = ("-", "-")

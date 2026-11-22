@@ -122,6 +122,8 @@ def test_the_page_builds() -> None:
         "Image",
         "Tab",
     }
+    rhythm = [b for b in page.blocks.values() if getattr(b, "label", None) == "rhythm"]
+    assert len(rhythm) == 1 and getattr(rhythm[0], "value", None) == 0
 
 
 def test_analytics_are_off_unless_the_environment_sets_them(

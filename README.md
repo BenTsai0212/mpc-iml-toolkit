@@ -906,7 +906,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/no-drums` | `lead`, `hold` or `thin` | `lead` | What both loops play in bars without drums ([When the drums stop](#when-the-drums-stop)) |
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
-| `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 1 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written |
+| `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -1071,14 +1071,14 @@ drum of one bar (kick, snare, hat; 0 is no hit, 1-127 the velocity). Pick an exa
 or place hits, choose the settings, and press **Play**. The page renders the drums,
 bass and keys with a small synth and shows a table: the drums of each bar and the
 variation, ornaments, velocity and brightness the band chose for the bar after it.
-The **rhythm** setting is the instrument's `rhythm` (#189): with `bass` (the
-default) the bass line's notes move to the last bar's kicks, with `bass and melody`
-the melody's also move to the snares and hats, and `off` plays the lines as written.
+The **rhythm** setting is the instrument's `rhythm` (#189): `off` (the default,
+#194) plays the lines as written, with `bass` the bass line's notes move to the last
+bar's kicks, and with `bass and melody` the melody's also move to the snares and hats.
 The table's `transform` column names the bass's and the melody's transformation
 (`plain`, `lock`, `answer`, `backbeat`; `-` when silent), and `took` the drums each
 moved line took and the steps its notes moved to, for example `kick 1 7 11 → bass 7`.
 In the piano roll, moved notes are a lighter shade of their part's colour. Play the
-same grid with `off` to hear the plain line next to it.
+same grid with `bass` to hear the moved line next to the plain one.
 The same grid and seed always sound the same. Below the table, a piano roll shows
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
