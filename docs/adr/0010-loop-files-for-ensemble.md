@@ -1,9 +1,10 @@
 # ADR 0010: Loop files for `ensemble`
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Related: ADR 0002, ADR 0007, ADR 0008, ADR 0009, RFC 0005, #144, #148, #158, #166,
   #173, #113 (Epic)
+- Accepted: 2026-11-22, implemented in #173 and played on `main` (#211)
 
 ## Context
 

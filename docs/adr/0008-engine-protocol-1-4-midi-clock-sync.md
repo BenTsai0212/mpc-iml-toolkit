@@ -1,12 +1,13 @@
 # ADR 0008: Engine protocol 1.4, MIDI clock sync
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-19
 - Related: RFC 0004, RFC 0005 (proposed in #131), ADR 0002, ADR 0004, ADR 0006,
   ADR 0007, #130, #113 (Epic)
 - Amended: 2026-11-20, #138 (`Preset.clock` without sync, `on_pad`, `send_now`,
   scheduler cleared on a preset switch; see "Amendment for #138")
 - Amended: 2026-11-20, #144 (`on_bar` and `BarStart`; see "Amendment for #144")
+- Accepted: 2026-11-22, implemented in #130 and played on `main` (#211)
 
 ## Context
 
