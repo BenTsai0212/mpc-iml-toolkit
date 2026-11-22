@@ -339,6 +339,24 @@ The same `## Decision` covers this part (point 4, B).
   stay `auto` and 0, so the reports are as before. Group 8 and the Max for Live
   device do not change.
 
+### The learning profile (#196, PR 4)
+
+The same `## Decision` covers this part (point 7).
+
+- New controls, no arguments: `save-profile` writes what was learned (the likes'
+  weights and the examples) to `<data folder>/learn/ensemble.json`
+  (`mpc-iml-ensemble-profile`, format version 1, `learn_profile`); `load-profile`
+  reads it again and trains the trees from its examples; `reset-learning` goes back
+  to the rules in memory. `save-profile` and `load-profile` are refused with
+  `bad_arguments` without a data folder, and `load-profile` also for a missing or
+  bad file.
+- The profile is also read when the preset gets its data folder, and written at
+  each phrase start while `learn` is not `off`. A file that cannot be read is
+  logged and kept: the phrase starts do not overwrite it until `save-profile`.
+- New reply after `examples`: `profile-errors` (`i`), 1 when the profile could not
+  be read at the last try, else 0. `ensemble` calls `report()` after the three
+  controls. Group 8 and the Max for Live device do not change.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

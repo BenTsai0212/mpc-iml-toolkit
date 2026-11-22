@@ -34,6 +34,9 @@ numbers behind its context, named in `FEATURES`) mapped to that variation. A mod
 (`mpc_iml.model.Model`, by default `sklearn_backend.Tree`, a shallow decision tree)
 is trained on the examples; with fewer than `MIN_EXAMPLES`, or only one variation
 among them, `predict` gives `None` and the rules play.
+
+What was learned is saved as a profile file by `mpc_iml.learn_profile`, which also
+holds `python -m mpc_iml.learn show [<profile>]`.
 """
 
 import math
@@ -220,6 +223,20 @@ class Learner:
                 return arm
         return self.arms[-1]
 
+    def table(self) -> dict[str, dict[str, float]]:
+        """Every context's weights (a copy), for the profile."""
+        return {c: dict(w) for c, w in self._weights.items()}
+
+    def load(self, table: Mapping[str, Mapping[str, float]]) -> None:
+        """Take the weights of `table` (as `table` gives them); a context it lacks
+        starts from the rules. `ValueError` for an unknown context or arm, or a missing arm."""
+        weights = {c: self.prior(c) for c in CONTEXTS[self.part]}
+        for context, row in table.items():
+            if context not in weights or set(row) != set(self.arms):
+                raise ValueError(f"not a {self.part} context with its arms: {context}")
+            weights[context] = {arm: float(row[arm]) for arm in self.arms}
+        self._weights = weights
+
     def like(self, context: str, arm: str) -> None:
         """The musician liked `arm` played in `context`."""
         self._weights[context][arm] += STEP
@@ -307,7 +324,19 @@ class Demonstrations:
         number = round(self._model.predict(list(features))[0])
         return self.arms[min(max(number, 1), len(self.arms)) - 1]
 
+    def rules(self) -> str | None:
+        """The trained model as rules (`sklearn_backend.Tree.rules`, named by
+        `FEATURES` and the variations); `None` without a model or for one without rules."""
+        rules = getattr(self._model, "rules", None)
+        return None if rules is None else str(rules(FEATURES[self.part], self.arms))
+
     def reset(self) -> None:
         """Forget the examples and the model: back to the rules."""
         self.examples = []
         self._model = None
+
+
+if __name__ == "__main__":
+    from mpc_iml.learn_profile import main
+
+    raise SystemExit(main())

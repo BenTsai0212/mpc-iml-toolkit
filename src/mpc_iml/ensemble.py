@@ -134,9 +134,17 @@ loop's decision tree is retrained at that bar line, after the next bar is planne
 tree's prediction, or the rules while it has fewer than `learn.MIN_EXAMPLES`
 examples or only one variation among them. `chose` then gives `want`, `model` or
 `rule`, and the replies `want` (bass, melody) and `examples` (bass, melody) follow
-`learned`. What is shown is kept until `ensemble` is loaded again.
+`learned`.
+
+What was learned is the profile (#196, `learn_profile`): the likes' weights and the
+examples in `<data folder>/learn/ensemble.json`, read when the preset gets its data
+folder and on `load-profile`, written on `save-profile` and, while `learn` is not
+`off`, at each phrase start. `reset-learning` goes back to the rules in memory. A
+profile that cannot be read is logged, the reply `profile-errors` (after
+`examples`) is 1, and the phrase starts do not overwrite it until a `save-profile`.
 """
 
+import contextlib
 import random
 import sys
 import threading
@@ -175,6 +183,7 @@ from mpc_iml.learn import (
     rule_choice,
 )
 from mpc_iml.learn import context as learn_context
+from mpc_iml.learn_profile import PROFILE, apply_profile, read_profile, write_profile
 from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
     NO_DRUMS,
@@ -391,6 +400,11 @@ class Ensemble:
         """The variation the musician wants for each part with `learn demo` (#196)."""
         self._bar_wants: dict[str, str] | None = None
         """`wants` at the last bar line: what the bar playing was planned with."""
+        self._profile: Path | None = None
+        self.profile_errors = 0
+        """1 when the profile could not be read at the last try, else 0 (#196)."""
+        self._autosave = True
+        """False after a bad profile, so a phrase start does not overwrite it."""
         self._chose = ("-", "-")
         self._variations = ("-", "-")
         self._plans: dict[str, BarPlan | None] = {"bass": None, "melody": None}
@@ -544,6 +558,8 @@ class Ensemble:
             if self.learn == "demo" and start.complete:
                 self._demonstrate(start.bar, drums, plays)
             self._bar_wants = dict(self.wants)
+            if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
+                self._autosave_profile()
 
     def _follows(self, drums: Sequence[GridHit], kicks: bool) -> set[str]:
         """The loops whose next bar follows the drums of the last one: with a running
@@ -1012,7 +1028,77 @@ class Ensemble:
             "learn": self._set_learn,
             "like": self._like_control,
             "want": self._want_control,
+            "save-profile": lambda a: self._profile_control(a, self._save_profile),
+            "load-profile": lambda a: self._profile_control(a, self._load_profile),
+            "reset-learning": self._reset_learning,
         }
+
+    def _profile_control(self, args: Sequence[float | int | str], act: Callable[[], None]) -> None:
+        """`save-profile` and `load-profile`: no arguments, with a data folder."""
+        if args:
+            raise ValueError(f"expected no arguments, got {list(args)}")
+        with self._lock:
+            if self._profile is None:
+                raise ValueError("no data folder: ensemble is not loaded by the engine")
+            act()
+        self._report()
+
+    def _save_profile(self) -> None:
+        """Write the profile (`learn_profile`); `ValueError` when it cannot be."""
+        assert self._profile is not None
+        settings = {
+            "progression": self.progression.name,
+            "bass-loop": self.bass_loop.name,
+            "loop": self.loop.name,
+        }
+        try:
+            write_profile(self._profile, self._learners, self._demos, settings)
+        except OSError as error:
+            raise ValueError(f"cannot write the profile {self._profile}: {error}") from error
+        self._autosave = True
+        self._log(f"ensemble: saved the profile {self._profile}")
+
+    def _autosave_profile(self) -> None:
+        """At a phrase start while learning: save, unless the profile was bad."""
+        if self._profile is None or not self._autosave:
+            return
+        try:
+            self._save_profile()
+        except ValueError as error:
+            self._log(f"ensemble: {error}")
+
+    def _load_profile(self) -> None:
+        """Read the profile and learn it; a bad one is kept from autosave, logged,
+        counted in `profile-errors` and raises `ValueError`, the learning unchanged."""
+        assert self._profile is not None
+        try:
+            profile = read_profile(self._profile)
+        except ValueError as error:
+            self.profile_errors, self._autosave = 1, False
+            self._log(f"ensemble: skipped the profile: {error}")
+            raise
+        apply_profile(profile, self._learners, self._demos)
+        self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
+        self.profile_errors, self._autosave = 0, True
+        examples = sum(len(d.examples) for d in self._demos.values())
+        learned = len(self._learned())
+        self._log(
+            f"ensemble: loaded the profile {self._profile}: {learned} learned, {examples} examples"
+        )
+
+    def _reset_learning(self, args: Sequence[float | int | str]) -> None:
+        """`reset-learning`: back to the rules in memory; the file changes on a save."""
+        if args:
+            raise ValueError(f"expected no arguments, got {list(args)}")
+        with self._lock:
+            for part in PARTS:
+                self._learners[part].reset()
+                self._demos[part].reset()
+            self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
+            self._heard = {}
+            self.likes = 0
+            self._log("ensemble: reset learning to the rules")
+        self._report()
 
     def _set_learn(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in LEARN_MODES:
@@ -1153,13 +1239,19 @@ class Ensemble:
                 ("learned", list(self._learned() or ["-"])),
                 ("want", list(self.wants.values())),
                 ("examples", [len(d.examples) for d in self._demos.values()]),
+                ("profile-errors", [self.profile_errors]),
             ]
 
     def data_folder(self, folder: Path) -> None:
-        """The `Preset.data_folder` hook: read the user loops in `<folder>/loops/`."""
+        """The `Preset.data_folder` hook: read the user loops in `<folder>/loops/` and
+        the profile `<folder>/learn/ensemble.json` when there is one (#196)."""
         with self._lock:
             self._folder = folder / USER_FOLDER
             self._read_user_loops()
+            self._profile = folder / PROFILE
+            if self._profile.exists():
+                with contextlib.suppress(ValueError):
+                    self._load_profile()
 
     def _reload_loops(self, args: Sequence[float | int | str]) -> None:
         if args:
