@@ -19,7 +19,10 @@ presses like (the control `like`) in the middle of the bar that answers each lis
 grid bar, so the like credits that answer; with `demo`, `Settings.wants` sends
 `want <part> <want>` at the bar line after each listed grid bar, so the band plays
 it in the answer to that bar, and each later bar with drums that wanted it all
-through becomes an example (`auto` plays the model's prediction). Each row then shows the
+through becomes an example (`auto` plays the model's prediction); `Settings.presses`
+presses pad 16 (bass) or 15 (melody) at the same step as a like, so the first press
+keeps the variation answering that bar and a further one moves to the next variation,
+until the phrase ends (#215). Each row then shows the
 contexts of its bar and where each choice came from (`chose`), and the song keeps
 the learning log lines and the final `learned` reply. Nothing is saved: the demo has
 no data folder, so there is no profile and no learn log.
@@ -117,6 +120,10 @@ class Settings:
     mode_pads: int = 1
     """The setting `mode-pads` (#216): 1 (the default, as in the instrument) pads 15
     and 16 of a replayed recording switch the modes, 0 they do not."""
+    presses: tuple[tuple[int, str], ...] = ()
+    """With `learn demo`: `(bar, part)`, the musician presses pad 16 (`bass`) or 15
+    (`melody`) in the bar that answers grid bar `bar` (from 0), at `LIKE_STEP`
+    (#215): in `auto` it keeps the variation playing, else it moves to the next."""
 
 
 @dataclass(frozen=True)
@@ -161,6 +168,9 @@ class BarRow:
     `chose`: `rule`, `bandit`, `model`, `want`, or `-` when the loop is silent."""
     liked: bool = False
     """The musician liked the bar after it (`Settings.likes`)."""
+    pressed: tuple[str, ...] = ()
+    """The parts whose pad the musician pressed in the bar after it
+    (`Settings.presses`, #215)."""
 
 
 @dataclass(frozen=True)
@@ -210,7 +220,7 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
 
     Raises `ValueError` for a grid of no bars or more than `MAX_BARS`, a drum or step
     count other than `DRUMS` and `STEPS`, a velocity outside 0-127, a tempo outside
-    `TEMPO_RANGE`, a like or a want outside the grid or the `learn` mode, or a setting
+    `TEMPO_RANGE`, a like, a want or a press outside the grid or the `learn` mode, or a setting
     the preset's controls refuse.
     """
     hits = _hits(grid)
@@ -244,7 +254,7 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
     song's tempo (`Settings.tempo`) is the clock's at the end of the take, and the
     audio renders at that tempo. Raises `ValueError` for a recording without a Start
     and 24 ticks, or of more than `MAX_BARS` bars, and as `simulate` for the learning
-    settings (a like or a want after the take does nothing).
+    settings (a like, a want or a press after the take does nothing).
     """
     _check_learning(settings, MAX_BARS)
     run: _Run | None = None
@@ -278,13 +288,15 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
 
 
 def _check_learning(settings: Settings, bars: int) -> None:
-    """Refuse a `learn` mode, like or want `simulate` and `replay` cannot play."""
+    """Refuse a `learn` mode, like, want or press `simulate` and `replay` cannot play."""
     if settings.learn not in LEARN_MODES:
         raise ValueError(f"learn must be one of {', '.join(LEARN_MODES)}, got {settings.learn!r}")
     if settings.likes and settings.learn != "likes":
         raise ValueError("likes need learn likes")
     if settings.wants and settings.learn != "demo":
         raise ValueError("wants need learn demo")
+    if settings.presses and settings.learn != "demo":
+        raise ValueError("presses need learn demo")
     for bar in settings.likes:
         if not 0 <= bar < bars:
             raise ValueError(f"a like must be in bars 1-{bars}, got bar {bar + 1}")
@@ -293,6 +305,11 @@ def _check_learning(settings: Settings, bars: int) -> None:
             raise ValueError(f"a want must be in bars 1-{bars}, got bar {bar + 1}")
         if part not in WANTS or want not in WANTS[part]:
             raise ValueError(f"a want is bass|melody and auto or a variation, got {part} {want}")
+    for bar, part in settings.presses:
+        if not 0 <= bar < bars:
+            raise ValueError(f"a press must be in bars 1-{bars}, got bar {bar + 1}")
+        if part not in WANTS:
+            raise ValueError(f"a press is bass or melody, got {part}")
 
 
 class _Run:
@@ -305,6 +322,10 @@ class _Run:
         self.chose: dict[int, tuple[str, str]] = {}
         self._likes = {bar + 1 for bar in settings.likes}
         self._liked: set[int] = set()
+        self._presses: dict[int, list[str]] = {}
+        for bar, part in settings.presses:
+            self._presses.setdefault(bar + 1, []).append(part)
+        self.pressed: dict[int, tuple[str, ...]] = {}
         wants: dict[int, list[tuple[str, str]]] = {}
         for bar, part, want in settings.wants:
             wants.setdefault(bar + 1, []).append((part, want))
@@ -366,7 +387,22 @@ class _Run:
         ):
             self._liked.add(state.bar)
             self._like([])
+        if (
+            state.status == "running"
+            and state.step >= LIKE_STEP
+            and state.bar in self._presses
+            and state.bar not in self.pressed
+        ):
+            parts = tuple(self._presses[state.bar])
+            self.pressed[state.bar] = parts
+            for part in parts:
+                self._press(part, t)
         self.scheduler.update(t)
+
+    def _press(self, part: str, t: float) -> None:
+        """Pad 16 (`bass`) or 15 (`melody`) of bank A, as the musician presses it."""
+        pad = self.ensemble.layer_pad if part == "bass" else self.ensemble.melody_pad
+        self.access.deliver(MidiEvent(t, "note_on", 1, 100, bank_pad_to_note(0, pad - 1)))
 
     def hit(self, event: MidiEvent) -> None:
         """A pad Note On; a drum while the clock runs is also a note of the song."""
@@ -396,6 +432,7 @@ class _Run:
                 _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1)),
                 chose=self.chose[b + 1],
                 liked=b + 1 in self._liked,
+                pressed=self.pressed.get(b + 1, ()),
             )
             for b in range(grid_bars)
         )

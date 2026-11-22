@@ -1,8 +1,17 @@
-"""The web demo's learning path (#196): likes and wants over a scripted session."""
+"""The web demo's learning path (#196): likes, wants and pad presses (#215) over a
+scripted session."""
 
 import pytest
 
-from mpc_iml.webdemo.app import TABLE_HEADERS, learning, parse_likes, parse_wants, play, to_table
+from mpc_iml.webdemo.app import (
+    TABLE_HEADERS,
+    learning,
+    parse_likes,
+    parse_presses,
+    parse_wants,
+    play,
+    to_table,
+)
 from mpc_iml.webdemo.sim import Settings, simulate
 
 SPARSE = {"kick": [100, 0, 0, 0] * 4}
@@ -16,6 +25,10 @@ BUSY = {
 DEMO = [SPARSE] * 5 + [BUSY] * 5 + [SPARSE, BUSY] * 2
 WANTS = ((0, "bass", "push"), (4, "bass", "home"), (9, "bass", "auto"))
 """Push over the sparse bars, home over the busy ones, then the model plays."""
+PRESSED = [SPARSE] * 4 + [BUSY] * 4 + [SPARSE, BUSY] * 2
+PRESSES = ((0, "bass"), (0, "bass"), (4, "bass"))
+"""Pad 16 twice in the answer to bar 1 (keep `home`, next `push`), then once in the
+answer to bar 5 (keep the rules' `drive` on the busy drums)."""
 
 
 def variations(song_rows: object) -> list[str | None]:
@@ -62,6 +75,32 @@ def test_wants_play_and_train_the_tree() -> None:
     assert variations(rules.rows)[10:] == ["home", "drive"] * 2
 
 
+def test_pad_presses_keep_then_next_and_go_back_to_auto_at_the_phrase_end() -> None:
+    song = simulate(PRESSED, Settings(learn="demo", presses=PRESSES))
+    assert [r.pressed for r in song.rows][:5] == [("bass", "bass"), (), (), (), ("bass",)]
+    assert [r.chose[0] for r in song.rows] == (["rule"] + ["want"] * 2 + ["model"]) * 2 + [
+        "model"
+    ] * 4
+    assert song.learning[:3] == (
+        "ensemble: want bass home (kept) to bar 4",
+        "ensemble: want bass push (next) to bar 4",
+        "ensemble: want bass auto (phrase end), plays model (marked contexts, 2 labels)",
+    )
+    assert "ensemble: want bass drive (kept) to bar 8" in song.learning
+    assert "ensemble: want bass auto (phrase end), plays model (tree)" in song.learning
+    assert variations(song.rows)[8:] == ["push", "drive"] * 2
+    assert variations(simulate(PRESSED).rows)[8:] == ["home", "drive"] * 2
+    assert simulate(PRESSED, Settings(learn="demo", presses=PRESSES)) == song
+
+
+def test_pad_15_presses_choose_the_melody() -> None:
+    song = simulate([SPARSE] * 4, Settings(learn="demo", presses=((0, "melody"),)))
+    assert song.rows[0].pressed == ("melody",)
+    assert song.learning[0].startswith("ensemble: want melody ")
+    assert song.learning[0].endswith(" to bar 4")
+    assert [r.chose[1] for r in song.rows][1:3] == ["want", "want"]
+
+
 @pytest.mark.parametrize(
     ("settings", "message"),
     [
@@ -72,6 +111,9 @@ def test_wants_play_and_train_the_tree() -> None:
         (Settings(learn="likes", likes=(4,)), "a like must be in bars 1-4"),
         (Settings(learn="demo", wants=((0, "bass", "open"),)), "a want is bass"),
         (Settings(learn="demo", wants=((9, "melody", "open"),)), "a want must be in bars"),
+        (Settings(learn="likes", presses=((0, "bass"),)), "presses need learn demo"),
+        (Settings(learn="demo", presses=((4, "bass"),)), "a press must be in bars 1-4"),
+        (Settings(learn="demo", presses=((0, "keys"),)), "a press is bass or melody"),
     ],
 )
 def test_bad_learning_settings_are_refused(settings: Settings, message: str) -> None:
@@ -87,6 +129,10 @@ def test_the_page_parses_likes_and_wants_and_shows_the_columns() -> None:
             parse_likes(bad)
     with pytest.raises(ValueError, match="wants"):
         parse_wants("1 bass")
+    assert parse_presses("1 bass, 1 bass; 5 bass") == PRESSES and parse_presses("") == ()
+    for bad in ("1", "0 bass", "x bass", "1 bass push"):
+        with pytest.raises(ValueError, match="presses"):
+            parse_presses(bad)
     shown = play(to_table(DEMO), Settings(learn="demo", wants=WANTS))
     context, chose = TABLE_HEADERS.index("context"), TABLE_HEADERS.index("chose")
     assert shown.table[0][context] == "grid/- / sparse/none"
@@ -94,6 +140,9 @@ def test_the_page_parses_likes_and_wants_and_shows_the_columns() -> None:
     assert shown.learning.splitlines()[-1] == "learned: -"
     liked = play(to_table([SPARSE] * 4), Settings(learn="likes", likes=(1,)))
     assert liked.table[1][chose] == "bandit / bandit, liked"
+    pressed = play(to_table(PRESSED), Settings(learn="demo", presses=PRESSES))
+    assert pressed.table[0][chose] == "rule / rule, pressed bass, pressed bass"
+    assert pressed.learning.splitlines()[0] == "ensemble: want bass home (kept) to bar 4"
     assert play(to_table([SPARSE] * 4), Settings()).learning == ""
 
 
