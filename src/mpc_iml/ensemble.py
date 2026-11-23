@@ -193,15 +193,15 @@ condition then keeps the modes its settings give. Pad 16 is still a like with
 `mode-pads` follows `learn-log`.
 
 With `status 1` (#230, default 1, a setting) each bar line while the clock runs logs
-a status line for the musician (`status_line`): the bar, each loop's variation and
-where it came from (`chose`), and what pads 16 and 15 do now (`pad_action`), for
-example `ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15:
-keep home`; a press of pad 16 or 15 while the clock runs logs it again. A press of
-pad 16 or 15 that does nothing because the clock is not running logs
-`ensemble: pad 16 ignored, the clock is not running`, also with `status 0`; the line
-names the pad, not the learn mode, so a blind trial stays blind. `for_musician`
-tells these lines from the others (`trial run` shows them). The reply `status`
-follows `mode-pads`.
+a status line for the musician (`status_line`): the bar, its chord (#236), each
+loop's variation and where it came from (`chose`), and what pads 16 and 15 do now
+(`pad_action`), for example `ensemble: bar 12  Am7  bass drive (rule)  melody home
+(rule)  16: keep drive  15: keep home`; a press of pad 16 or 15 while the clock runs
+logs it again. A press of pad 16 or 15 that does nothing because the clock is not
+running logs `ensemble: pad 16 ignored, the clock is not running`, also with
+`status 0`; the line names the pad, not the learn mode, so a blind trial stays
+blind. `for_musician` tells these lines from the others (`trial run` shows them).
+The reply `status` follows `mode-pads`.
 """
 
 import contextlib
@@ -589,15 +589,16 @@ class Ensemble:
         return answers.get(part, ((), "", False))[1] or WANTS[part][1]
 
     def status_line(self, bar: int) -> str:
-        """The status line of `bar` (#230): each loop's variation and its source
-        (`chose`), and what pads 16 and 15 do now."""
+        """The status line of `bar` (#230): its chord (#236), each loop's variation
+        and its source (`chose`), and what pads 16 and 15 do now."""
         with self._lock:
             parts = []
             for i, part in enumerate(PARTS):
                 variation, source = self._variations[i], self._chose[i]
                 parts.append(f"{part} {variation}" + ("" if variation == "-" else f" ({source})"))
             pads = [f"{p}: {self.pad_action(p)}" for p in (self.layer_pad, self.melody_pad) if p]
-            return "  ".join([f"{STATUS_PREFIX}{bar}", *parts, *pads])
+            chord = self.progression.chord_name(bar)
+            return "  ".join([f"{STATUS_PREFIX}{bar}", chord, *parts, *pads])
 
     def _mode_pad(self, hit: PadHit) -> bool:
         """Pad 16 or 15: like, want or switch a mode; `True` when it did, to report."""

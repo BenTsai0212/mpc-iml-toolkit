@@ -111,10 +111,16 @@ quality, five hip-hop progressions, and `<` name `>` in Pure Data group 8.
   playing until another one is chosen, as for loops.
 - `python -m mpc_iml.progressions list --data <folder>` also lists the user ones.
 
-### Later steps (#236)
+### Tools and the status line (#236 PR 4)
 
-- `--data` for the tools that take `--progression`, and the next bar's chord in the
-  status line.
+- The tools that take `--progression` also read the musician's own progressions
+  from `--data` (default `mpc-iml-data`): `vargen --midi`, `loops import` and
+  `loops export` (`progressions.find_progression`). `measures` replays with them
+  (`--data`, same default). An unknown name is an error that names it and lists the
+  known progressions; argparse no longer checks `choices`.
+- The status line (ADR 0009, amendment of #230) shows the chord of its bar after
+  the bar number, for example `ensemble: bar 5  Bm7b5  bass push (rule) …`
+  (`Progression.chord_name`).
 
 ### Unchanged
 

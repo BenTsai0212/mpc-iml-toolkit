@@ -65,7 +65,7 @@ from mpc_iml.loops import (
     parse_loop,
 )
 from mpc_iml.melody import LoopNote
-from mpc_iml.progressions import DEFAULT, load_progressions
+from mpc_iml.progressions import DEFAULT, find_progression
 
 __all__ = [
     "CORPORA",
@@ -599,7 +599,7 @@ def _generate(args: argparse.Namespace) -> None:
     if args.midi is not None:
         folder = Path(args.midi or Path(args.data) / "vargen")
         folder.mkdir(parents=True, exist_ok=True)
-        progression = load_progressions()[args.progression]
+        progression = find_progression(args.progression, Path(args.data))
         clips = [(f"{source.name}-{args.variation}", source, args.variation)]
         clips += [
             (f"{source.name}-{args.variation}-{c.seed}", c.as_loop(source.name), HOME)
@@ -627,7 +627,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("loop", help="a loop name or a loop file (.json)")
     parser.add_argument("--corpus", choices=CORPORA, default=DEFAULT_CORPUS)
-    parser.add_argument("--data", default=DEFAULT_DATA, help="the data folder with user loops")
+    parser.add_argument(
+        "--data", default=DEFAULT_DATA, help="the data folder with user loops and progressions"
+    )
     showing = bool(argv) and argv[0] == "show"
     if showing:
         parser.prog += " show"
@@ -641,7 +643,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.add_argument(
             "--midi", nargs="?", const="", help="write clips (default <data>/vargen/)"
         )
-        parser.add_argument("--progression", choices=list(load_progressions()), default=DEFAULT)
+        parser.add_argument(
+            "--progression", default=DEFAULT, help="for --midi; yours from --data too"
+        )
     args = parser.parse_args(argv)
     try:
         if showing:

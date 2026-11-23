@@ -240,7 +240,7 @@ loop 是 loop 檔案（ADR 0010）：上面列出的 loop 是內建的，你也�
 
    這會寫出 `mpc-iml-data/loops/my-boom.json`（`uv run mpc-iml` 的資料夾），並印出音符如何被讀取：
    和弦音、進入下一個和弦的趨近音、其他音，以及不在格線上的音（保留為 `offset`）。每個音都存成和弦音，
-   所以換和弦進行時線條會跟著和弦走。在 `minor-four` 上寫的話加 `--progression minor-four`；clip 從
+   所以換和弦進行時線條會跟著和弦走。在 `minor-four` 上寫的話加 `--progression minor-four`（也可以是你自己的和弦進行，從 `--data` 讀取，預設 `mpc-iml-data`）；clip 從
    Fmaj7 開始時加 `--start-bar 2`；加 `--ornament-below 60` 會把 velocity 低於 60 的音當作裝飾音
    （只在鼓打得較密時演奏）。
 4. 這個 clip 是 `home` 變奏。要加入給往前推的 kick 與密集 kick 的變奏，再寫兩個 clip，加到同一個
@@ -404,10 +404,10 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 pad 16、15 之後印出一行，例如：
 
 ```text
-ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
 ```
 
-依序是小節（從 Start 的 0 起算）、bass 與旋律正在演奏的變奏與選擇的來源（`rule`、`bandit`、
+依序是小節（從 Start 的 0 起算）與它在演奏中的和弦進行裡的和弦（#236）、bass 與旋律正在演奏的變奏與選擇的來源（`rule`、`bandit`、
 `model`、`want`，`melody-mode still` 時旋律為 `still`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn demo` 時為
 `keep <變奏>`、`next <變奏>`，`learn likes` 時 pad 16 為 `like`，`mode-pads 1` 時為切換到的模式
 （`bass rule`、`melody fixed`），什麼都不做時（`mode-pads 0`，或 `learn demo` 且 `melody-mode still`

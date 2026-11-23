@@ -49,10 +49,12 @@ __all__ = [
     "Chord",
     "Progression",
     "chord_names",
+    "find_progression",
     "load_progressions",
     "load_user_progressions",
     "main",
     "parse_progression",
+    "progression_library",
 ]
 
 PROGRESSION_FORMAT = "mpc-iml-progression"
@@ -113,6 +115,11 @@ class Progression:
                 return chord
             left -= chord.bars
         raise AssertionError("unreachable: the chords fill the progression")
+
+    def chord_name(self, bar: int) -> str:
+        """The name of the chord of `bar`, for example `Am7`."""
+        chord = self.chord(bar)
+        return NAMES[(self.tonic + chord.root) % 12] + chord.quality
 
     def root_note(self, bar: int, octave: int) -> int:
         """The MIDI note of the chord root of `bar` in `octave` (A1 is 33)."""
@@ -250,6 +257,29 @@ def load_user_progressions(
             continue
         library[progression.name] = progression
     return library, errors
+
+
+def progression_library(data: Path | None) -> tuple[dict[str, Progression], list[str]]:
+    """The built-in and installed progressions, and with `data` the musician's own in
+    `<data>/progressions/`, for the command-line tools (#236); with one error message
+    per skipped user file. Raises `ContentError` as `load_progressions`."""
+    progressions = load_progressions()
+    if data is None:
+        return progressions, []
+    return load_user_progressions(data / USER_FOLDER, progressions)
+
+
+def find_progression(name: str, data: Path | None) -> Progression:
+    """The progression `name` from `progression_library(data)`; raises `ContentError`
+    naming `name` and the known progressions when there is none."""
+    progressions, errors = progression_library(data)
+    if name in progressions:
+        return progressions[name]
+    message = f"unknown progression {name!r}; progressions: {', '.join(progressions)}"
+    if errors and data is not None:
+        folder = data / USER_FOLDER
+        message += f" ({len(errors)} file(s) in {folder} skipped; `progressions list --data`)"
+    raise ContentError(message)
 
 
 def _check(paths: Sequence[str]) -> int:
