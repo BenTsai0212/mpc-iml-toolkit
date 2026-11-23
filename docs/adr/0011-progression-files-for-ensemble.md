@@ -97,12 +97,22 @@ quality, five hip-hop progressions, and `<` name `>` in Pure Data group 8.
 - Chords print with flat names for the black keys except F#
   (`progressions.NAMES`: `Db`, `Eb`, `F#`, `Ab`, `Bb`).
 
+### User progressions (#236 PR 3)
+
+- The musician's own progressions are `<data folder>/progressions/*.json`
+  (`progressions.load_user_progressions`), read when the preset gets its data
+  folder and on `reload-loops`, which reads loops and progressions together. They
+  follow the built-in and installed ones in `progressions`, by name.
+- A file that cannot be read, is invalid, has a file name other than its `name`, or
+  reuses a built-in, installed or user name is skipped with a log line and counted
+  in the reply `progression-errors` (ADR 0009, amendment "progression files"), apart
+  from `loop-errors`. One bad file never stops playing.
+- A changed file plays from the next bar; a progression whose file is gone keeps
+  playing until another one is chosen, as for loops.
+- `python -m mpc_iml.progressions list --data <folder>` also lists the user ones.
+
 ### Later steps (#236)
 
-- User progressions in `<data folder>/progressions/*.json`, read when the preset
-  loads and on `reload-loops`; a bad file, or one that reuses a name, is skipped
-  and counted in a reply `progression-errors`. The controls and replies are an
-  ADR 0009 amendment.
 - `--data` for the tools that take `--progression`, and the next bar's chord in the
   status line.
 
