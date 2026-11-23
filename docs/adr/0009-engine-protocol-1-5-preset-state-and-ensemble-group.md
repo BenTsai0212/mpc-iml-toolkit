@@ -457,6 +457,39 @@ demonstrations"; the control `want` does not change.
   not change. No core message, reply, error code or protocol version changes; the
   protocol stays 1.5.
 
+## Amendment: the status line (#230)
+
+Issue #230 asks for this amendment. In the manual check of #215 nothing showed what
+a press of pad 16 does, and presses while Live was stopped were ignored in a line
+that went only to `engine.log`.
+
+- New control `status 0|1` (default 1, preset version), a setting and a display
+  only, not a performance control (RFC 0005 "Scope rules"). With 1, each bar line
+  while the clock runs, and each press of pad 16 or 15 while it runs, logs
+  `ensemble: bar <N>  bass <variation> (<source>)  melody <variation> (<source>)
+  16: <action>  15: <action>`: the variations and sources of the replies
+  `variation` and `chose` (a silent loop is `-`, without a source), and what a
+  press does now (`keep <variation>`, `next <variation>`, `like`, the mode it
+  switches to, or `-`). Other values are refused with `bad_arguments`. The default
+  is 1: outside trials the terminal is the only place the musician sees what the
+  pads do, and the line changes nothing that plays (the golden files of `learn off`
+  and `learn likes` are played with it on).
+- A press of pad 16 or 15 that does nothing because the clock is not running logs
+  `ensemble: pad <N> ignored, the clock is not running` with either value. It
+  replaces `ensemble: want <part> ignored, …` and `ensemble: like ignored, …`, and
+  is also logged for a press that switches no mode with `mode-pads 0`, so the line
+  is the same in every `learn` mode and a blind trial stays blind.
+- New reply after `mode-pads`: `status` (`i` 0 or 1). It changes only with the
+  control, so the bar line reports are as before.
+- `trial run` shows these lines in its terminal while a condition plays
+  (`ensemble.for_musician`); `engine.log` keeps every line. Both example trial files
+  send `status 0` in `base`, so they show only the ignored presses; the replay of
+  `measures` skips `status`.
+- The replies `variation` and `chose`, the profile, the learn log and recording
+  formats do not change. Group 8, the Max for Live device and the web demo (which
+  sends `status 0`) do not change. No core message, error code or protocol version
+  changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

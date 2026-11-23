@@ -177,6 +177,17 @@ melody mode nor the bass mode, in every `learn` mode, and send no reply: a trial
 condition then keeps the modes its settings give. Pad 16 is still a like with
 `learn likes`, and pads 15 and 16 still set `want` with `learn demo`. The reply
 `mode-pads` follows `learn-log`.
+
+With `status 1` (#230, default 1, a setting) each bar line while the clock runs logs
+a status line for the musician (`status_line`): the bar, each loop's variation and
+where it came from (`chose`), and what pads 16 and 15 do now (`pad_action`), for
+example `ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15:
+keep home`; a press of pad 16 or 15 while the clock runs logs it again. A press of
+pad 16 or 15 that does nothing because the clock is not running logs
+`ensemble: pad 16 ignored, the clock is not running`, also with `status 0`; the line
+names the pad, not the learn mode, so a blind trial stays blind. `for_musician`
+tells these lines from the others (`trial run` shows them). The reply `status`
+follows `mode-pads`.
 """
 
 import contextlib
@@ -264,11 +275,13 @@ __all__ = [
     "NOTE_SECONDS",
     "PROGRESSIONS",
     "ROLES",
+    "STATUS_PREFIX",
     "WANT_MIN_BARS",
     "Chord",
     "Ensemble",
     "Progression",
     "bass_velocity",
+    "for_musician",
     "make_preset",
 ]
 
@@ -292,6 +305,12 @@ LEARNED_REPLY = 4
 WANT_MIN_BARS = 2
 """A `want` set by pad 16 or 15 (`learn demo`, #215) lasts to the next phrase start,
 or to the one after it when fewer than this many complete bars would be left."""
+
+STATUS_PREFIX = "ensemble: bar "
+"""The start of a status line (`status 1`, #230)."""
+
+IGNORED = " ignored, the clock is not running"
+"""The end of the line of a press that does nothing without a running clock (#230)."""
 
 NO_CLOCK = (
     "ensemble: no MIDI clock (start with --clock); bass loop, bar layer and melody off,"
@@ -350,6 +369,14 @@ PROGRESSIONS = {
 }
 """`minor-two` (default): Am7 and Fmaj7, 2 bars each. `minor-four`: Dm7, Gm7,
 Bbmaj7, A7, one bar each."""
+
+
+def for_musician(line: str) -> bool:
+    """Whether `line` of the ensemble's log is for the musician while playing (#230):
+    a status line or an ignored press."""
+    return line.startswith(STATUS_PREFIX) or (
+        line.startswith("ensemble: ") and line.endswith(IGNORED)
+    )
 
 
 def bass_velocity(velocity: int) -> int:
@@ -419,6 +446,8 @@ class Ensemble:
         self.melody_pad = 15
         self.mode_pads = True
         """Pads 15 and 16 switch the modes (`mode-pads`, #216)."""
+        self.status = True
+        """Log a status line at each bar line (`status`, #230)."""
         self._learn_down = False
         self._melody_playing = "follow"
         self._follower = Follower(("open", ORNAMENTS))
@@ -504,6 +533,69 @@ class Ensemble:
     def _on_pad(self, hit: PadHit) -> bool:
         """Handle a pad hit; `True` when it changed a mode, to report."""
         with self._lock:
+            pads = {p for p in (self.layer_pad, self.melody_pad) if p}
+            if hit.pad + 1 not in pads:
+                self._bass_hit(hit)
+                return False
+            stopped = hit.grid is None or hit.grid.bar < 0
+            if stopped and not self._switches(hit.pad + 1):
+                self._log(f"ensemble: pad {hit.pad + 1}{IGNORED}")
+                return False
+            changed = self._mode_pad(hit)
+            if self.status and not stopped:
+                assert hit.grid is not None
+                self._log(self.status_line(hit.grid.bar))
+            return changed
+
+    def _switches(self, pad: int) -> bool:
+        """Whether a press of `pad` (16 or 15) switches a mode now (`learn off`, or
+        pad 15 with `learn likes`, while `mode-pads 1`): the only press that does
+        something while the clock is not running."""
+        if pad == self.layer_pad:
+            return self.learn == "off" and self.mode_pads
+        return self.learn != "demo" and self.mode_pads
+
+    def pad_action(self, pad: int) -> str:
+        """What a press of `pad` (16 or 15) does now, for the status line (#230):
+        `bass rule` (the mode it switches to), `like`, `keep <variation>`,
+        `next <variation>` or `-` (nothing)."""
+        with self._lock:
+            part = "bass" if pad == self.layer_pad else "melody"
+            if self.learn == "demo":
+                want = self.wants[part]
+                if want == "auto":
+                    return f"keep {self._keeps(part)}"
+                arms = WANTS[part][1:]
+                return f"next {arms[(arms.index(want) + 1) % len(arms)]}"
+            if part == "bass" and self.learn == "likes":
+                return "like"
+            if not self.mode_pads:
+                return "-"
+            if part == "bass":
+                return f"bass {BASS_MODES[(BASS_MODES.index(self.bass) + 1) % len(BASS_MODES)]}"
+            mode = self._melody_mode()
+            return f"melody {MELODY_MODES[(MELODY_MODES.index(mode) + 1) % len(MELODY_MODES)]}"
+
+    def _keeps(self, part: str) -> str:
+        """The variation a press in `auto` keeps (after the first beat): the one
+        chosen for the bar playing, the rules' where the loop is silent (#215)."""
+        answers = self._answers.get(max(self._answers, default=0), {})
+        return answers.get(part, ((), "", False))[1] or WANTS[part][1]
+
+    def status_line(self, bar: int) -> str:
+        """The status line of `bar` (#230): each loop's variation and its source
+        (`chose`), and what pads 16 and 15 do now."""
+        with self._lock:
+            parts = []
+            for i, part in enumerate(PARTS):
+                variation, source = self._variations[i], self._chose[i]
+                parts.append(f"{part} {variation}" + ("" if variation == "-" else f" ({source})"))
+            pads = [f"{p}: {self.pad_action(p)}" for p in (self.layer_pad, self.melody_pad) if p]
+            return "  ".join([f"{STATUS_PREFIX}{bar}", *parts, *pads])
+
+    def _mode_pad(self, hit: PadHit) -> bool:
+        """Pad 16 or 15: like, want or switch a mode; `True` when it did, to report."""
+        with self._lock:
             if self.layer_pad and hit.pad == self.layer_pad - 1:
                 if self.learn == "likes":
                     grid = hit.grid
@@ -515,16 +607,13 @@ class Ensemble:
                 else:
                     return False
                 return True
-            if self.melody_pad and hit.pad == self.melody_pad - 1:
-                if self.learn == "demo":
-                    self._pad_want("melody", hit.grid)
-                elif self.mode_pads:
-                    self._cycle_melody()
-                else:
-                    return False
-                return True
-            self._bass_hit(hit)
-            return False
+            if self.learn == "demo":
+                self._pad_want("melody", hit.grid)
+            elif self.mode_pads:
+                self._cycle_melody()
+            else:
+                return False
+            return True
 
     def _bass_hit(self, hit: PadHit) -> None:
         """The bass of a pad hit (`rule`, or `loop` without a running clock)."""
@@ -553,6 +642,8 @@ class Ensemble:
             self._plan(start)
             self._melody_playing = self._melody_mode()
             changed = playing != self._playing()
+            if self.status and start.bar >= 0 and self._running():
+                self._log(self.status_line(start.bar))
         if changed:
             self._report()
 
@@ -796,7 +887,9 @@ class Ensemble:
         next bar line. Either way the `want` lasts to the end of the phrase
         (`WANT_MIN_BARS`)."""
         if grid is None or grid.bar < 0:
-            self._log(f"ensemble: want {part} ignored, the clock is not running")
+            self._log(
+                f"ensemble: pad {self.layer_pad if part == 'bass' else self.melody_pad}{IGNORED}"
+            )
             return
         end = (grid.bar // PHRASE + 1) * PHRASE
         if end - grid.bar - 1 < WANT_MIN_BARS:
@@ -861,7 +954,7 @@ class Ensemble:
         """A like at (bar, step) of the clock (`None`: not running): credit each
         loop's choice in the bar it refers to (`learn.liked_bar`)."""
         if at is None:
-            self._log("ensemble: like ignored, the clock is not running")
+            self._log(f"ensemble: pad {self.layer_pad}{IGNORED}")
             return
         bar = liked_bar(*at)
         if self._bar_log is not None:
@@ -1252,6 +1345,7 @@ class Ensemble:
             "learn-loops": lambda a: self._set(lambda: setattr(self, "learn_loops", _flag(a))),
             "learn-log": self._set_learn_log,
             "mode-pads": lambda a: self._set(lambda: setattr(self, "mode_pads", _flag(a))),
+            "status": lambda a: self._set(lambda: setattr(self, "status", _flag(a))),
         }
 
     def _set_learn_log(self, args: Sequence[float | int | str]) -> None:
@@ -1517,6 +1611,7 @@ class Ensemble:
                 ("playing-loops", list(self._loop_names if scheduler is not None else ("-", "-"))),
                 ("learn-log", [int(self._bar_log is not None)]),
                 ("mode-pads", [int(self.mode_pads)]),
+                ("status", [int(self.status)]),
             ]
 
     def data_folder(self, folder: Path) -> None:

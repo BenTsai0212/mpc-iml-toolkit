@@ -17,6 +17,8 @@ which compares `rhythm 0` with `rhythm 1` and asks five 1-5 questions and two op
 questions.
 Trials keep the modes fixed: both example files send `mode-pads 0` in `base`, so
 pads 15 and 16 never switch the bass or melody mode during a condition (#216).
+Both also send `status 0`: the status line names the variations' sources and what
+pads 16 and 15 do, which would tell the musician the learning mode (#230).
 
 ## Before a trial
 
@@ -56,6 +58,15 @@ Each trial gets a folder `<data folder>/trials/<YYYYMMDD-HHMMSS>/` with
 one recording per condition (`A.jsonl`, `B.jsonl`; `A-2.jsonl` for a repeat) and
 `engine.log`. Nothing is uploaded or committed; keep the data folder outside the
 repository.
+
+While a condition plays (from its "press Play" line until Enter), the terminal also
+shows the engine's lines meant for the musician (#230): presses of pad 16 or 15
+that did nothing because Live was stopped (`ensemble: pad 16 ignored, the clock is
+not running`; the line names the pad, not the learning mode), and, only with
+`status 1`, the status lines of
+[the ensemble guide](ensemble.md#see-what-the-band-plays-and-what-the-pads-do).
+The example files send `status 0`, so a blind trial shows only the ignored presses.
+`engine.log` keeps every line, as before.
 
 ## Comparing learning modes
 

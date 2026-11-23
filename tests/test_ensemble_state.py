@@ -60,6 +60,7 @@ NAMES = [
     "playing-loops",
     "learn-log",
     "mode-pads",
+    "status",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -121,6 +122,7 @@ def test_the_state_after_build() -> None:
         "playing-loops": ["-", "-"],
         "learn-log": [0],
         "mode-pads": [1],
+        "status": [1],
     }
 
 

@@ -62,7 +62,8 @@ class Rig:
     """An `Ensemble` on a simulated DAW clock (or without one); the melody layer is
     off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`.
     The surprises (#158) are off unless `surprise` (the control's 0-2, #178), with the
-    fixed seed `seed`, and the rhythm transformation (#189) unless `rhythm`."""
+    fixed seed `seed`, and the rhythm transformation (#189) unless `rhythm`; the
+    status line (#230) is off unless `status`."""
 
     def __init__(
         self,
@@ -72,6 +73,7 @@ class Rig:
         surprise: int = 0,
         seed: int = 0,
         rhythm: int = 0,
+        status: int = 0,
     ) -> None:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
@@ -86,6 +88,7 @@ class Rig:
         self.ensemble = Ensemble(self.log.append, self.timer, seed=seed)
         self.ensemble.surprise = surprise
         self.ensemble.rhythm = rhythm
+        self.ensemble.status = bool(status)
         self.ensemble.melody = melody
         self.ensemble.controls()["bass"]([bass])
         self.ensemble.attach(self.access)

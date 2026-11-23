@@ -279,6 +279,30 @@ a few bars of each way of drumming you use. Set the bass and melody modes before
 playing, since pads 15 and 16 no longer cycle them. The examples are kept in your
 profile.
 
+### See what the band plays and what the pads do
+
+With `status 1` (the default, #230) the terminal shows one line at each bar line
+while Live plays, and again after each press of pad 16 or 15:
+
+```text
+ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+```
+
+- the bar (counted from 0 at Start);
+- the bass and melody variation playing in it and where each choice came from:
+  `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`); `-` when that
+  loop is silent;
+- what pad 16 and pad 15 do if you press them now: `keep <variation>` and
+  `next <variation>` with `learn demo`, `like` with `learn likes`, the mode they
+  switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the pad
+  does nothing (`mode-pads 0`). In the first beat of a bar a keep keeps the bar
+  before, as described above.
+
+A press of pad 16 or 15 that does nothing because the clock is not running (Live
+is stopped, or the count-in) is shown as `ensemble: pad 16 ignored, the clock is not
+running`, also with `status 0`. The status line only shows: it changes nothing that
+plays. `status 0` turns it off; trials send it ([Blind comparison trials](trials.md)).
+
 ### Keep what the band learned
 
 What the band learned, the likes' weights and your examples, is your profile ("my
@@ -447,6 +471,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
 | `/mpciml/preset/ensemble/learn-log` | 0 or 1 | 0 | 1: writes a line per bar to a new `learn/log-<time>.jsonl` in the data folder, to compare the learning modes; 0: finishes it ([Keep what the band learned](#keep-what-the-band-learned)) |
 | `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (still like in `learn likes` and want in `learn demo`), as trials send ([Blind comparison trials](trials.md)) |
+| `/mpciml/preset/ensemble/status` | 0 or 1 | 1 | 1: a status line in the terminal at each bar line, with the variations playing, their source and what pads 16 and 15 do now ([See what the band plays and what the pads do](#see-what-the-band-plays-and-what-the-pads-do)); 0: none, as trials send. Presses ignored without a running clock are shown either way |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
 starts. Bad values get `/mpciml/error bad_arguments`, and messages for `ensemble`
@@ -482,6 +507,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `profile-errors` | 1 when the profile could not be read at the last try, else 0 |
 | `learn-log` | 1 while the per-bar log is written, else 0 |
 | `mode-pads` | 1 while pads 15 and 16 switch the modes, else 0 |
+| `status` | 1 while the status line is shown, else 0 |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 

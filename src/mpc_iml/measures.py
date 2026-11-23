@@ -68,9 +68,17 @@ _FIELDS = {
     "mode-pads": "mode_pads",
 }
 """`ensemble` controls the replay takes, and their `Settings` fields."""
-_SAME = {("reset-learning", ()), ("learn-log", (0,)), ("learn-log", (1,)), ("learn-loops", (0,))}
+_SAME = {
+    ("reset-learning", ()),
+    ("learn-log", (0,)),
+    ("learn-log", (1,)),
+    ("learn-loops", (0,)),
+    ("status", (0,)),
+    ("status", (1,)),
+}
 """Controls that do not change what the replay plays: it starts from the rules, with
-no profile, no learn log and the selected loops (#196)."""
+no profile, no learn log and the selected loops (#196); the status line only logs
+(#230)."""
 
 Pattern = frozenset[tuple[str, int]]
 
