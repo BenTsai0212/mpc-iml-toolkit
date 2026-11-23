@@ -146,9 +146,10 @@ class BarRow:
     it: `kicks` and `hats` are the steps of those hits, `hits` every drum hit,
     `velocity` their average (`None`: no hits); `chord` is the next bar's chord;
     `bass` and `melody` are the plans `ensemble` made (`None`: it does not play),
-    `rule` says why: `drums`, `fixed`, or the `no-drums` setting for a bar without
-    drums (without kicks, for the bass); `surprise` is the surprise the band played
-    in the bar after it (`fill`, `octave` or `passing`; `None`: none, #158)."""
+    `rule` says why: `drums`, `fixed`, `still` (the melody, #233), or the `no-drums`
+    setting for a bar without drums (without kicks, for the bass); `surprise` is the
+    surprise the band played in the bar after it (`fill`, `octave` or `passing`;
+    `None`: none, #158)."""
 
     bar: int
     kicks: tuple[int, ...]
@@ -545,6 +546,8 @@ def _row(
     def rule(drums: bool) -> str:
         return "fixed" if fixed else "drums" if drums else s.no_drums
 
+    melody_rule = "still" if s.melody_mode == "still" else rule(bool(start.hits))
+
     return BarRow(
         bar,
         kicks,
@@ -555,7 +558,7 @@ def _row(
         plans["bass"],
         rule(bool(kicks)),
         plans["melody"],
-        rule(bool(start.hits)),
+        melody_rule,
         surprise,
         (
             learn_context(PARTS[0], start.hits, DEFAULT_ROLES),
