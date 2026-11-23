@@ -46,8 +46,19 @@ rule bass 有兩層，可以用控制項 `immediate` 與 `bar`（見 [ensemble �
   你的 kick 發聲，回聲取消；回聲已經發出時，你的 kick 不發出 bass。節奏穩定時聽到的是
   immediate 層；省略某個 kick 的地方，由上一小節的 kick 補上。
 
-和弦取自兩個和弦進行之一：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）與 `minor-four`
-（Dm7、Gm7、Bbmaj7、A7，各一小節）。bass 在第 1 八度演奏（A1 是 MIDI 音符 33）。Live 的
+和弦取自一個和弦進行：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）或 `minor-four`
+（Dm7、Gm7、Bbmaj7、A7，各一小節），或五個 hip-hop 和弦進行之一（#236）：
+
+| 和弦進行 | 和弦（小節數） |
+| --- | --- |
+| `dark-minor` | Cm7（2）、Dbmaj7（2）：陰暗的 i–♭II 循環 |
+| `lofi-descent` | Fmaj7、Em7、Dm7、Cmaj7（各 1）：lo-fi 的下行 |
+| `minor-turn` | Bm7b5（1）、E7（1）、Am7（2）：小調的 ii–V–i |
+| `soul-minor` | Am7（2）、Dm7（2）：soul 的 i–iv |
+| `two-five-one` | Dm7（1）、G7（1）、Cmaj7（2）：ii–V–I |
+
+loop 的音寫成和弦音，所以每個 loop 都能在每個和弦進行上演奏。和弦性質有 `m7`、`maj7`、`7` 與
+`m7b5`（根音、小三度、減五度、小七度）。bass 在第 1 八度演奏（A1 是 MIDI 音符 33）。Live 的
 MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。每個和弦進行是套件中的
 和弦進行檔（`mpc-iml-progression`，ADR 0011）；`uv run python -m mpc_iml.progressions list`
 列出它們與和弦，`uv run python -m mpc_iml.progressions check <檔案>` 檢查一個檔案。
@@ -263,7 +274,7 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。`still`（#233）沒有按鈕；以控制項設定時 `now` 與 `next` 會顯示。 |
 | `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（內建的 loop 依名稱排列；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
 | `reload`、`errors` | `reload` 重新讀取你的 loop 檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)）；`errors` 顯示略過的檔案數（`loop-errors`）。 |
-| `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
+| `progression` | `<` 與 `>` 選擇 engine 列出的上一個或下一個和弦進行（`minor-two`、`minor-four`，再來是其他的依名稱排列），下方的方塊顯示選擇的和弦進行。 |
 | `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
 | `roles` | 每個 pad 的角色，唯讀，與 pad 一樣排成 4 列 4 個（13-16 在最上面）。 |
 | `learn_CC`、`CC`、`ch` | 送出 `learn-cc`，在 Live 對應亮度的 CC（[旋律 loop](#旋律-loop)）；`CC` 與 `ch` 顯示它送出的 CC 與 channel（`filter-cc`、`melody-channel`）。 |
@@ -289,7 +300,8 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/bass-loop-step` | 1 或 -1 | - | `bass-loops` 中的下一個或上一個 bass loop，到尾端時繞回 |
 | `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | rule bass 的 immediate 層 |
 | `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | rule bass 的 bar 層 |
-| `/mpciml/preset/ensemble/progression` | `minor-two` 或 `minor-four` | `minor-two` | 和弦進行 |
+| `/mpciml/preset/ensemble/progression` | 和弦進行的名稱（`progressions`） | `minor-two` | 和弦進行 |
+| `/mpciml/preset/ensemble/progression-step` | 1 或 -1 | - | `progressions` 中的下一個或上一個和弦進行，到尾端時繞回 |
 | `/mpciml/preset/ensemble/octave` | 0-3 | 1 | bass 的八度（1 時為 A1） |
 | `/mpciml/preset/ensemble/length` | 1-16 | 2 | rule bass 的音符長度（16 分音符數） |
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
@@ -334,7 +346,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `bass` | 下一個與正在演奏的模式（`loop`、`rule`、`off`） |
 | `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`、`still`） |
 | `bass-loop`、`loop`、`progression` | 選擇的名稱 |
-| `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序） |
+| `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序；和弦進行：`minor-two`、`minor-four`，再來是其他內建的依名稱排列，然後是安裝的） |
 | `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
 | `roles` | 16 個角色，pad 1-16 |
 | `no-drums` | 值（`lead`、`hold`、`thin`） |

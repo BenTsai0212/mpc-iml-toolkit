@@ -65,7 +65,7 @@ quality, five hip-hop progressions, and `<` name `>` in Pure Data group 8.
 - The whole progression lasts 1, 2, 4 or 8 bars, so it lines up with the 4-bar
   phrase that drives surprises, `bass_stage` and the learn log.
 - Errors are `ContentError`s naming the file and the chord, for example
-  `lofi.json: chords[2]: quality must be one of m7, maj7, 7, got 'm9'`.
+  `lofi.json: chords[2]: quality must be one of m7, maj7, 7, m7b5, got 'm9'`.
 
 ### Content kind and loading
 
@@ -81,11 +81,24 @@ quality, five hip-hop progressions, and `<` name `>` in Pure Data group 8.
 - `python -m mpc_iml.progressions check <file>…` validates files and prints the
   chords by name; `list` prints the progressions.
 
+### Qualities and the built-in set (#236 PR 2)
+
+- `melody.QUALITIES` adds `m7b5`: tones 0-3 are the root, minor third, flat fifth
+  and minor seventh (0 3 6 10), so a loop's tones and `semitones` keep their shape
+  and the bass's "fifth" is the chord's flat fifth. `6`, `m6` and the ninths are not
+  added: tones 0-3 of a ninth chord equal its seventh chord's, and the ninth is
+  already reachable with tone 0 plus 2 `semitones`.
+- Five built-in hip-hop progressions join `minor-two` and `minor-four`:
+  `dark-minor` (Cm7, Dbmaj7, 2 bars each), `lofi-descent` (Fmaj7, Em7, Dm7, Cmaj7),
+  `minor-turn` (Bm7b5, E7, Am7 for 2), `soul-minor` (Am7, Dm7, 2 bars each) and
+  `two-five-one` (Dm7, G7, Cmaj7 for 2).
+- The control `progression-step` and Pure Data group 8 as `<` name `>` (ADR 0009,
+  amendment "progression files").
+- Chords print with flat names for the black keys except F#
+  (`progressions.NAMES`: `Db`, `Eb`, `F#`, `Ab`, `Bb`).
+
 ### Later steps (#236)
 
-- The quality `m7b5` (tones 0-3: root, minor third, flat fifth, minor seventh) and
-  five built-in hip-hop progressions; the control `progression-step` and Pure Data
-  group 8 as `<` name `>`.
 - User progressions in `<data folder>/progressions/*.json`, read when the preset
   loads and on `reload-loops`; a bad file, or one that reuses a name, is skipped
   and counted in a reply `progression-errors`. The controls and replies are an

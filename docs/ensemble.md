@@ -55,9 +55,21 @@ them:
   pattern you hear the immediate layer; where you leave a kick out, last bar's
   kick fills it in.
 
-The chords come from one of two progressions: `minor-two` (default: Am7 for
-2 bars, then Fmaj7 for 2 bars) and `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
-each). The bass plays in octave 1 (A1 is MIDI note 33). With Live's MIDI Clock Type
+The chords come from a chord progression: `minor-two` (default: Am7 for
+2 bars, then Fmaj7 for 2 bars) or `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
+each), or one of five hip-hop progressions (#236):
+
+| Progression | Chords (bars) |
+| --- | --- |
+| `dark-minor` | Cm7 (2), Dbmaj7 (2): a dark i–♭II loop |
+| `lofi-descent` | Fmaj7, Em7, Dm7, Cmaj7 (1 each): a lo-fi descent |
+| `minor-turn` | Bm7b5 (1), E7 (1), Am7 (2): a minor ii–V–i |
+| `soul-minor` | Am7 (2), Dm7 (2): a soul i–iv |
+| `two-five-one` | Dm7 (1), G7 (1), Cmaj7 (2): a ii–V–I |
+
+Every loop plays on every progression: loop notes are chord tones. The chord
+qualities are `m7`, `maj7`, `7` and `m7b5` (root, minor third, flat fifth, minor
+seventh). The bass plays in octave 1 (A1 is MIDI note 33). With Live's MIDI Clock Type
 set to **Song**, Live's bar 1 is the start of the progression. Each progression
 is a progression file (`mpc-iml-progression`, ADR 0011) in the package;
 `uv run python -m mpc_iml.progressions list` prints them with their chords, and
@@ -441,7 +453,7 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. `still` (#233) has no button; `now` and `next` show it when set by the control. |
 | `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (the built-in loops by name; then installed and your own loops), and the box under them shows the one selected. |
 | `reload`, `errors` | `reload` reads your loop files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line)); `errors` shows how many were skipped (`loop-errors`). |
-| `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
+| `progression` | `<` and `>` choose the previous or next progression the engine lists (`minor-two`, `minor-four`, then the others by name), and the box under them shows the one selected. |
 | `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
 | `roles` | The role of each pad, read only, 4 rows of 4 like the pads (13-16 on top). |
 | `learn_CC`, `CC`, `ch` | Sends `learn-cc` to map the brightness CC in Live ([The melody loop](#the-melody-loop)); `CC` and `ch` show the CC and channel it sends on (`filter-cc`, `melody-channel`). |
@@ -472,7 +484,8 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/bass-loop-step` | 1 or -1 | - | The next or previous bass loop of `bass-loops`, wrapping around |
 | `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer of the rule bass |
 | `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer of the rule bass |
-| `/mpciml/preset/ensemble/progression` | `minor-two` or `minor-four` | `minor-two` | The chord progression |
+| `/mpciml/preset/ensemble/progression` | a progression's name (`progressions`) | `minor-two` | The chord progression |
+| `/mpciml/preset/ensemble/progression-step` | 1 or -1 | - | The next or previous progression of `progressions`, wrapping around |
 | `/mpciml/preset/ensemble/octave` | 0-3 | 1 | Octave of the bass (A1 at 1) |
 | `/mpciml/preset/ensemble/length` | 1-16 | 2 | Note length of the rule bass in 16ths |
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
@@ -519,7 +532,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `bass` | next and playing mode (`loop`, `rule`, `off`) |
 | `melody-mode` | next and playing mode (`follow`, `fixed`, `off`, `still`) |
 | `bass-loop`, `loop`, `progression` | the selected name |
-| `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name) |
+| `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name; progressions: `minor-two`, `minor-four`, then the other built-in ones by name, then installed ones) |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
 | `roles` | 16 roles, pads 1-16 |
 | `no-drums` | the value (`lead`, `hold`, `thin`) |

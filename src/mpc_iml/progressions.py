@@ -64,7 +64,7 @@ CHORD_BARS = (1, 4)
 """The shortest and longest chord, in bars."""
 LENGTHS = (1, 2, 4, 8)
 """The lengths a whole progression may have, in bars."""
-NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+NAMES = ("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
 """The name of each pitch class, as chords are printed."""
 _LETTERS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 _ACCIDENTALS = {"": 0, "#": 1, "b": -1}

@@ -62,8 +62,14 @@ __all__ = [
     "surprise",
 ]
 
-QUALITIES = {"m7": (0, 3, 7, 10), "maj7": (0, 4, 7, 11), "7": (0, 4, 7, 10)}
-"""Semitones above the root of tones 0-3 (root, third, fifth, seventh)."""
+QUALITIES = {
+    "m7": (0, 3, 7, 10),
+    "maj7": (0, 4, 7, 11),
+    "7": (0, 4, 7, 10),
+    "m7b5": (0, 3, 6, 10),
+}
+"""Semitones above the root of tones 0-3 (root, third, fifth, seventh); `m7b5`'s
+fifth is the flat fifth (#236)."""
 
 FIXED_VELOCITY = 100
 """Velocity of every note when the melody does not follow the drums."""

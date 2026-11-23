@@ -1,0 +1,15 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "lofi-descent",
+  "title": "Lo-fi descent",
+  "description": "Fmaj7, Em7, Dm7 and Cmaj7, one bar each: a lo-fi descent in C.",
+  "preset": "ensemble",
+  "tonic": "C",
+  "chords": [
+    {"root": 5, "quality": "maj7"},
+    {"root": 4, "quality": "m7"},
+    {"root": 2, "quality": "m7"},
+    {"root": 0, "quality": "maj7"}
+  ]
+}

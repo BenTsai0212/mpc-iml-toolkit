@@ -3,6 +3,7 @@ progressions play as the Python table did before."""
 
 import json
 import re
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ import pytest
 
 from mpc_iml.content import ContentError
 from mpc_iml.ensemble import Ensemble
+from mpc_iml.loops import load_loops
+from mpc_iml.melody import QUALITIES, LoopNote, loop_pitch
 from mpc_iml.progressions import (
     DEFAULT,
     Chord,
@@ -19,6 +22,7 @@ from mpc_iml.progressions import (
     main,
     parse_progression,
 )
+from mpc_iml.webdemo.sim import Settings, simulate
 
 TWO = {
     "format": "mpc-iml-progression",
@@ -160,3 +164,76 @@ def test_check_and_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
         "minor-two: Am7 (2) Fmaj7 (2)",
         "minor-four: Dm7 (1) Gm7 (1) Bbmaj7 (1) A7 (1)",
     ]
+
+
+# The built-in set (#236 PR 2)
+
+HIP_HOP = {
+    "dark-minor": "Cm7 (2) Dbmaj7 (2)",
+    "lofi-descent": "Fmaj7 (1) Em7 (1) Dm7 (1) Cmaj7 (1)",
+    "minor-turn": "Bm7b5 (1) E7 (1) Am7 (2)",
+    "soul-minor": "Am7 (2) Dm7 (2)",
+    "two-five-one": "Dm7 (1) G7 (1) Cmaj7 (2)",
+}
+"""The hip-hop progressions of the `## Decision` on #236, with their chords."""
+
+FOLDER = Path(__file__).parents[1] / "src" / "mpc_iml" / "progressions" / "ensemble"
+BUSY = {"kick": [100, 0, 0, 100] * 4, "snare": [0, 0, 0, 0, 90, 0, 0, 0] * 2, "hat": [70] * 16}
+OPEN = {"kick": [100, 0, 0, 0, 0, 0, 0, 0] * 2}
+
+
+def test_the_built_in_set_follows_the_two_old_progressions() -> None:
+    progressions = load_progressions()
+    assert list(progressions) == ["minor-two", "minor-four", *HIP_HOP]
+    assert {name: chord_names(progressions[name]) for name in HIP_HOP} == HIP_HOP
+    for name in progressions:
+        assert main(["check", str(FOLDER / f"{name}.json")]) == 0
+
+
+def test_m7b5_has_a_flat_fifth() -> None:
+    """Tones 0-3 of `m7b5` are root, minor third, flat fifth and minor seventh, so a
+    loop's tones plus `semitones` keep their shape (Bm7b5: B D F A)."""
+    assert QUALITIES["m7b5"] == (0, 3, 6, 10)
+    b = (11, "m7b5")
+    pitches = [loop_pitch(LoopNote(0, 0, tone, 1, 1), b, b, 4) for tone in range(4)]
+    assert pitches == [71, 74, 77, 81]
+    assert loop_pitch(LoopNote(0, 0, 3, 1, 1, semitones=1), b, b, 4) == 82
+
+
+@pytest.mark.parametrize("progression", HIP_HOP)
+def test_every_built_in_loop_plays_on_the_new_progressions(progression: str) -> None:
+    """Each built-in bass and melody loop over 8 bars with the surprises on: every
+    note is a MIDI note, the bass stays monophonic, and the bass's first note of
+    each bar (each loop starts on its root) follows the progression's roots."""
+    library = load_loops()
+    p = load_progressions()[progression]
+    bass, melody = library.names("bass"), library.names("melody")
+    grid = [BUSY, OPEN] * 4
+    for bass_loop, loop in zip(bass, melody, strict=True):
+        song = simulate(
+            grid, Settings(progression=progression, bass_loop=bass_loop, loop=loop, surprise=2)
+        )
+        notes = [n for n in song.notes if n.part in ("bass", "keys")]
+        assert {n.part for n in notes} == {"bass", "keys"}
+        assert all(0 <= n.pitch <= 127 for n in notes)
+        line = sorted((n for n in notes if n.part == "bass"), key=lambda n: n.tick)
+        assert all(a.tick + a.ticks <= b.tick for a, b in pairwise(line)), bass_loop
+        played_pitch_classes = {n.pitch % 12 for n in line}
+        roots = {(p.tonic + c.root) % 12 for c in p.chords}
+        assert roots <= played_pitch_classes, bass_loop
+
+
+def test_progression_step_walks_the_list_and_wraps_around() -> None:
+    ensemble = Ensemble(lambda line: None)
+    step = ensemble.controls()["progression-step"]
+    names = list(ensemble.progressions)
+    seen = []
+    for _ in names:
+        step([1])
+        seen.append(ensemble.progression.name)
+    assert seen == [*names[1:], names[0]]
+    step([-1.0])
+    assert ensemble.progression.name == names[-1]
+    for bad in ([], [2], ["next"], [1, 1]):
+        with pytest.raises(ValueError, match="expected 1 or -1"):
+            step(bad)

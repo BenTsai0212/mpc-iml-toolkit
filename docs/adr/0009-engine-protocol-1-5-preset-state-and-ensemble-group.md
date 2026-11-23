@@ -524,6 +524,25 @@ musician judged learning by the bass alone. `melody-mode fixed` could not do it:
   `tests/data/ensemble-learn-likes.json`). No core message, error code or protocol
   version changes; the protocol stays 1.5.
 
+## Amendment: progression files (#236)
+
+The `## Decision` on #236 (2026-11-23) accepts this amendment, with ADR 0011.
+Chord progressions are progression files, and the package ships seven.
+
+- `progression` accepts every loaded progression; an unknown name is refused with
+  `bad_arguments`, and the error lists the names.
+- `progressions` lists `minor-two` and `minor-four` first, then the other built-in
+  progressions by name, then installed ones by name. `minor-two` stays the default.
+- New `ensemble` control (preset version): `progression-step 1|-1` chooses the next
+  or previous progression of `progressions`, wrapping around, like `loop-step`.
+- Group 8's `progression` row becomes `<` name `>` (instead of 4 buttons): `<` and
+  `>` send `progression-step` −1 and 1, and the box under them shows `progression`.
+  The group no longer uses the `progressions` reply. The canvas stays 1490 × 840
+  and the Max for Live device does not change.
+- Later steps of #236 add the musician's own progressions and the reply
+  `progression-errors` to this amendment.
+- No core message, error code or protocol version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

@@ -339,8 +339,7 @@ def test_groups_and_names_follow_the_shared_spec() -> None:
         7: [*(f"o{k}-gui" for k in range(1, 9)), *(f"l{k}" for k in range(1, 9))],
         8: [
             *(f"ensemble-{n}" for n in ["b1", "b2", "b3", "m1", "m2", "m3"]),
-            *(f"ensemble-p{k}" for k in range(1, 5)),
-            *(f"ensemble-{n}-{s}" for n in ["bl", "l"] for s in ["prev", "next"]),
+            *(f"ensemble-{n}-{s}" for n in ["bl", "l", "p"] for s in ["prev", "next"]),
             "ensemble-reload-loops", "ensemble-loop-errors-show",
             *(f"ensemble-{n}-{s}" for n in ["bass", "melody"] for s in ["now", "next"]),
             *(f"ensemble-{n}-show" for n in ["bass-loop", "loop", "progression"]),
@@ -661,29 +660,17 @@ def test_box_widths_are_read() -> None:
 
 ENSEMBLE_REPLIES = [
     "bass", "melody-mode", "bass-loop", "loop", "progression", "loop-errors",
-    "progressions", "octave", "melody-octave", "roles", "filter-cc", "melody-channel",
+    "octave", "melody-octave", "roles", "filter-cc", "melody-channel",
 ]  # fmt: skip
 """The replies of `ensemble` that group 8 uses; the others are ignored."""
 
-CHOOSERS = [("p", "progressions", "progression")]
-"""Button prefix, the reply that labels the buttons, and the control they send.
-
-The loops are chosen with `<` and `>` instead (#173): `LOOP_STEPS`."""
-
-LOOP_STEPS = [("bl", "bass-loop-step", "bass-loop"), ("l", "loop-step", "loop")]
-"""Button prefix, the step control, and the reply shown between `<` and `>` (#173)."""
-
-
-def reaches_box(c: Canvas, start: int, target: int) -> bool:
-    seen, todo = {start}, deque([start])
-    while todo:
-        box = todo.popleft()
-        if box == target:
-            return True
-        for sink in set(c.sinks(box)) - seen:
-            seen.add(sink)
-            todo.append(sink)
-    return False
+LOOP_STEPS = [
+    ("bl", "bass-loop-step", "bass-loop"),
+    ("l", "loop-step", "loop"),
+    ("p", "progression-step", "progression"),
+]
+"""Button prefix, the step control, and the reply shown between `<` and `>` (#173;
+the progression since #236, when it outgrew 4 buttons)."""
 
 
 def sets_from(c: Canvas, reply: str) -> dict[str, str]:
@@ -763,8 +750,6 @@ def test_preset_replies_are_split_by_length() -> None:
 def test_ensemble_controls_send_what_the_preset_accepts() -> None:
     ens, preset = canvas("ensemble"), make_ensemble()
     controls = preset.controls
-    assert preset.state is not None
-    state = dict(preset.state())
     found: dict[str, list[int]] = {}
     for i, box in enumerate(ens.boxes):
         if box.cls == "oscformat":
@@ -772,21 +757,13 @@ def test_ensemble_controls_send_what_the_preset_accepts() -> None:
             assert box.args[4] in controls and reaches(ens, i, "s mpciml-out")
             found[box.args[4]] = ens.sources(i)
     assert set(found) == {"bass", "melody-mode", "octave", "melody-octave", "learn-cc"} | {
-        control for _, _, control in CHOOSERS
-    } | {control for _, control, _ in LOOP_STEPS} | {"reload-loops"}
+        control for _, control, _ in LOOP_STEPS
+    } | {"reload-loops"}
     modes = [("bass", ["loop", "rule", "off"]), ("melody-mode", ["follow", "fixed", "off"])]
     for control, values in modes:
         assert {ens.boxes[s].text for s in found[control]} == {f"symbol {v}" for v in values}
         for value in values:
             controls[control]([value])
-    for _, reply, control in CHOOSERS:
-        (store,) = found[control]
-        assert ens.boxes[store].text == "list store"
-        (r,) = find(ens, f"r mpciml-preset-ensemble-{reply}")
-        (fanout,) = (s for s in ens.sources(store, 1))
-        assert reaches_box(ens, r, fanout), "the names come from the reply"
-        for name in state[reply]:
-            controls[control]([name])
     gui = main_gui()
     for control in ("octave", "melody-octave"):
         (r,) = found[control]
@@ -799,17 +776,8 @@ def test_ensemble_controls_send_what_the_preset_accepts() -> None:
                 controls[control]([float(value)])
 
 
-def test_ensemble_buttons_are_labelled_from_the_replies() -> None:
-    ens, gui = canvas("ensemble"), main_gui()
-    for prefix, reply, control in CHOOSERS:
-        labels = labels_from(ens, f"r mpciml-preset-ensemble-{reply}")
-        assert labels == {f"mpciml-ensemble-{prefix}{k}-gui": f"${k}" for k in range(1, 5)}
-        for k in range(1, 5):
-            assert gui_names(gui[f"ensemble-{prefix}{k}"])[1] == f"mpciml-ensemble-{prefix}{k}-gui"
-            (r,) = find(ens, f"r mpciml-ensemble-{prefix}{k}")
-            (get,) = ens.sinks(r)
-            assert ens.boxes[get].text == f"get {k - 1} 1"
-            assert reaches(ens, r, f"oscformat mpciml preset ensemble {control}")
+def test_ensemble_mode_buttons_are_labelled() -> None:
+    gui = main_gui()
     for prefix, labels in (("b", ["loop", "rule", "off"]), ("m", ["follow", "fixed", "off"])):
         assert [gui[f"ensemble-{prefix}{k}"].args[7] for k in range(1, 4)] == labels
 
@@ -855,7 +823,6 @@ def test_ensemble_displays_reset_when_a_preset_loads() -> None:
         f"{name}bass-loop": ["list", "-"],
         f"{name}loop": ["list", "-"],
         f"{name}progression": ["list", "-"],
-        f"{name}progressions": ["list"],
         f"{name}roles": ["list", *["-"] * 16],
     }, "the reply chains themselves, fed with empty replies"
     assert all(find(ens, f"r {target}") for target in sent)
