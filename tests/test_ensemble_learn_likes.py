@@ -7,7 +7,8 @@ mode), and two sessions of `STEADY` bars in which pad 16 likes every bar whose b
 plays a variation other than `home` from bar 4: `steady` (`learn-loops 0`) learns
 variations, and `steady-loops` (`learn-loops 1`) also changes the loops. Every Note On
 and CC is compared, with the learning replies of every `report()` and, in the steady
-sessions, at the end.
+sessions, at the end. The status line is on (#230), so the file also checks that it
+changes nothing that plays.
 """
 
 import json
@@ -43,7 +44,7 @@ def scripted(name: str) -> dict[str, Any]:
     """The session `name` of `SESSIONS`, as in `test_ensemble_learn.session`, in
     `learn likes`."""
     settings = SESSIONS[name]
-    rig = Rig(melody=True, bass="loop", surprise=settings["surprise"], seed=SEEDS[name])
+    rig = Rig(melody=True, bass="loop", surprise=settings["surprise"], seed=SEEDS[name], status=1)
     controls = rig.ensemble.controls()
     for control, value in settings.items():
         if control != "surprise":
@@ -65,7 +66,7 @@ def scripted(name: str) -> dict[str, Any]:
 def steady(name: str) -> dict[str, Any]:
     """The steady session `name`: pad 16 at steps 9 and 10 of every bar from
     `FIRST_LIKE` whose bass plays a variation other than `home` at step 8."""
-    rig = Rig(melody=True, bass="loop", seed=STEADY_SEED)
+    rig = Rig(melody=True, bass="loop", seed=STEADY_SEED, status=1)
     controls = rig.ensemble.controls()
     controls["learn"](["likes"])
     controls["learn-loops"]([STEADY_LOOPS[name]])

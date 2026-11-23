@@ -296,6 +296,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile |
 | `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數 |
 | `/mpciml/preset/ensemble/mode-pads` | 0 或 1 | 1 | 1：pad 15、16 切換旋律與 bass 的模式；0：不切換模式（`learn likes` 時仍是喜歡、`learn demo` 時仍是想要的變奏），盲測比較時送出（[盲測比較](trials.md)） |
+| `/mpciml/preset/ensemble/status` | 0 或 1 | 1 | 1：clock 執行時，每個小節線與每次按 pad 16、15 後在終端機印出一行狀態（見下文）；0：不印，盲測比較時送出（[盲測比較](trials.md)）。clock 未執行時被忽略的按壓兩種設定都會印出 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
 `/mpciml/error bad_arguments`；載入其他 preset 時送給 `ensemble` 的訊息得到
@@ -329,8 +330,23 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `profile-errors` | 上次讀取 profile 失敗時為 1（演奏規則，樂句開頭不覆寫該檔），否則為 0 |
 | `learn-log` | 寫出每小節的 log 時為 1，否則為 0 |
 | `mode-pads` | pad 15、16 切換模式時為 1，否則為 0 |
+| `status` | 印出狀態行時為 1，否則為 0 |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
+
+**狀態行**（#230）：`status 1`（預設）時，終端機在 Live 演奏中的每個小節線，以及每次按
+pad 16、15 之後印出一行，例如：
+
+```text
+ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+```
+
+依序是小節（從 Start 的 0 起算）、bass 與旋律正在演奏的變奏與選擇的來源（`rule`、`bandit`、
+`model`、`want`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn demo` 時為
+`keep <變奏>`、`next <變奏>`，`learn likes` 時 pad 16 為 `like`，`mode-pads 1` 時為切換到的模式
+（`bass rule`、`melody fixed`），什麼都不做時為 `-`。clock 未執行（Live 停止或預備拍）時按
+pad 16、15 而沒有作用，會印出 `ensemble: pad 16 ignored, the clock is not running`，`status 0`
+時也會印出。狀態行只用於顯示，不改變演奏。
 
 ### 比較兩層
 

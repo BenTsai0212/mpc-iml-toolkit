@@ -130,7 +130,7 @@ def test_a_pad_want_needs_a_running_clock() -> None:
     rig.ensemble.controls()["learn"](["demo"])
     rig.ensemble.on_pad(PadHit(0.0, LAYER - 36, 0, 100, None))
     assert reply(rig, "want") == ["auto", "auto"]
-    assert "ensemble: want bass ignored, the clock is not running" in rig.log
+    assert "ensemble: pad 16 ignored, the clock is not running" in rig.log
 
 
 def test_a_wanted_variation_plays_and_adds_examples() -> None:

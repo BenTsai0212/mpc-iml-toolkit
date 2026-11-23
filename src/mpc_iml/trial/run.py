@@ -12,9 +12,15 @@ condition's settings are checked once before playing. Then, in the seeded order:
 3. the questions of the trial file are asked, and a `condition` record is written.
 
 Last come the ranking and the reveal. The terminal only shows code letters until then.
+
+While a condition plays, the engine's lines for the musician (`ensemble.for_musician`,
+#230) are shown in the terminal too: the status lines (`status 1`) and the presses
+ignored because Live is stopped. Both example trial files send `status 0`, so a blind
+trial shows only the ignored presses. `engine.log` keeps every line.
 """
 
 import argparse
+import os
 import socket
 import subprocess
 import sys
@@ -30,6 +36,7 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.udp_client import SimpleUDPClient
 
 from mpc_iml import __version__
+from mpc_iml.ensemble import for_musician
 from mpc_iml.events import Event, RawMidiEvent
 from mpc_iml.osc import DEFAULT_HOST
 from mpc_iml.recording import Header as RecordingHeader
@@ -150,20 +157,42 @@ def free_port() -> int:
 
 
 class ChildEngine:
-    """`python -m mpc_iml.engine` as a child process, its output in `log`."""
+    """`python -m mpc_iml.engine` as a child process, its output in `log`; each line
+    also goes to `show` (#230)."""
 
-    def __init__(self, data: Path, log: Path, options: Sequence[str]) -> None:
+    def __init__(
+        self,
+        data: Path,
+        log: Path,
+        options: Sequence[str],
+        show: Callable[[str], None] = lambda line: None,
+    ) -> None:
         self._log: IO[bytes] = log.open("wb")
         self.link = EngineLink(free_port())
         command = [sys.executable, "-m", "mpc_iml.engine", str(data), "--preset", "ensemble"]
         command += ["--control-port", str(self.link.control_port)]
         command += ["--reply-port", str(self.link.port), *options]
-        self._process = subprocess.Popen(command, stdout=self._log, stderr=subprocess.STDOUT)
+        self._process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        self._reader = threading.Thread(target=self._copy, args=(show,), daemon=True)
+        self._reader.start()
         try:
             self.link.connect()
         except LinkError:
             self.close()
             raise LinkError(f"the engine did not start; see {log}") from None
+
+    def _copy(self, show: Callable[[str], None]) -> None:
+        """Write each line of the engine's output to the log and give it to `show`."""
+        assert self._process.stdout is not None
+        for line in self._process.stdout:
+            self._log.write(line)
+            self._log.flush()
+            show(line.decode(errors="replace").rstrip("\r\n"))
 
     def apply(self, settings: Settings) -> list[str]:
         return self.link.apply(settings)
@@ -174,6 +203,7 @@ class ChildEngine:
             self._process.wait(5)
         except subprocess.TimeoutExpired:
             self._process.kill()
+        self._reader.join(5)
         self.link.close()
         self._log.close()
 
@@ -234,6 +264,8 @@ class Rig:
     port: str
     options: dict[str, Any]
     sources: list[LiveSource] = field(default_factory=list)
+    playing: threading.Event = field(default_factory=threading.Event)
+    """Set while a condition plays: the engine's lines for the musician are shown."""
 
 
 def play(rig: Rig, path: Path, limit: int, musician: Musician) -> int:
@@ -250,15 +282,19 @@ def play(rig: Rig, path: Path, limit: int, musician: Musician) -> int:
 
     waiter = threading.Thread(target=wait_enter, daemon=True)
     waiter.start()
+    rig.playing.set()
     try:
-        events = source.events(stop=lambda: counter.done or ended.is_set())
-        record(_counted(events, counter.see), path, RecordingHeader())
+        try:
+            events = source.events(stop=lambda: counter.done or ended.is_set())
+            record(_counted(events, counter.see), path, RecordingHeader())
+        finally:
+            rig.sources.clear()
+            source.close()
+        if not ended.is_set():
+            musician.say("Done. Press Stop in Live, then Enter.")
+            waiter.join()
     finally:
-        rig.sources.clear()
-        source.close()
-    if not ended.is_set():
-        musician.say("Done. Press Stop in Live, then Enter.")
-        waiter.join()
+        rig.playing.clear()
     return counter.ticks
 
 
@@ -342,7 +378,8 @@ def add_run_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--beats-per-bar", type=int, default=4, help="quarter notes per bar")
 
 
-EngineFactory = Callable[[Path, Path, list[str]], EngineHandle]
+EngineFactory = Callable[[Path, Path, list[str], Callable[[str], None]], EngineHandle]
+"""(data folder, log, options, show): `show` takes each line of the engine's output."""
 
 
 def run(
@@ -370,6 +407,11 @@ def run(
         options += ["--clock-port", args.clock_port]
     args.folder = session_folder(data, datetime.now())
     sources: list[LiveSource] = []
+    playing = threading.Event()
+
+    def show(line: str) -> None:
+        if playing.is_set() and for_musician(line):
+            musician.say(line)
 
     def on_clock(message: bytes) -> None:
         if message and message[0] in CLOCK_BYTES:
@@ -383,14 +425,14 @@ def run(
         print(f"error: {error}", file=sys.stderr)
         return 1
     try:
-        handle = engine(data, args.folder / "engine.log", options)
+        handle = engine(data, args.folder / "engine.log", options, show)
     except LinkError as error:
         clock.close()
         print(f"error: {error}", file=sys.stderr)
         return 1
     try:
         recorder = {"options": options, "recorder_clock": clock.port_name}
-        rig = Rig(handle, mpc, args.port, recorder, sources)
+        rig = Rig(handle, mpc, args.port, recorder, sources, playing)
         return run_trial(trial, content, args, rig, musician)
     except PortNotFoundError as error:
         print(f"error: {error}", file=sys.stderr)

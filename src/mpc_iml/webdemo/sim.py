@@ -348,6 +348,7 @@ class _Run:
         controls["rhythm"]([settings.rhythm])
         controls["learn"]([settings.learn])
         controls["mode-pads"]([settings.mode_pads])
+        controls["status"]([0])  # the page shows the bars in its table (#230)
         self.ensemble, self._like = ensemble, controls["like"]
 
         def send_wants(start: BarStart) -> None:

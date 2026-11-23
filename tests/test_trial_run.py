@@ -7,6 +7,7 @@ one pad hit. The musician is a scripted list of answers.
 """
 
 import json
+import sys
 import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -14,12 +15,22 @@ from typing import Any
 
 import pytest
 from test_engine import Receiver
+from test_ensemble import LAYER, START, Rig
+from test_ensemble_learn import bar_of
 
 from mpc_iml.engine import Engine
 from mpc_iml.ensemble import Ensemble
 from mpc_iml.recording import read_recording
 from mpc_iml.trial.__main__ import build_parser
-from mpc_iml.trial.run import TRIAL_CLOCK_NAME, EngineLink, Musician, Settings, TickCounter, run
+from mpc_iml.trial.run import (
+    TRIAL_CLOCK_NAME,
+    ChildEngine,
+    EngineLink,
+    Musician,
+    Settings,
+    TickCounter,
+    run,
+)
 from mpc_iml.trial.session import read_session
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "trial" / "rhythm.json"
@@ -153,6 +164,42 @@ def trial_file(tmp_path: Path, example: Path = EXAMPLE) -> Path:
     return path
 
 
+class PlayingEngine(FakeEngine):
+    """An `Ensemble` on the simulated clock of `test_ensemble.Rig`, with the settings
+    applied so far: `perform` presses pad 16 while Live is stopped, then plays two bars
+    with a press, and gives the ensemble's log lines to the trial's `show` (#230)."""
+
+    def __init__(self, show: Callable[[str], None]) -> None:
+        super().__init__()
+        self.show = show
+
+    def perform(self) -> None:
+        rig = Rig(melody=True, bass="loop")
+        controls = rig.ensemble.controls()
+        for settings in self.applied:
+            for name, args in settings:
+                controls[name](list(args))
+        rig.hit(LAYER)
+        rig.send(START)
+        bar_of(rig, 0)
+        bar_of(rig, 1, press=8)
+        for line in rig.log:
+            self.show(line)
+
+
+class PlayingMpc(FakeMpc):
+    """`FakeMpc` whose first poll also plays the engine."""
+
+    def __init__(self, daw: FakeDaw, engine: PlayingEngine) -> None:
+        super().__init__(daw)
+        self.engine = engine
+
+    def poll(self) -> bytes | None:
+        if self.pending:
+            self.engine.perform()
+        return super().poll()
+
+
 def play_trial(
     tmp_path: Path,
     answers: list[str],
@@ -180,7 +227,19 @@ def play_trial(
     trial = trial_file(tmp_path, example)
     args = build_parser().parse_args(["run", str(trial), str(tmp_path / "data")])
     args.seed = 0
-    status = run(args, musician, lambda *_: engine, lambda: FakeMpc(daw), lambda: daw)
+    made: list[PlayingEngine] = []
+
+    def factory(data: Path, log: Path, options: list[str], show: Callable[[str], None]) -> Any:
+        if not isinstance(engine, PlayingEngine):
+            return engine
+        engine.show = show
+        made.append(engine)
+        return engine
+
+    def mpc() -> FakeMpc:
+        return PlayingMpc(daw, made[0]) if made else FakeMpc(daw)
+
+    status = run(args, musician, factory, mpc, lambda: daw)
     assert daw.opened == TRIAL_CLOCK_NAME
     return status, said
 
@@ -234,3 +293,64 @@ def test_the_learn_trial_leaves_no_learning_log_before_a_condition_plays(
     status, said = play_trial(tmp_path, answers, engine, learn, heard)
     assert status == 0, said
     assert logs == [[], [], []]
+
+
+IGNORED = "ensemble: pad 16 ignored, the clock is not running"
+
+
+@pytest.mark.parametrize("status", [0, 1])
+def test_the_trial_shows_the_lines_for_the_musician_while_a_condition_plays(
+    tmp_path: Path, status: int
+) -> None:
+    """#230: the status lines with `status 1`, only the ignored presses with
+    `status 0`; nothing else of the engine's log."""
+    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    assert data["base"]["status"] == [0]
+    data["base"]["status"] = [status]
+    example = tmp_path / "status.json"
+    example.write_text(json.dumps(data), encoding="utf-8")
+    engine = PlayingEngine(lambda line: None)
+    result, said = play_trial(tmp_path, SCORES + SCORES + ["ab"], engine, example)
+    assert result == 0, said
+    lines = [line for line in said if line.startswith("ensemble: ")]
+    statuses = [line for line in lines if line.startswith("ensemble: bar ")]
+    assert lines.count(IGNORED) == 2, "one per condition"
+    assert len(lines) == 2 + len(statuses)
+    if status:
+        assert statuses[:2] == [
+            "ensemble: bar 0  bass -  melody -  16: -  15: -",
+            "ensemble: bar 1  bass home (rule)  melody home (rule)  16: -  15: -",
+        ]
+        assert len(statuses) == 2 * 3, "two bar lines and a press, per condition"
+    else:
+        assert statuses == []
+    play = [i for i, line in enumerate(said) if "press Play" in line]
+    done = [i for i, line in enumerate(said) if line.startswith("Done.")]
+    shown = [i for i, line in enumerate(said) if line.startswith("ensemble: ")]
+    assert all(any(p < i < d for p, d in zip(play, done, strict=True)) for i in shown)
+
+
+def test_the_child_engine_writes_every_line_to_the_log_and_shows_each_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#230: the engine's output goes through a pipe to `engine.log` and to `show`;
+    a script stands in for the engine."""
+    script = tmp_path / "engine.sh"
+    script.write_text(f"#!/bin/sh\necho one\necho '{IGNORED}'\nexec sleep 30\n")
+    script.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(script))
+    monkeypatch.setattr(EngineLink, "connect", lambda self, wait=15.0: None)
+    shown: list[str] = []
+    both = threading.Event()
+
+    def show(line: str) -> None:
+        shown.append(line)
+        if len(shown) == 2:
+            both.set()
+
+    log = tmp_path / "engine.log"
+    engine = ChildEngine(tmp_path, log, [], show)
+    assert both.wait(10)
+    engine.close()
+    assert shown == ["one", IGNORED]
+    assert log.read_text() == f"one\n{IGNORED}\n"
