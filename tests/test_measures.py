@@ -105,7 +105,9 @@ def test_replay_settings_from_a_trial() -> None:
     )
     learn, _ = load_trial(LEARN)
     demo = next(c for c in learn.conditions if c.name == "learn-demo")
-    assert replay_settings(learn.messages(demo)) == Settings(surprise=1, learn="demo", mode_pads=0)
+    assert replay_settings(learn.messages(demo)) == Settings(
+        surprise=1, learn="demo", mode_pads=0, melody_mode="still"
+    )
     for bad in [("bass", ["rule"]), ("learn-loops", [1]), ("learn-log", [2]), ("rhythm", [])]:
         with pytest.raises(ValueError, match="the replay cannot play"):
             replay_settings([bad])

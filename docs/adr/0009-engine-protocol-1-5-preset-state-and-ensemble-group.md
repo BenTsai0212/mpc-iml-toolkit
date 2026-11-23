@@ -490,6 +490,40 @@ that went only to `engine.log`.
   sends `status 0`) do not change. No core message, error code or protocol version
   changes; the protocol stays 1.5.
 
+## Amendment: a still melody (#233)
+
+Issue #233 asks for this amendment. In the #215 manual check the learning trial
+needed the melody to keep playing while only the bass followed the drums, so the
+musician judged learning by the bass alone. `melody-mode fixed` could not do it:
+`follow` is shared, so the bass played `home` every bar too.
+
+- New value `still` of the control `melody-mode` (and `melody still`), a setting for
+  trials and practice, not a performance control (RFC 0005 "Scope rules"). The melody
+  loop plays its `home` variation every bar at velocity 100 with its ornaments,
+  whatever the drums do, also in bars without drums (it never fades or stops:
+  `no-drums` and `fade-bars` apply to the bass only), with no surprises and no
+  rhythm transformation, and the brightness CC is sent at one value,
+  `STILL_BRIGHTNESS` (79, the middle of `BRIGHTNESS`), at each bar line. The bass
+  follows as in `follow`, with its rules, learning, wants and pad 16.
+- Learning chooses no melody variation: no bandit, model or `want` for the melody,
+  a like credits the bass only, and no melody example is added. With `learn demo`
+  pad 15 does nothing and logs `ensemble: pad 15 ignored, the melody is still`
+  (`for_musician`); the control `want melody …` is refused with `bad_arguments`.
+- Pad 15's cycle stays follow → fixed → off; from `still` a press goes on to
+  `fixed`. `melody 1` turns the melody on in the mode it had (`still` included),
+  and `follow 0|1` ends `still`.
+- The replies `melody-mode` (next and playing) and `chose` (for the melody) give
+  `still`, and so does the status line (`melody home (still)`); its pad 15 action is
+  `-` with `learn demo`. No reply is added.
+- `examples/trial/learn.json` sends `melody-mode still` in `base`. The web demo
+  offers `still` in its melody mode setting (its table's melody rule is `still`).
+  Group 8 does not offer it (its melody buttons stay `follow`, `fixed`, `off`; it
+  shows `still` in `now` and `next`), and the Max for Live device has no melody
+  mode control.
+- `follow`, `fixed`, `off` play as before (`tests/data/ensemble-learn-off.json`,
+  `tests/data/ensemble-learn-likes.json`). No core message, error code or protocol
+  version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

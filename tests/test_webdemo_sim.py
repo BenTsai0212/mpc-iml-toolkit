@@ -66,6 +66,15 @@ def test_fixed_plays_home_at_the_fixed_velocity() -> None:
     assert (row.bass.variation, row.melody_rule) == ("home", "fixed")
 
 
+def test_still_plays_the_melody_home_while_the_bass_follows() -> None:
+    """#233: `melody-mode still` reaches the preset; the melody's rule is `still`."""
+    song = simulate([BUSY, {}], Settings(melody_mode="still"))
+    assert [r.melody_rule for r in song.rows] == ["still", "still"]
+    assert [r.melody.variation for r in song.rows if r.melody] == ["home", "home"]
+    assert song.rows[0].bass_rule == "drums"
+    assert [r.chose[1] for r in song.rows] == ["still", "still"]
+
+
 def test_melody_off_and_settings_reach_the_preset() -> None:
     song = simulate([SPARSE], Settings(melody_mode="off", progression="minor-four", tempo=120))
     assert song.rows[0].melody is None and band(song, 1).count("keys") == 0

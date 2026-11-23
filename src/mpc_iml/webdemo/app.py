@@ -36,7 +36,7 @@ import numpy as np
 import numpy.typing as npt
 
 from mpc_iml.clock import tag_recording
-from mpc_iml.ensemble import LEARN_MODES, MELODY_MODES, PROGRESSIONS
+from mpc_iml.ensemble import LEARN_MODES, MELODY_SETTINGS, PROGRESSIONS
 from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.launch import DEFAULT_DATA
 from mpc_iml.loops import VARIATIONS, load_loops
@@ -299,7 +299,7 @@ def build() -> "gr.Blocks":
             )
             loop = gr.Dropdown(library.names("melody"), value=default.loop, label="melody loop")
         with gr.Row():
-            mode = gr.Radio(list(MELODY_MODES), value=default.melody_mode, label="melody mode")
+            mode = gr.Radio(list(MELODY_SETTINGS), value=default.melody_mode, label="melody mode")
             no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")
             fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
             surprise = gr.Checkbox(value=bool(default.surprise), label="surprise")
