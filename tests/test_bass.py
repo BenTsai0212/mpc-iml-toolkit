@@ -22,6 +22,8 @@ from mpc_iml.melody import (
 
 BASS_LOOPS = load_loops().played("bass")
 LOOPS = load_loops().played("melody")
+FIRST = ("boom", "walk")
+"""The bass loops before the hip-hop library (#232)."""
 
 
 def chords(progression: str, bar: int) -> tuple[tuple[int, str], tuple[int, str]]:
@@ -47,7 +49,7 @@ def test_chord_and_semitones_default_to_the_own_chord() -> None:
     assert loop_pitch(note, now, following, 1) == chord_note(*now, 1, 2)
     passing = LoopNote(0, 12, 0, 2, 3, chord=1, semitones=-2)
     assert loop_pitch(passing, now, following, 1) == 26 - 2
-    melody = [n for loop in LOOPS.values() for v in loop.variations for n in v.notes]
+    melody = [n for name in ("keys", "pluck") for v in LOOPS[name].variations for n in v.notes]
     assert all(n.chord == 0 and n.semitones == 0 for n in melody)
 
 
@@ -63,6 +65,9 @@ def test_bass_loops_are_monophonic_with_a_skeleton_and_an_approach() -> None:
 
 @pytest.mark.parametrize("name", list(BASS_LOOPS))
 def test_every_bass_variation_is_a_full_monophonic_line(name: str) -> None:
+    """Every built-in bass loop; the first two (`FIRST`) also keep their shape: both
+    levels, an approach note and at least 4 notes a bar. The hip-hop loops (#232) may
+    be sparser (`sub` holds its last note instead of approaching)."""
     loop = BASS_LOOPS[name]
     assert tuple(v.name for v in loop.variations) == BASS_VARIATIONS
     home = loop.variation("home")
@@ -70,11 +75,15 @@ def test_every_bass_variation_is_a_full_monophonic_line(name: str) -> None:
     assert {(n.bar, n.step, n.tone, n.length) for n in loop.notes} <= line
     for variation in loop.variations:
         assert variation.bars == loop.bars
-        assert {n.level for n in variation.notes} == {1, ORNAMENTS}
-        assert any(n.chord == 1 and n.semitones == -1 for n in variation.bar_notes(0, 1))
+        assert 1 in {n.level for n in variation.notes} <= {1, ORNAMENTS}
+        if name in FIRST:
+            assert {n.level for n in variation.notes} == {1, ORNAMENTS}
+            last = variation.bar_notes(loop.bars - 1, 1)
+            assert any(n.chord == 1 and n.semitones == -1 for n in last)
         for bar in range(loop.bars):
             line = variation.bar_notes(bar, 1)
-            assert len(line) >= 4 and any(n.step == 0 for n in line)
+            assert any(n.step == 0 for n in line)
+            assert len(line) >= (4 if name in FIRST else 2)
             notes = sorted(variation.bar_notes(bar, ORNAMENTS), key=lambda n: n.step)
             ends = [n.step + n.length for n in notes]
             assert all(end <= nxt.step for end, nxt in zip(ends, notes[1:], strict=False))

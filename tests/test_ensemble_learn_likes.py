@@ -8,7 +8,9 @@ plays a variation other than `home` from bar 4: `steady` (`learn-loops 0`) learn
 variations, and `steady-loops` (`learn-loops 1`) also changes the loops. Every Note On
 and CC is compared, with the learning replies of every `report()` and, in the steady
 sessions, at the end. The status line is on (#230), so the file also checks that it
-changes nothing that plays.
+changes nothing that plays. The steady sessions run on the four loops installed when
+the file was written (`FIRST`): with `learn-loops 1` every installed loop is a choice,
+so the hip-hop loops (#232) would change what `steady-loops` draws.
 """
 
 import json
@@ -18,6 +20,8 @@ from typing import Any
 from test_ensemble import BAR, LAYER, START, STEP, Rig
 from test_ensemble_learn import PRESSES, SEEDS, SESSIONS, STEADY, reply
 from test_ensemble_rhythm import PATTERN
+
+from mpc_iml.loops import LoopLibrary, load_loops
 
 DATA = Path(__file__).parent / "data" / "ensemble-learn-likes.json"
 """What `main` played in `learn likes` before #215 for `SESSIONS` and `STEADY_LOOPS`."""
@@ -29,6 +33,9 @@ STEADY_SEED = 3
 STEADY_BARS = 32
 FIRST_LIKE = 4
 """The steady sessions like from this bar."""
+
+FIRST = ("boom", "walk", "keys", "pluck")
+"""The loops installed when the file was written, before #232."""
 
 REPLIES = ("variation", "transform", "learn", "likes", "chose", "learned", "playing-loops")
 """Replies kept from every `report()`."""
@@ -66,7 +73,9 @@ def scripted(name: str) -> dict[str, Any]:
 def steady(name: str) -> dict[str, Any]:
     """The steady session `name`: pad 16 at steps 9 and 10 of every bar from
     `FIRST_LIKE` whose bass plays a variation other than `home` at step 8."""
-    rig = Rig(melody=True, bass="loop", seed=STEADY_SEED, status=1)
+    installed = load_loops().loops
+    first = LoopLibrary({name: installed[name] for name in FIRST})
+    rig = Rig(melody=True, bass="loop", seed=STEADY_SEED, status=1, library=first)
     controls = rig.ensemble.controls()
     controls["learn"](["likes"])
     controls["learn-loops"]([STEADY_LOOPS[name]])

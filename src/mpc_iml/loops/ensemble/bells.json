@@ -1,0 +1,61 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "bells",
+  "title": "Bells",
+  "description": "A high, sparse lo-fi bell figure: root, fifth and ninth an octave up, falling back to the third, a little behind the beat. open leaves a bar almost empty; busy arpeggiates the chord in 16ths.",
+  "preset": "ensemble",
+  "part": "melody",
+  "bars": 2,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2, "octave": 1, "skeleton": true},
+      {"bar": 0, "step": 4, "tone": 2, "length": 2, "octave": 1, "offset": 0.2},
+      {"bar": 0, "step": 7, "tone": 0, "length": 3, "octave": 2, "semitones": 2, "offset": 0.2},
+      {"bar": 0, "step": 12, "tone": 1, "length": 4, "octave": 1, "velocity": 0.85},
+      {"bar": 1, "step": 2, "tone": 0, "length": 2, "octave": 1, "offset": 0.2, "skeleton": true},
+      {"bar": 1, "step": 6, "tone": 2, "length": 2, "octave": 1, "velocity": 0.85},
+      {"bar": 1, "step": 10, "tone": 3, "length": 4, "octave": 1, "velocity": 0.8, "offset": 0.2},
+      {"bar": 1, "step": 15, "tone": 2, "length": 1, "level": 2, "octave": 1, "velocity": 0.6}
+    ],
+    "open": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 4, "octave": 1},
+      {"bar": 0, "step": 8, "tone": 0, "length": 6, "octave": 2, "semitones": 2, "velocity": 0.8, "offset": 0.2},
+      {"bar": 1, "step": 4, "tone": 2, "length": 8, "octave": 1, "velocity": 0.75, "offset": 0.2}
+    ],
+    "busy": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 1, "octave": 1, "velocity": 1},
+      {"bar": 0, "step": 1, "tone": 2, "length": 1, "octave": 1, "velocity": 0.75, "level": 2},
+      {"bar": 0, "step": 2, "tone": 0, "length": 1, "octave": 2, "velocity": 0.85},
+      {"bar": 0, "step": 3, "tone": 2, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 0, "step": 4, "tone": 1, "length": 1, "octave": 1, "velocity": 0.9},
+      {"bar": 0, "step": 5, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 0, "step": 6, "tone": 0, "length": 1, "octave": 2, "velocity": 0.85},
+      {"bar": 0, "step": 7, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 0, "step": 8, "tone": 0, "length": 1, "octave": 1, "velocity": 1},
+      {"bar": 0, "step": 9, "tone": 2, "length": 1, "octave": 1, "velocity": 0.75, "level": 2},
+      {"bar": 0, "step": 10, "tone": 0, "length": 1, "octave": 2, "velocity": 0.85},
+      {"bar": 0, "step": 11, "tone": 2, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 0, "step": 12, "tone": 1, "length": 1, "octave": 1, "velocity": 0.9},
+      {"bar": 0, "step": 13, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 0, "step": 14, "tone": 2, "length": 1, "octave": 1, "velocity": 0.8},
+      {"bar": 0, "step": 15, "tone": 1, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 0, "tone": 1, "length": 1, "octave": 1, "velocity": 1},
+      {"bar": 1, "step": 1, "tone": 3, "length": 1, "octave": 1, "velocity": 0.75, "level": 2},
+      {"bar": 1, "step": 2, "tone": 0, "length": 1, "octave": 2, "velocity": 0.85},
+      {"bar": 1, "step": 3, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 4, "tone": 2, "length": 1, "octave": 1, "velocity": 0.9},
+      {"bar": 1, "step": 5, "tone": 0, "length": 1, "octave": 2, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 6, "tone": 2, "length": 1, "octave": 1, "velocity": 0.85},
+      {"bar": 1, "step": 7, "tone": 1, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 8, "tone": 0, "length": 1, "octave": 1, "velocity": 1},
+      {"bar": 1, "step": 9, "tone": 2, "length": 1, "octave": 1, "velocity": 0.75, "level": 2},
+      {"bar": 1, "step": 10, "tone": 1, "length": 1, "octave": 1, "velocity": 0.85},
+      {"bar": 1, "step": 11, "tone": 0, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 12, "tone": 2, "length": 1, "octave": 1, "velocity": 0.9},
+      {"bar": 1, "step": 13, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2},
+      {"bar": 1, "step": 14, "tone": 0, "length": 1, "octave": 2, "velocity": 0.8},
+      {"bar": 1, "step": 15, "tone": 3, "length": 1, "octave": 1, "velocity": 0.7, "level": 2}
+    ]
+  }
+}

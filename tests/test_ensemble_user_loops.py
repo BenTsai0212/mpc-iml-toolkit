@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 import test_engine
 from test_engine_preset_state import Stateful, installed
-from test_loops import LOOP, MELODY
+from test_loops import BUILT_IN, LOOP, MELODY
 
 from mpc_iml.ensemble import Ensemble, make_preset
 from mpc_iml.loops import load_loops, load_user_loops, parse_loop
@@ -19,6 +19,8 @@ start = test_engine.start
 """The engine fixtures of `test_engine.py`."""
 
 PREFIX = "/mpciml/preset/ensemble/"
+BASS, KEYS = BUILT_IN
+"""The built-in bass and melody loops (#232)."""
 
 
 def write(folder: Path, name: str, data: Any) -> Path:
@@ -55,13 +57,13 @@ def test_user_loops_come_after_the_installed_ones_by_name(tmp_path: Path) -> Non
     write(tmp_path, "arp", MELODY)
     library, errors = load_user_loops(tmp_path / "loops", load_loops())
     assert errors == []
-    assert library.names("bass") == ["boom", "walk", "abe", "zed"]
-    assert library.names("melody") == ["keys", "pluck", "arp"]
+    assert library.names("bass") == [*BASS, "abe", "zed"]
+    assert library.names("melody") == [*KEYS, "arp"]
 
 
 def test_a_missing_folder_has_no_user_loops(tmp_path: Path) -> None:
     library, errors = load_user_loops(tmp_path / "loops", load_loops())
-    assert (library.names("bass"), errors) == (["boom", "walk"], [])
+    assert (library.names("bass"), errors) == (BASS, [])
 
 
 @pytest.mark.parametrize(
@@ -79,7 +81,7 @@ def test_a_bad_user_file_is_skipped_with_a_message(
     write(tmp_path, "good", named("good"))
     write(tmp_path, name, data)
     library, errors = load_user_loops(tmp_path / "loops", load_loops())
-    assert library.names("bass") == ["boom", "walk", "good"]
+    assert library.names("bass") == [*BASS, "good"]
     assert library.get("boom", "bass").origin != str(tmp_path / "loops" / "boom.json")
     (error,) = errors
     assert message in error
@@ -93,8 +95,8 @@ def test_the_data_folder_hook_reads_the_user_loops(tmp_path: Path) -> None:
     write(tmp_path, "arp", MELODY)
     ensemble, lines = loaded(tmp_path)
     replies = state(ensemble)
-    assert replies["bass-loops"] == ["boom", "walk", "line"]
-    assert replies["loops"] == ["keys", "pluck", "arp"]
+    assert replies["bass-loops"] == [*BASS, "line"]
+    assert replies["loops"] == [*KEYS, "arp"]
     assert replies["loop-errors"] == [0]
     assert lines == [f"ensemble: 2 user loops from {tmp_path / 'loops'}, 0 skipped"]
     assert make_preset(lambda line: None).data_folder is not None
@@ -106,7 +108,7 @@ def test_bad_files_are_logged_and_counted(tmp_path: Path) -> None:
     ensemble, lines = loaded(tmp_path)
     assert state(ensemble)["loop-errors"] == [2]
     assert sum("ensemble: skipped a loop file: " in line for line in lines) == 2
-    assert state(ensemble)["bass-loops"] == ["boom", "walk"]
+    assert state(ensemble)["bass-loops"] == BASS
 
 
 def test_a_user_loop_is_chosen_by_name_and_plays_its_notes(tmp_path: Path) -> None:
@@ -114,7 +116,7 @@ def test_a_user_loop_is_chosen_by_name_and_plays_its_notes(tmp_path: Path) -> No
     ensemble, _ = loaded(tmp_path)
     ensemble.controls()["bass-loop"](["line"])
     assert ensemble.bass_loop == parse_loop(LOOP).loop()
-    with pytest.raises(ValueError, match="expected one of keys, pluck, got"):
+    with pytest.raises(ValueError, match=f"expected one of {', '.join(KEYS)}, got"):
         ensemble.controls()["loop"](["line"])
 
 
@@ -132,11 +134,11 @@ def test_reload_uses_a_changed_file_and_keeps_a_gone_loop_playing(tmp_path: Path
     write(tmp_path, "broken", "{")
     controls["reload-loops"]([])
     replies = state(ensemble)
-    assert (replies["bass-loop"], replies["bass-loops"]) == (["line"], ["boom", "walk"])
+    assert (replies["bass-loop"], replies["bass-loops"]) == (["line"], BASS)
     assert replies["loop-errors"] == [1]
     assert ensemble.bass_loop == parse_loop(changed).loop()
     controls["bass-loop-step"]([1])
-    assert state(ensemble)["bass-loop"] == ["boom"]
+    assert state(ensemble)["bass-loop"] == [BASS[0]]
 
 
 def test_reload_needs_the_data_folder_and_no_arguments(tmp_path: Path) -> None:
@@ -153,10 +155,10 @@ def test_reload_needs_the_data_folder_and_no_arguments(tmp_path: Path) -> None:
         (
             "bass-loop-step",
             "bass-loop",
-            [1, 1, 1, -1, -1],
-            ["walk", "line", "boom", "line", "walk"],
+            [-1, -1, 1, 1, 1],
+            ["line", "walk", "line", "boom", "knock"],
         ),
-        ("loop-step", "loop", [-1, -1, 1], ["arp", "pluck", "arp"]),
+        ("loop-step", "loop", [1, 1, 1, 1, -1], ["pluck", "rhodes", "arp", "bells", "arp"]),
     ],
 )
 def test_step_moves_through_the_list_and_wraps(
@@ -207,8 +209,8 @@ def test_ensemble_in_the_engine_lists_and_reloads_user_loops(start: Any) -> None
     preset = make_preset(lambda line: None)
     front = start(preset="ensemble", presets=installed(preset))
     write(front.engine.data_dir, "line", LOOP)
-    assert (PREFIX + "bass-loops", ["boom", "walk"]) in front.ask("/mpciml/state/get")
+    assert (PREFIX + "bass-loops", BASS) in front.ask("/mpciml/state/get")
     replies = front.ask(PREFIX + "reload-loops")
-    assert (PREFIX + "bass-loops", ["boom", "walk", "line"]) in replies
+    assert (PREFIX + "bass-loops", [*BASS, "line"]) in replies
     assert (PREFIX + "loop-errors", [0]) in replies
     assert (PREFIX + "bass-loop", ["line"]) in front.ask(PREFIX + "bass-loop-step", -1)

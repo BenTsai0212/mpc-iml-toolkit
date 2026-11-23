@@ -1,0 +1,51 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "lazy",
+  "title": "Lazy",
+  "description": "A 2-bar lo-fi line that sits behind the beat: long roots, a late fifth and third, a ghost octave and a half step down into the next bar. push leans on the off-beats; drive walks in late 8ths.",
+  "preset": "ensemble",
+  "part": "bass",
+  "bars": 2,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 6, "skeleton": true},
+      {"bar": 0, "step": 8, "tone": 2, "length": 4, "offset": 0.25},
+      {"bar": 0, "step": 14, "tone": 3, "length": 2, "level": 2, "velocity": 0.7, "offset": 0.25},
+      {"bar": 1, "step": 0, "tone": 0, "length": 4, "skeleton": true},
+      {"bar": 1, "step": 6, "tone": 1, "length": 2, "offset": 0.3},
+      {"bar": 1, "step": 8, "tone": 2, "length": 4, "skeleton": true},
+      {"bar": 1, "step": 13, "tone": 0, "length": 1, "level": 2, "octave": 1, "velocity": 0.65},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "push": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 3},
+      {"bar": 0, "step": 3, "tone": 0, "length": 3, "velocity": 0.9, "offset": 0.2},
+      {"bar": 0, "step": 7, "tone": 2, "length": 4, "offset": 0.2},
+      {"bar": 0, "step": 14, "tone": 3, "length": 2, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 0, "tone": 0, "length": 3},
+      {"bar": 1, "step": 3, "tone": 1, "length": 2, "offset": 0.25},
+      {"bar": 1, "step": 6, "tone": 2, "length": 4},
+      {"bar": 1, "step": 11, "tone": 0, "length": 2, "octave": 1, "velocity": 0.85},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "drive": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2},
+      {"bar": 0, "step": 2, "tone": 0, "length": 2, "velocity": 0.8, "offset": 0.2},
+      {"bar": 0, "step": 4, "tone": 2, "length": 2},
+      {"bar": 0, "step": 6, "tone": 3, "length": 2, "velocity": 0.85, "offset": 0.2},
+      {"bar": 0, "step": 8, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 10, "tone": 3, "length": 2, "velocity": 0.8, "offset": 0.2},
+      {"bar": 0, "step": 12, "tone": 2, "length": 2},
+      {"bar": 0, "step": 14, "tone": 1, "length": 2, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 0, "tone": 0, "length": 2},
+      {"bar": 1, "step": 2, "tone": 2, "length": 2, "velocity": 0.8, "offset": 0.2},
+      {"bar": 1, "step": 4, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 6, "tone": 2, "length": 2, "velocity": 0.8, "offset": 0.2},
+      {"bar": 1, "step": 8, "tone": 3, "length": 2},
+      {"bar": 1, "step": 10, "tone": 2, "length": 2, "velocity": 0.8},
+      {"bar": 1, "step": 12, "tone": 1, "length": 2},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ]
+  }
+}

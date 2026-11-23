@@ -1,0 +1,47 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "horns",
+  "title": "Horns",
+  "description": "Short soul horn hits: the seventh and root on the 'and' of 2, a fall to the fifth on 4, and a three-note pickup into the next bar. open swells one long chord; busy plays the riff in 16ths.",
+  "preset": "ensemble",
+  "part": "melody",
+  "bars": 2,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 6, "tone": 3, "length": 2, "skeleton": true},
+      {"bar": 0, "step": 6, "tone": 0, "length": 2, "octave": 1, "level": 1},
+      {"bar": 0, "step": 12, "tone": 2, "length": 3, "velocity": 0.9},
+      {"bar": 1, "step": 6, "tone": 3, "length": 2, "skeleton": true},
+      {"bar": 1, "step": 6, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 12, "tone": 2, "length": 1, "velocity": 0.85},
+      {"bar": 1, "step": 13, "tone": 3, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "octave": 1, "semitones": -1, "velocity": 0.9}
+    ],
+    "open": [
+      {"bar": 0, "step": 0, "tone": 1, "length": 16, "velocity": 0.7},
+      {"bar": 0, "step": 0, "tone": 3, "length": 16, "velocity": 0.7},
+      {"bar": 1, "step": 0, "tone": 0, "length": 12, "octave": 1, "velocity": 0.75},
+      {"bar": 1, "step": 0, "tone": 2, "length": 12, "velocity": 0.75},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "octave": 1, "semitones": -1, "level": 2, "velocity": 0.8}
+    ],
+    "busy": [
+      {"bar": 0, "step": 2, "tone": 3, "length": 1},
+      {"bar": 0, "step": 3, "tone": 0, "length": 1, "octave": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 6, "tone": 3, "length": 2},
+      {"bar": 0, "step": 6, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 10, "tone": 2, "length": 1, "velocity": 0.9},
+      {"bar": 0, "step": 11, "tone": 3, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 0, "step": 12, "tone": 2, "length": 2},
+      {"bar": 0, "step": 15, "tone": 1, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 2, "tone": 3, "length": 1},
+      {"bar": 1, "step": 3, "tone": 0, "length": 1, "octave": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 6, "tone": 3, "length": 2},
+      {"bar": 1, "step": 6, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 10, "tone": 2, "length": 1, "velocity": 0.9},
+      {"bar": 1, "step": 12, "tone": 2, "length": 1},
+      {"bar": 1, "step": 13, "tone": 3, "length": 1, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "octave": 1, "semitones": -1}
+    ]
+  }
+}

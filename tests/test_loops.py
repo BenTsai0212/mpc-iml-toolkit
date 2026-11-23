@@ -112,16 +112,26 @@ def played(loop: Loop, progression: str, part: str, level: int) -> list[list[Any
     return out
 
 
+BUILT_IN = (
+    ["boom", "knock", "lazy", "soul", "sub", "walk"],
+    ["bells", "flute", "horns", "keys", "pluck", "rhodes"],
+)
+"""The built-in bass and melody loops, by name (#173, #232)."""
+
+
 def test_the_built_in_loop_files_play_the_notes_of_158() -> None:
     """The snapshot was written from the Python tables before they were removed (#173):
-    every variation and level, and `thin`, over both progressions."""
+    every variation and level, and `thin`, over both progressions. The hip-hop loops
+    (#232) came later and are not in it."""
     snapshot = json.loads((DATA / "loops-158.json").read_text())
     library = load_loops()
-    assert (library.names("bass"), library.names("melody")) == (["boom", "walk"], ["keys", "pluck"])
+    assert (library.names("bass"), library.names("melody")) == BUILT_IN
     found: dict[str, list[list[Any]]] = {}
     for part in PARTS:
         for name, loop in library.played(part).items():
             assert library.get(name, part).origin.endswith(f"mpc_iml/loops/ensemble/{name}.json")
+            if name not in ("boom", "walk", "keys", "pluck"):
+                continue
             for progression in PROGRESSIONS:
                 found[f"{name} {progression} thin"] = played(loop, progression, part, 1)
                 for variation in loop.variations:

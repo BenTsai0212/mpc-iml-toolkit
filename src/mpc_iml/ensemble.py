@@ -75,8 +75,8 @@ bar line where the playing bass or melody mode, a playing variation (the reply
 `variation`, #158) or a playing transformation (the reply `transform`, #189)
 changes.
 
-The loops are loop files (#173, ADR 0010): the built-in `boom`, `walk`, `keys` and
-`pluck` live in `mpc_iml/loops/ensemble/` (registered as `CONTENT`), and installed
+The loops are loop files (#173, ADR 0010): the built-in ones (`boom`, `walk`, `keys`,
+`pluck`, #232's hip-hop loops) live in `mpc_iml/loops/ensemble/` (as `CONTENT`), and installed
 packages add more through the `mpc_iml.content` entry point group. A note's timing
 `offset` moves it from its step by a fraction of a 16th, rounded to a clock tick; a
 note cannot sound before the bar line its bar is planned at. Musicians' own loops
