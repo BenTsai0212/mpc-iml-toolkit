@@ -16,21 +16,25 @@ or Start, as in `webdemo.sim.replay`.
   each bar where the band's bass or melody variation changed, the bars until the
   musician's `changes` is above `THRESHOLD`, at most `CAP`. The replay chooses the
   same variations as the live run, but not the same surprises, and does not load
-  user loops from the data folder.
+  user loops from the data folder. It plays the musician's own progressions from
+  `--data` (#236).
 
 Standard library only.
 """
 
 import argparse
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from mpc_iml.clock import TICKS_PER_BEAT, tag_recording
+from mpc_iml.content import ContentError
 from mpc_iml.ensemble import DEFAULT_ROLES
 from mpc_iml.events import Event, RawMidiEvent
+from mpc_iml.launch import DEFAULT_DATA
+from mpc_iml.progressions import Progression, find_progression, progression_library
 from mpc_iml.recording import RecordingFormatError, read_recording
 from mpc_iml.trial.spec import TrialError, load_trial
 from mpc_iml.webdemo.sim import BEATS_PER_BAR, BarRow, Settings, replay
@@ -166,9 +170,11 @@ def measure(
     beats_per_bar: int = BEATS_PER_BAR,
     roles: Sequence[str] = DEFAULT_ROLES,
     settings: Settings | None = None,
+    library: Mapping[str, Progression] | None = None,
 ) -> Measures:
     """The measures of a recording; with `settings` (and 4/4), also the exploratory
-    `response`, replayed with those settings. A take the replay refuses (no clock,
+    `response`, replayed with those settings and the progressions of `library`
+    (`webdemo.sim.replay`). A take the replay refuses (no clock,
     too long) has no `response`."""
     events = list(events)
     kept, ticks = _take(events)
@@ -195,7 +201,7 @@ def measure(
     if settings is None or beats_per_bar != BEATS_PER_BAR:
         return result
     try:
-        rows = replay(events, settings).rows
+        rows = replay(events, settings, library).rows
     except ValueError:
         return result
     return replace(result, response=response(changes, band_changes(rows)))
@@ -256,6 +262,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--trial", type=Path, help="a trial file, for the replay's settings")
     parser.add_argument("--condition", help="the condition of --trial the recording played")
+    parser.add_argument(
+        "--data",
+        type=Path,
+        default=Path(DEFAULT_DATA),
+        help="the data folder with your progressions",
+    )
     return parser
 
 
@@ -288,11 +300,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         settings = _settings(args.trial, args.condition)
+        find_progression(settings.progression, args.data)
+        library, _ = progression_library(args.data)
         events = read_recording(args.path).events
-    except (OSError, RecordingFormatError, ValueError) as error:
+    except (OSError, RecordingFormatError, ValueError, ContentError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    result = measure(events, args.beats_per_bar, settings=settings)
+    result = measure(events, args.beats_per_bar, settings=settings, library=library)
     for key, value in result.summary().items():
         note = "\t(exploratory)" if key in EXPLORATORY else ""
         print(f"{key}\t{format_value(value)}{note}")

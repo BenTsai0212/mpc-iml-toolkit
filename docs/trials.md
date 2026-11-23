@@ -134,4 +134,5 @@ The measures come from `mpc_iml.measures`, which also runs on one recording
 syncopation, and pattern change from bar to bar. The response columns
 (`band_changes`, `answered`, `response_bars`) are **exploratory**: they replay the
 recording offline, which does not repeat surprises or load user loops, and depend
-on a threshold. `--no-measures` leaves the measures out.
+on a threshold. The replay plays your own progressions from `--data` (default
+`mpc-iml-data`), #236; an unknown progression is an error that names it. `--no-measures` leaves the measures out.

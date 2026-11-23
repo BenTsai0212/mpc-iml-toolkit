@@ -41,7 +41,7 @@ from mpc_iml.frames import bank_pad_to_note, note_to_bank_pad
 from mpc_iml.learn import PARTS, WANTS
 from mpc_iml.learn import context as learn_context
 from mpc_iml.melody import BarPlan
-from mpc_iml.progressions import NAMES, Progression, load_progressions
+from mpc_iml.progressions import Progression, load_progressions
 from mpc_iml.sources import CLOCK_BYTES
 
 __all__ = [
@@ -220,25 +220,28 @@ Grid = Sequence[Mapping[str, Sequence[int]]]
 
 def chord_name(progression: str, bar: int) -> str:
     """The name of the chord of `bar` in `progression`, for example `Am7`."""
-    p = progressions()[progression]
-    chord = p.chord(bar)
-    return NAMES[(p.tonic + chord.root) % 12] + chord.quality
+    return progressions()[progression].chord_name(bar)
 
 
-def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
+def simulate(
+    grid: Grid,
+    settings: Settings = Settings(),
+    library: Mapping[str, Progression] | None = None,
+) -> Song:
     """Play `grid` into a new `Ensemble` with `settings` and collect what it plays.
 
     Raises `ValueError` for a grid of no bars or more than `MAX_BARS`, a drum or step
     count other than `DRUMS` and `STEPS`, a velocity outside 0-127, a tempo outside
     `TEMPO_RANGE`, a like, a want or a press outside the grid or the `learn` mode, or a setting
-    the preset's controls refuse.
+    the preset's controls refuse. `library` holds the progressions `settings.progression`
+    names (default `progressions()`).
     """
     hits = _hits(grid)
     low, high = TEMPO_RANGE
     if not low <= settings.tempo <= high:
         raise ValueError(f"tempo must be {low:g}-{high:g}, got {settings.tempo:g}")
     _check_learning(settings, len(grid))
-    run = _Run(settings)
+    run = _Run(settings, library)
     interval = 60.0 / settings.tempo / TICKS_PER_BEAT
     song_bars = len(grid) + 1
     run.feed(_START, 0.0)
@@ -250,7 +253,11 @@ def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
     return run.song(len(grid), settings)
 
 
-def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
+def replay(
+    events: Iterable[Event],
+    settings: Settings = Settings(),
+    library: Mapping[str, Progression] | None = None,
+) -> Song:
     """Play a recording made with `record --clock` (ADR 0002) into a new `Ensemble`.
 
     The events go in time order as the engine plays them live: each clock message to
@@ -264,7 +271,8 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
     song's tempo (`Settings.tempo`) is the clock's at the end of the take, and the
     audio renders at that tempo. Raises `ValueError` for a recording without a Start
     and 24 ticks, or of more than `MAX_BARS` bars, and as `simulate` for the learning
-    settings (a like, a want or a press after the take does nothing).
+    settings (a like, a want or a press after the take does nothing). `library` as for
+    `simulate` (`measures --data` adds the musician's own progressions, #236).
     """
     _check_learning(settings, MAX_BARS)
     run: _Run | None = None
@@ -274,7 +282,7 @@ def replay(events: Iterable[Event], settings: Settings = Settings()) -> Song:
             if run is None:
                 if event.data[0] != _START[0]:
                     continue
-                run = _Run(settings)
+                run = _Run(settings, library)
             elif event.data[0] in _TAKE_ENDS:
                 break
             t = event.t
@@ -325,7 +333,9 @@ def _check_learning(settings: Settings, bars: int) -> None:
 class _Run:
     """A new `Ensemble` with `settings` on a simulated clock, collecting what it plays."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, library: Mapping[str, Progression] | None = None
+    ) -> None:
         self.log: list[str] = []
         self.learning: list[str] = []
         self.surprises: dict[int, str] = {}
@@ -345,7 +355,8 @@ class _Run:
         clock = self.clock
         self.scheduler = Scheduler(clock, lambda m: self.sent.append((clock.state().tick, m)))
         self.access = ClockAccess(clock, self.log.append, self.scheduler)
-        ensemble = Ensemble(self._ensemble_log, seed=settings.seed, progressions=progressions())
+        library = progressions() if library is None else library
+        ensemble = Ensemble(self._ensemble_log, seed=settings.seed, progressions=library)
         controls = ensemble.controls()
         controls["bass"](["loop"])
         controls["bass-loop"]([settings.bass_loop])
@@ -360,6 +371,7 @@ class _Run:
         controls["mode-pads"]([settings.mode_pads])
         controls["status"]([0])  # the page shows the bars in its table (#230)
         self.ensemble, self._like = ensemble, controls["like"]
+        self.chords = ensemble.progression
 
         def send_wants(start: BarStart) -> None:
             for part, value in wants.get(start.bar, ()):
@@ -440,7 +452,7 @@ class _Run:
         )
         rows = tuple(
             replace(
-                _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1)),
+                _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1), self.chords),
                 chose=self.chose[b + 1],
                 liked=b + 1 in self._liked,
                 pressed=self.pressed.get(b + 1, ()),
@@ -545,6 +557,7 @@ def _row(
     plans: Mapping[str, BarPlan | None],
     s: Settings,
     surprise: str | None,
+    chords: Progression,
 ) -> BarRow:
     roles = [DEFAULT_ROLES[h.pad] for h in start.hits]
     kicks = tuple(h.step for h, r in zip(start.hits, roles, strict=True) if r == "kick")
@@ -563,7 +576,7 @@ def _row(
         hats,
         len(start.hits),
         sum(velocities) / len(velocities) if velocities else None,
-        chord_name(s.progression, bar + 1),
+        chords.chord_name(bar + 1),
         plans["bass"],
         rule(bool(kicks)),
         plans["melody"],

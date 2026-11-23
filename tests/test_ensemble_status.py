@@ -47,14 +47,33 @@ def test_learn_demo_shows_the_variations_and_what_pad_16_does_before_and_after_p
     bar_of(rig, 2, press=8)
     bar_of(rig, 3)
     assert status(rig) == [
-        "ensemble: bar 0  bass -  melody -  16: keep home  15: keep open",
-        "ensemble: bar 1  bass push (rule)  melody open (rule)  16: keep push  15: keep open",
-        "ensemble: bar 1  bass push (rule)  melody open (rule)  16: next drive  15: keep open",
-        "ensemble: bar 2  bass push (want)  melody home (rule)  16: next drive  15: keep home",
-        "ensemble: bar 2  bass push (want)  melody home (rule)  16: next home  15: keep home",
-        "ensemble: bar 3  bass drive (want)  melody home (rule)  16: next home  15: keep home",
+        "ensemble: bar 0  Am7  bass -  melody -  16: keep home  15: keep open",
+        "ensemble: bar 1  Am7  bass push (rule)  melody open (rule)  16: keep push  15: keep open",
+        "ensemble: bar 1  Am7  bass push (rule)  melody open (rule)  16: next drive  15: keep open",
+        "ensemble: bar 2  Fmaj7  bass push (want)  melody home (rule)  16: next drive"
+        "  15: keep home",
+        "ensemble: bar 2  Fmaj7  bass push (want)  melody home (rule)  16: next home"
+        "  15: keep home",
+        "ensemble: bar 3  Fmaj7  bass drive (want)  melody home (rule)  16: next home"
+        "  15: keep home",
     ]
     assert all(for_musician(line) for line in status(rig))
+
+
+@pytest.mark.parametrize(
+    ("progression", "chords"),
+    [
+        ("minor-two", ["Am7", "Am7", "Fmaj7", "Fmaj7", "Am7"]),
+        ("minor-turn", ["Bm7b5", "E7", "Am7", "Am7", "Bm7b5"]),
+    ],
+)
+def test_the_status_line_names_the_chord_of_its_bar(progression: str, chords: list[str]) -> None:
+    rig = running("off")
+    rig.ensemble.controls()["progression"]([progression])
+    for bar in range(5):
+        bar_of(rig, bar)
+    shown = {int(line.split()[2]): line.split()[3] for line in status(rig)}
+    assert [shown[bar] for bar in range(5)] == chords
 
 
 @pytest.mark.parametrize(

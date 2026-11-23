@@ -326,10 +326,10 @@ With `status 1` (the default, #230) the terminal shows one line at each bar line
 while Live plays, and again after each press of pad 16 or 15:
 
 ```text
-ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
 ```
 
-- the bar (counted from 0 at Start);
+- the bar (counted from 0 at Start) and its chord in the progression playing (#236);
 - the bass and melody variation playing in it and where each choice came from:
   `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`), `still` for the
   melody in `melody-mode still` (#233); `-` when that loop is silent;
@@ -414,7 +414,8 @@ Live, turn it into a loop file, and play it:
    into the next chord, other notes, and notes off the grid (kept as an `offset`).
    Each note is stored as a chord tone, so the line follows the chords when you
    change the progression. Add `--progression minor-four` if you wrote it over
-   `minor-four`, `--start-bar 2` if the clip starts on the Fmaj7, and
+   `minor-four` (one of your own progressions works too, from `--data`, default
+   `mpc-iml-data`), `--start-bar 2` if the clip starts on the Fmaj7, and
    `--ornament-below 60` to make notes quieter than velocity 60 ornaments (played
    only when you play busier drums).
 4. The clip is the `home` variation. To add the variations for pushed kicks and for

@@ -544,6 +544,9 @@ Chord progressions are progression files, and the package ships seven.
   with the loops. New reply `progression-errors` (`i`, after `status`): how many
   user progression files were skipped at the last read. Group 8's `errors` keeps
   showing `loop-errors` only; the terminal names each skipped file.
+- The status line (`status 1`, #230) shows the chord of its bar after the bar
+  number (#236 PR 4): `ensemble: bar <N>  <chord>  bass …`, for example
+  `ensemble: bar 5  Bm7b5  bass push (rule) …`.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
 
 ## Consequences
