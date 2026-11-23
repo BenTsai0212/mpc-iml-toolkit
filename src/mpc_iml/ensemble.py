@@ -94,7 +94,9 @@ packages add more through the `mpc_iml.content` entry point group. A note's timi
 note cannot sound before the bar line its bar is planned at. Musicians' own loops
 are read from `<data folder>/loops/*.json` (`Preset.data_folder`) when the preset
 loads and on `reload-loops`; a bad file is skipped with a log line and counted in
-the reply `loop-errors`. `bass-loop-step 1|-1` and `loop-step 1|-1` move to the
+the reply `loop-errors`. User progressions (#236) are read from
+`<data folder>/progressions/*.json` at the same times and counted in
+`progression-errors`. `bass-loop-step 1|-1` and `loop-step 1|-1` move to the
 next or previous loop of the lists (built-in, installed, then user loops).
 
 Rhythm transformation (#189, RFC 0005 step 6, `rhythm`): off by default
@@ -263,7 +265,14 @@ from mpc_iml.melody import (
     surprise,
 )
 from mpc_iml.presets import ControlHandler, Preset
-from mpc_iml.progressions import DEFAULT, Chord, Progression, load_progressions
+from mpc_iml.progressions import (
+    DEFAULT,
+    Chord,
+    Progression,
+    load_progressions,
+    load_user_progressions,
+)
+from mpc_iml.progressions import USER_FOLDER as PROGRESSION_FOLDER
 from mpc_iml.rhythm import (
     MIN_HITS,
     Memory,
@@ -405,8 +414,11 @@ class Ensemble:
         progressions: Mapping[str, Progression] | None = None,
     ) -> None:
         self._library = load_loops() if library is None else library
-        self.progressions = dict(load_progressions() if progressions is None else progressions)
-        """The progressions by name, built-in first (#236, ADR 0011)."""
+        self._progressions = dict(load_progressions() if progressions is None else progressions)
+        self.progressions = dict(self._progressions)
+        """The progressions by name: built-in, installed, then user ones (#236, ADR 0011)."""
+        self.progression_errors = 0
+        """How many user progression files were skipped at the last read (#236)."""
         self._folder: Path | None = None
         self.loop_errors = 0
         """How many user loop files were skipped at the last read (#173)."""
@@ -1649,14 +1661,17 @@ class Ensemble:
                 ("learn-log", [int(self._bar_log is not None)]),
                 ("mode-pads", [int(self.mode_pads)]),
                 ("status", [int(self.status)]),
+                ("progression-errors", [self.progression_errors]),
             ]
 
     def data_folder(self, folder: Path) -> None:
-        """The `Preset.data_folder` hook: read the user loops in `<folder>/loops/` and
-        the profile `<folder>/learn/ensemble.json` when there is one (#196)."""
+        """The `Preset.data_folder` hook: read the user loops in `<folder>/loops/`, the
+        user progressions in `<folder>/progressions/` (#236) and the profile
+        `<folder>/learn/ensemble.json` when there is one (#196)."""
         with self._lock:
             self._folder = folder / USER_FOLDER
             self._read_user_loops()
+            self._read_user_progressions(folder / PROGRESSION_FOLDER)
             self._data = folder
             self._profile = folder / PROFILE
             if self._profile.exists():
@@ -1670,6 +1685,7 @@ class Ensemble:
             if self._folder is None:
                 raise ValueError("no data folder: ensemble is not loaded by the engine")
             self._read_user_loops()
+            self._read_user_progressions(self._folder.parent / PROGRESSION_FOLDER)
 
     def _read_user_loops(self) -> None:
         """Read the user folder again. A changed loop plays from the next bar line; a
@@ -1690,6 +1706,19 @@ class Ensemble:
         users = len(library.loops) - len(self._library.loops)
         if users or errors:
             self._log(f"ensemble: {users} user loops from {self._folder}, {len(errors)} skipped")
+
+    def _read_user_progressions(self, folder: Path) -> None:
+        """Read the user progressions again (#236). A changed progression plays from
+        the next bar; one whose file is gone keeps playing until another is chosen."""
+        progressions, errors = load_user_progressions(folder, self._progressions)
+        for error in errors:
+            self._log(f"ensemble: skipped a progression file: {error}")
+        self.progression_errors = len(errors)
+        self.progressions = progressions
+        self.progression = progressions.get(self.progression.name, self.progression)
+        users = len(progressions) - len(self._progressions)
+        if users or errors:
+            self._log(f"ensemble: {users} user progressions from {folder}, {len(errors)} skipped")
 
     def _step(self, part: str, args: Sequence[float | int | str]) -> None:
         """Choose the next (1) or previous (-1) loop of `part`, wrapping around; from

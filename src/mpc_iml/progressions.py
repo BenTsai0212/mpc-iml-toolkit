@@ -16,8 +16,11 @@ Progression files are a content kind next to loops: packages declare them throug
 the `mpc_iml.content` entry point group, under `<root>/progressions/ensemble/<name>.json`.
 `load_progressions` reads every entry, built-in content (the `mpc_iml` package) first.
 
+The musician's own progressions are `<data folder>/progressions/*.json`
+(`load_user_progressions`): a bad file is skipped, so one never stops playing.
+
     python -m mpc_iml.progressions check <file>…
-    python -m mpc_iml.progressions list
+    python -m mpc_iml.progressions list [--data <data folder>]
 """
 
 import argparse
@@ -42,10 +45,12 @@ __all__ = [
     "NAMES",
     "PRESET",
     "PROGRESSION_FORMAT",
+    "USER_FOLDER",
     "Chord",
     "Progression",
     "chord_names",
     "load_progressions",
+    "load_user_progressions",
     "main",
     "parse_progression",
 ]
@@ -55,6 +60,8 @@ PRESET = "ensemble"
 """The preset progression files belong to."""
 KIND = "progressions"
 """The content folder of progression files: `<root>/progressions/ensemble/`."""
+USER_FOLDER = "progressions"
+"""The folder of the musician's own progression files in the data folder (#236)."""
 DEFAULT = "minor-two"
 """The progression `ensemble` starts with."""
 FIRST = ("minor-two", "minor-four")
@@ -203,19 +210,53 @@ def load_progressions(group: str = CONTENT_GROUP) -> dict[str, Progression]:
     return progressions
 
 
+def _read_file(path: Path) -> Progression:
+    """The progression in `path`; raises `ContentError` naming the file when it cannot
+    be read, is invalid or has a file name other than its `name`."""
+    origin = str(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ContentError(f"{origin}: cannot read: {error}") from error
+    progression = parse_progression(data, origin)
+    if progression.name != path.stem:
+        raise ContentError(f"{origin}: the file name must equal the name {progression.name!r}")
+    return progression
+
+
+def load_user_progressions(
+    folder: Path, progressions: Mapping[str, Progression]
+) -> tuple[dict[str, Progression], list[str]]:
+    """`progressions` with the user progression files in `folder` (`*.json`) after
+    them, by name, and one error message per skipped file (#236).
+
+    A file that cannot be read, is invalid, has a file name other than its `name` or
+    reuses a name already in `progressions` (built-in, installed or another user
+    file) is skipped, so one bad file never stops playing. A missing folder has none.
+    """
+    library = dict(progressions)
+    errors: list[str] = []
+    files = sorted(folder.glob("*.json")) if folder.is_dir() else []
+    for path in files:
+        try:
+            progression = _read_file(path)
+            if progression.name in library:
+                raise ContentError(
+                    f"{path}: a progression named {progression.name!r} already exists"
+                    f" ({library[progression.name].origin}); rename it"
+                )
+        except ContentError as error:
+            errors.append(str(error))
+            continue
+        library[progression.name] = progression
+    return library, errors
+
+
 def _check(paths: Sequence[str]) -> int:
     failed = 0
     for path in paths:
         try:
-            try:
-                data = json.loads(Path(path).read_text(encoding="utf-8"))
-            except (OSError, ValueError) as error:
-                raise ContentError(f"{path}: cannot read: {error}") from error
-            progression = parse_progression(data, path)
-            if progression.name != Path(path).stem:
-                raise ContentError(
-                    f"{path}: the file name must equal the name {progression.name!r}"
-                )
+            progression = _read_file(Path(path))
         except ContentError as error:
             print(f"error: {error}", file=sys.stderr)
             failed += 1
@@ -239,16 +280,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     chk = commands.add_parser("check", help="validate progression files")
     chk.add_argument("files", nargs="+")
-    commands.add_parser("list", help="list the built-in and installed progressions")
+    lst = commands.add_parser("list", help="list the built-in and installed progressions")
+    lst.add_argument("--data", type=Path, help="also list your own, in <data folder>/progressions/")
     args = parser.parse_args(argv)
     if args.command == "check":
         return _check(args.files)
     try:
-        _list(load_progressions())
+        progressions = load_progressions()
     except ContentError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    return 0
+    errors: list[str] = []
+    if args.data is not None:
+        progressions, errors = load_user_progressions(args.data / USER_FOLDER, progressions)
+    _list(progressions)
+    for skipped in errors:
+        print(f"skipped: {skipped}", file=sys.stderr)
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

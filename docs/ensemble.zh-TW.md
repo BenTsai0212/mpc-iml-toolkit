@@ -261,6 +261,37 @@ loop 是 loop 檔案（ADR 0010）：上面列出的 loop 是內建的，你也�
 `uv run python -m mpc_iml.loops export boom boom.mid`（其他變奏加 `--variation push`）。kick 的規則、
 裝飾音與 bass 的 fill 對你的線條與內建的線條一樣有效。
 
+### 寫自己的和弦進行
+
+和弦進行是一個小 JSON 檔（ADR 0011），不必改工具包就能加入自己的和弦（#236）。存成
+`mpc-iml-data/progressions/<名稱>.json`，檔名等於 `name`（小寫英文字母、數字與連字號）：
+
+```json
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "my-two",
+  "preset": "ensemble",
+  "tonic": "Bb",
+  "chords": [
+    {"root": 0, "quality": "m7", "bars": 2},
+    {"root": 5, "quality": "7", "bars": 2}
+  ]
+}
+```
+
+- `tonic` 是音名：`C` 到 `B`，可加 `#` 或 `b`。
+- 每個和弦有 `root`（0-11，主音之上的半音數）、`quality`（`m7`、`maj7`、`7` 或 `m7b5`）與
+  `bars`（1-4，預設 1）。最多 8 個和弦，全長 1、2、4 或 8 小節。這個例子先 Bbm7 兩小節，再
+  Eb7 兩小節。
+
+以 `uv run python -m mpc_iml.progressions check mpc-iml-data/progressions/my-two.json` 檢查，
+再按群組 8 的 **reload**（同時重新讀取你的 loop 與和弦進行），用 `progression` 旁的 `<` `>`
+選擇。你的和弦進行排在內建的之後；`uv run python -m mpc_iml.progressions list --data mpc-iml-data`
+列出全部。無法使用或名稱重複的檔案會略過：終端機寫出檔名與原因，回覆 `progression-errors`
+是略過的檔案數（群組 8 的 `errors` 只計 loop 檔）。reload 之後，改過的檔案從下一小節開始；
+刪掉正在演奏的和弦進行的檔案時，它會繼續演奏，直到你選擇另一個。
+
 ### Pure Data 的 Ensemble 群組
 
 patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 位於第 7 組
@@ -273,7 +304,7 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | `bass`：`loop`、`rule`、`off` | 設定 bass 的模式。`now` 顯示正在演奏的模式，`next` 顯示要求的模式。 |
 | `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。`still`（#233）沒有按鈕；以控制項設定時 `now` 與 `next` 會顯示。 |
 | `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（內建的 loop 依名稱排列；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
-| `reload`、`errors` | `reload` 重新讀取你的 loop 檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)）；`errors` 顯示略過的檔案數（`loop-errors`）。 |
+| `reload`、`errors` | `reload` 重新讀取你的 loop 與和弦進行檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)、[寫自己的和弦進行](#寫自己的和弦進行)）；`errors` 顯示略過的 loop 檔案數（`loop-errors`）。 |
 | `progression` | `<` 與 `>` 選擇 engine 列出的上一個或下一個和弦進行（`minor-two`、`minor-four`，再來是其他的依名稱排列），下方的方塊顯示選擇的和弦進行。 |
 | `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
 | `roles` | 每個 pad 的角色，唯讀，與 pad 一樣排成 4 列 4 個（13-16 在最上面）。 |
@@ -311,7 +342,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/melody` | 0、1 或 `still` | 1 | 旋律；0 時也取消尚未發出的音符，1 以原本的模式開啟，`still` 以 `melody-mode still` 開啟 |
 | `/mpciml/preset/ensemble/loop` | 旋律 loop 的名稱（內建的 loop，例如 `pluck` 或 `rhodes`，或你自己的） | `keys` | 旋律的 loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 或 -1 | - | `loops` 中的下一個或上一個旋律 loop，到尾端時繞回 |
-| `/mpciml/preset/ensemble/reload-loops` | 無 | - | 重新讀取 `<資料夾>/loops/` 中的 loop 檔案；改變的 loop 從下一個小節線開始演奏 |
+| `/mpciml/preset/ensemble/reload-loops` | 無 | - | 重新讀取 `<資料夾>/loops/` 中的 loop 檔案與 `<資料夾>/progressions/` 中的和弦進行檔案；改變的 loop 從下一個小節線開始演奏，改變的和弦進行從下一小節開始 |
 | `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed；兩者都結束 `still` |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | 旋律的八度（4 時為 A4） |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
@@ -346,7 +377,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `bass` | 下一個與正在演奏的模式（`loop`、`rule`、`off`） |
 | `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`、`still`） |
 | `bass-loop`、`loop`、`progression` | 選擇的名稱 |
-| `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序；和弦進行：`minor-two`、`minor-four`，再來是其他內建的依名稱排列，然後是安裝的） |
+| `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序；和弦進行：`minor-two`、`minor-four`，再來是其他內建的依名稱排列，然後是安裝的，最後是你自己的） |
 | `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
 | `roles` | 16 個角色，pad 1-16 |
 | `no-drums` | 值（`lead`、`hold`、`thin`） |
@@ -365,6 +396,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `learn-log` | 寫出每小節的 log 時為 1，否則為 0 |
 | `mode-pads` | pad 15、16 切換模式時為 1，否則為 0 |
 | `status` | 印出狀態行時為 1，否則為 0 |
+| `progression-errors` | 上次讀取時略過的和弦進行檔案數 |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
 

@@ -539,8 +539,11 @@ Chord progressions are progression files, and the package ships seven.
   `>` send `progression-step` −1 and 1, and the box under them shows `progression`.
   The group no longer uses the `progressions` reply. The canvas stays 1490 × 840
   and the Max for Live device does not change.
-- Later steps of #236 add the musician's own progressions and the reply
-  `progression-errors` to this amendment.
+- The musician's own progressions in `<data folder>/progressions/` (#236 PR 3) join
+  `progressions` after the installed ones, by name. `reload-loops` reads them again
+  with the loops. New reply `progression-errors` (`i`, after `status`): how many
+  user progression files were skipped at the last read. Group 8's `errors` keeps
+  showing `loop-errors` only; the terminal names each skipped file.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
 
 ## Consequences

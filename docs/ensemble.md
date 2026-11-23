@@ -439,6 +439,42 @@ To start from a built-in line, export it as a clip, drag it into Live and change
 another variation). The kick rules, the ornaments and the bass fill work on your
 lines as on the built-in ones.
 
+### Write your own progression
+
+A progression is a small JSON file (ADR 0011), so you can add your own chords
+without changing the toolkit (#236). Save it as
+`mpc-iml-data/progressions/<name>.json`, where the file name equals `name` (lower
+case letters, digits and hyphens):
+
+```json
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "my-two",
+  "preset": "ensemble",
+  "tonic": "Bb",
+  "chords": [
+    {"root": 0, "quality": "m7", "bars": 2},
+    {"root": 5, "quality": "7", "bars": 2}
+  ]
+}
+```
+
+- `tonic` is a note name, `C` to `B` with an optional `#` or `b`.
+- Each chord has a `root` (0-11, semitones above the tonic), a `quality` (`m7`,
+  `maj7`, `7` or `m7b5`) and `bars` (1-4, default 1). Up to 8 chords, 1, 2, 4 or 8
+  bars in all. This one plays Bbm7 for 2 bars, then Eb7 for 2 bars.
+
+Check it with `uv run python -m mpc_iml.progressions check mpc-iml-data/progressions/my-two.json`,
+then click **reload** in group 8 (it reads your loops and your progressions) and
+choose it with `<` `>` next to `progression`. Your progressions come after the
+built-in ones; `uv run python -m mpc_iml.progressions list --data mpc-iml-data`
+lists them all. A file that cannot be used, or that reuses a name, is skipped: the
+terminal names the file and the reason, and the reply `progression-errors` counts
+them (`errors` in group 8 counts only loop files). After a reload a changed file
+plays from the next bar; if you delete the file of the progression playing, it
+keeps playing until you choose another.
+
 ### The Ensemble group in Pure Data
 
 Group 8 **Ensemble** of the patch (`src/mpc_iml/patches/mpc-iml.pd`, ADR 0009), in
@@ -452,7 +488,7 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | `bass`: `loop`, `rule`, `off` | Sets the bass mode. `now` shows the mode playing, `next` the one asked for. |
 | `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. `still` (#233) has no button; `now` and `next` show it when set by the control. |
 | `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (the built-in loops by name; then installed and your own loops), and the box under them shows the one selected. |
-| `reload`, `errors` | `reload` reads your loop files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line)); `errors` shows how many were skipped (`loop-errors`). |
+| `reload`, `errors` | `reload` reads your loop and progression files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line), [Write your own progression](#write-your-own-progression)); `errors` shows how many loop files were skipped (`loop-errors`). |
 | `progression` | `<` and `>` choose the previous or next progression the engine lists (`minor-two`, `minor-four`, then the others by name), and the box under them shows the one selected. |
 | `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
 | `roles` | The role of each pad, read only, 4 rows of 4 like the pads (13-16 on top). |
@@ -495,7 +531,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/melody` | 0, 1 or `still` | 1 | The melody; 0 also drops the notes still to come, 1 turns it on in the mode it had, `still` turns it on in `melody-mode still` |
 | `/mpciml/preset/ensemble/loop` | a melody loop's name (a built-in loop such as `pluck` or `rhodes`, or your own) | `keys` | The melody loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 or -1 | - | The next or previous melody loop of `loops`, wrapping around |
-| `/mpciml/preset/ensemble/reload-loops` | none | - | Reads the loop files in `<data folder>/loops/` again; a changed loop plays from the next bar line |
+| `/mpciml/preset/ensemble/reload-loops` | none | - | Reads the loop files in `<data folder>/loops/` and the progression files in `<data folder>/progressions/` again; a changed loop plays from the next bar line, a changed progression from the next bar |
 | `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed; either ends `still` |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | Octave of the melody (A4 at 4) |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
@@ -532,7 +568,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `bass` | next and playing mode (`loop`, `rule`, `off`) |
 | `melody-mode` | next and playing mode (`follow`, `fixed`, `off`, `still`) |
 | `bass-loop`, `loop`, `progression` | the selected name |
-| `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name; progressions: `minor-two`, `minor-four`, then the other built-in ones by name, then installed ones) |
+| `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name; progressions: `minor-two`, `minor-four`, then the other built-in ones by name, then installed ones, then yours) |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
 | `roles` | 16 roles, pads 1-16 |
 | `no-drums` | the value (`lead`, `hold`, `thin`) |
@@ -551,6 +587,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `learn-log` | 1 while the per-bar log is written, else 0 |
 | `mode-pads` | 1 while pads 15 and 16 switch the modes, else 0 |
 | `status` | 1 while the status line is shown, else 0 |
+| `progression-errors` | how many of your progression files were skipped at the last read |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
