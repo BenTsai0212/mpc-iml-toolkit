@@ -47,7 +47,8 @@ two).
 
 Controls (provisional preset controls, ADR 0004; defaults return when the preset is
 built again): `bass loop|rule|off`, `bass-loop <name>`,
-`progression <name>`, `octave 0-3`, `channel 1-16`, `role <pad 1-16> <role>`,
+`progression <name>`, `progression-step 1|-1` (#236: the next or previous of
+`progressions`, wrapping around), `octave 0-3`, `channel 1-16`, `role <pad 1-16> <role>`,
 `layer-pad 0-16` (default 16: that pad cycles the bass loop, rule, off, and plays
 no bass; 0 turns it off), for `rule` only `immediate 0|1`, `bar 0|1` and
 `length 1-16`, and for the melody `melody 0|1`, `loop <name>`, `follow 0|1` (both
@@ -1327,6 +1328,7 @@ class Ensemble:
             "immediate": lambda a: self._set(lambda: setattr(self, "immediate", _flag(a))),
             "bar": lambda a: self._set(lambda: self._set_bar(_flag(a))),
             "progression": self._set_progression,
+            "progression-step": self._step_progression,
             "octave": lambda a: self._set(lambda: setattr(self, "octave", _whole(a, 0, 3))),
             "length": lambda a: self._set(lambda: setattr(self, "length", _whole(a, 1, 16))),
             "channel": self._set_channel,
@@ -1544,6 +1546,18 @@ class Ensemble:
             raise ValueError(f"expected one of {', '.join(self.progressions)}, got {list(args)}")
         with self._lock:
             self.progression = self.progressions[str(args[0])]
+
+    def _step_progression(self, args: Sequence[float | int | str]) -> None:
+        """Choose the next (1) or previous (-1) progression, wrapping around (#236)."""
+        if len(args) != 1 or args[0] not in (1, -1):
+            raise ValueError(f"expected 1 or -1, got {list(args)}")
+        with self._lock:
+            names = list(self.progressions)
+            if self.progression.name in names:
+                name = names[(names.index(self.progression.name) + int(args[0])) % len(names)]
+            else:
+                name = names[0 if args[0] == 1 else -1]
+            self.progression = self.progressions[name]
 
     def _set_bass_control(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in BASS_MODES:

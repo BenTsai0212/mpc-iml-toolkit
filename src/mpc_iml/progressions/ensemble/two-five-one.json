@@ -1,0 +1,14 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "two-five-one",
+  "title": "Two-five-one",
+  "description": "Dm7 and G7 for a bar each, then Cmaj7 for 2 bars: a ii-V-I in C.",
+  "preset": "ensemble",
+  "tonic": "C",
+  "chords": [
+    {"root": 2, "quality": "m7"},
+    {"root": 7, "quality": "7"},
+    {"root": 0, "quality": "maj7", "bars": 2}
+  ]
+}

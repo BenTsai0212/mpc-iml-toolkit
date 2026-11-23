@@ -1,0 +1,13 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "dark-minor",
+  "title": "Dark minor",
+  "description": "Cm7 and Dbmaj7, 2 bars each: a dark i-bII loop in C minor.",
+  "preset": "ensemble",
+  "tonic": "C",
+  "chords": [
+    {"root": 0, "quality": "m7", "bars": 2},
+    {"root": 1, "quality": "maj7", "bars": 2}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "soul-minor",
+  "title": "Soul minor",
+  "description": "Am7 and Dm7, 2 bars each: a soul i-iv in A minor.",
+  "preset": "ensemble",
+  "tonic": "A",
+  "chords": [
+    {"root": 0, "quality": "m7", "bars": 2},
+    {"root": 5, "quality": "m7", "bars": 2}
+  ]
+}

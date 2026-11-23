@@ -1,0 +1,14 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "minor-turn",
+  "title": "Minor turn",
+  "description": "Bm7b5 and E7 for a bar each, then Am7 for 2 bars: a minor ii-V-i in A.",
+  "preset": "ensemble",
+  "tonic": "A",
+  "chords": [
+    {"root": 2, "quality": "m7b5"},
+    {"root": 7, "quality": "7"},
+    {"root": 0, "quality": "m7", "bars": 2}
+  ]
+}
