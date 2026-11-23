@@ -53,7 +53,8 @@ no bass; 0 turns it off), for `rule` only `immediate 0|1`, `bar 0|1` and
 loops), `melody-octave 2-6`, `melody-channel 1-16`, `filter-cc 0-127` (0 is off)
 and `melody-pad 0-16` (default 15: that pad cycles follow, fixed, off; follow and
 fixed apply to both loops, off only to the melody), and `melody-mode
-follow|fixed|off` (#153: `melody` and `follow` in one message), and `learn-cc` (#159,
+follow|fixed|off|still` (#153: `melody` and `follow` in one message; `still`, #233,
+below), and `learn-cc` (#159,
 no arguments: sends only the brightness CC on the melody channel, `LEARN_CC_SWEEP`
 upwards and on the next call downwards, so a DAW in MIDI map mode learns the CC and
 not a note; refused while the clock is `running` and when `filter-cc` is 0), and for
@@ -66,6 +67,15 @@ with `Ensemble(seed=…)`, a fresh seed in each `make_preset`), and `rhythm 0-2`
 (#189, default 1: 0 off, 1 the bass, 2 the bass and the melody). Bass mode and melody
 changes apply from the next bar line (at once while the clock is not running);
 `melody 0` and `melody-mode off` also drop the pending notes.
+
+With `melody-mode still` (#233, also `melody still`; a setting for trials and
+practice that pad 15 does not cycle to: from it a press goes on to `fixed`, and
+`follow 0|1` ends it) the melody plays its `home` line every bar at
+`FIXED_VELOCITY`, also without drums, and sends the brightness CC at
+`STILL_BRIGHTNESS`, while the bass follows as in `follow`. Learning chooses no melody
+variation (a like credits the bass only); with `learn demo` pad 15 does nothing
+(`ensemble: pad 15 ignored, the melody is still`) and `want melody` is refused.
+`chose` gives `still` for the melody.
 
 State replies (`Preset.state`, ADR 0009, #153): `bass` and `melody-mode` give the
 mode asked for (next) and the one playing, the other replies the current settings
@@ -234,6 +244,7 @@ from mpc_iml.learn_log import BarLog, log_path
 from mpc_iml.learn_profile import PROFILE, apply_profile, read_profile, write_profile
 from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
+    BRIGHTNESS,
     NO_DRUMS,
     ORNAMENTS,
     PHRASE,
@@ -271,11 +282,13 @@ __all__ = [
     "LEARN_CC_SWEEP",
     "LEARN_MODES",
     "MELODY_MODES",
+    "MELODY_SETTINGS",
     "NO_CLOCK",
     "NOTE_SECONDS",
     "PROGRESSIONS",
     "ROLES",
     "STATUS_PREFIX",
+    "STILL_BRIGHTNESS",
     "WANT_MIN_BARS",
     "Chord",
     "Ensemble",
@@ -296,6 +309,14 @@ BASS_MODES = ("loop", "rule", "off")
 MELODY_MODES = ("follow", "fixed", "off")
 """The melody modes, in the order the melody pad cycles them; `follow` is the default."""
 
+MELODY_SETTINGS = (*MELODY_MODES, "still")
+"""The values of the control `melody-mode`: the modes and `still` (#233), a setting for
+trials and practice that the melody pad does not cycle to (it goes on to `fixed`)."""
+
+STILL_BRIGHTNESS = round(sum(BRIGHTNESS) / 2)
+"""The brightness CC value `melody-mode still` sends at each bar line (#233): the middle
+of `BRIGHTNESS`, so the melody keeps one colour."""
+
 LEARN_MODES = ("off", "likes", "demo")
 """The learning modes (#196); `off`, the rules, is the default."""
 
@@ -311,6 +332,10 @@ STATUS_PREFIX = "ensemble: bar "
 
 IGNORED = " ignored, the clock is not running"
 """The end of the line of a press that does nothing without a running clock (#230)."""
+
+IGNORED_STILL = " ignored, the melody is still"
+"""The end of the line of a press of pad 15 that does nothing because the melody is
+still (`learn demo`, #233)."""
 
 NO_CLOCK = (
     "ensemble: no MIDI clock (start with --clock); bass loop, bar layer and melody off,"
@@ -375,7 +400,7 @@ def for_musician(line: str) -> bool:
     """Whether `line` of the ensemble's log is for the musician while playing (#230):
     a status line or an ignored press."""
     return line.startswith(STATUS_PREFIX) or (
-        line.startswith("ensemble: ") and line.endswith(IGNORED)
+        line.startswith("ensemble: ") and line.endswith((IGNORED, IGNORED_STILL))
     )
 
 
@@ -440,6 +465,8 @@ class Ensemble:
         self.melody = True
         self.loop = self.loops["keys"]
         self.follow = True
+        self.still = False
+        """The melody plays `home` while the bass follows (`melody-mode still`, #233)."""
         self.melody_octave = 4
         self.melody_channel = 3
         self.filter_cc = 74
@@ -561,6 +588,8 @@ class Ensemble:
         `next <variation>` or `-` (nothing)."""
         with self._lock:
             part = "bass" if pad == self.layer_pad else "melody"
+            if part == "melody" and self.learn == "demo" and self._still():
+                return "-"
             if self.learn == "demo":
                 want = self.wants[part]
                 if want == "auto":
@@ -573,7 +602,7 @@ class Ensemble:
                 return "-"
             if part == "bass":
                 return f"bass {BASS_MODES[(BASS_MODES.index(self.bass) + 1) % len(BASS_MODES)]}"
-            mode = self._melody_mode()
+            mode = "follow" if self._still() else self._melody_mode()
             return f"melody {MELODY_MODES[(MELODY_MODES.index(mode) + 1) % len(MELODY_MODES)]}"
 
     def _keeps(self, part: str) -> str:
@@ -607,6 +636,9 @@ class Ensemble:
                 else:
                     return False
                 return True
+            if self.learn == "demo" and self._still():
+                self._log(f"ensemble: pad {self.melody_pad}{IGNORED_STILL}")
+                return False
             if self.learn == "demo":
                 self._pad_want("melody", hit.grid)
             elif self.mode_pads:
@@ -699,10 +731,12 @@ class Ensemble:
                 melody_choice,
                 brightness(len(hats)),
                 start.complete,
-                self.follow,
+                self._melody_follows(),
                 self.no_drums,
                 self.fade_bars,
             )
+            if self._still():
+                melody_plan = replace(melody_plan, cc=STILL_BRIGHTNESS)
             extra = self._surprise(start.bar, bass_plan, melody_plan)
             heard = motif(drums, self.roles)
             bass = self._plan_bass(start, bass_plan, kicks, heard, extra == "fill")
@@ -714,7 +748,11 @@ class Ensemble:
             )
             self._chose = (
                 "-" if bass == "-" else source.get("bass", "rule"),
-                "-" if melody == "-" else source.get("melody", "rule"),
+                "-"
+                if melody == "-"
+                else "still"
+                if self._still()
+                else source.get("melody", "rule"),
             )
             self._transforms = (
                 self._transform_of(self._plans["bass"]),
@@ -778,7 +816,7 @@ class Ensemble:
             return set()
         plays = {
             "bass": self._bass_active == "loop" and kicks,
-            "melody": self.melody and bool(drums),
+            "melody": self.melody and not self.still and bool(drums),
         }
         return {part for part in PARTS if plays[part]}
 
@@ -1042,7 +1080,7 @@ class Ensemble:
         """The melody's rhythm transformation in `bar` with `rhythm 2` (#189): as
         `_transform_bass`, `rhythm.backbeat` towards the snares and hats in the
         phrase bars where the bass moves."""
-        if self.rhythm < 2 or not self.follow or plan.skeleton or plan.variation is None:
+        if self.rhythm < 2 or not self._melody_follows() or plan.skeleton or plan.variation is None:
             self._melody_memory.reset()
             return plan, notes
         if heard.snares or heard.hats:
@@ -1167,8 +1205,20 @@ class Ensemble:
         return self._access is not None and self._access.state().status == "running"
 
     def _melody_mode(self) -> str:
-        """The melody mode asked for: `follow`, `fixed` or `off`."""
-        return "off" if not self.melody else "follow" if self.follow else "fixed"
+        """The melody mode asked for: `follow`, `fixed`, `off` or `still`."""
+        if not self.melody:
+            return "off"
+        if not self.follow:
+            return "fixed"
+        return "still" if self.still else "follow"
+
+    def _still(self) -> bool:
+        """Whether the melody plays still while the bass follows (#233)."""
+        return self.melody and self.follow and self.still
+
+    def _melody_follows(self) -> bool:
+        """Whether the melody loop follows the drums (`follow`, not `still`)."""
+        return self.follow and not self.still
 
     def _sync_melody(self) -> None:
         """A melody change plays at once while the clock is not running."""
@@ -1200,6 +1250,7 @@ class Ensemble:
             self.melody = False
         else:
             self.melody = self.follow = True
+        self.still = False
         self._sync_melody()
         self._log(f"ensemble: melody {self._melody_mode()}")
 
@@ -1491,6 +1542,8 @@ class Ensemble:
         with self._lock:
             if self.learn != "demo":
                 raise ValueError("learn is not demo; send learn demo first")
+            if args[0] == "melody" and self._still():
+                raise ValueError("the melody is still; a melody want does nothing")
             self.wants[str(args[0])] = str(args[1])
             self._want_ends[str(args[0])] = None
         self._report()
@@ -1541,23 +1594,29 @@ class Ensemble:
             self._chosen["bass"] = None
 
     def _set_melody(self, args: Sequence[float | int | str]) -> None:
-        self._melody_to(_flag(args), None)
+        """`melody 0|1|still`: `still` turns the melody on in `melody-mode still`."""
+        if list(args) == ["still"]:
+            self._melody_to(True, True, True)
+        else:
+            self._melody_to(_flag(args), None)
 
     def _set_follow(self, args: Sequence[float | int | str]) -> None:
-        self._melody_to(None, _flag(args))
+        self._melody_to(None, _flag(args), False)
 
     def _set_melody_mode(self, args: Sequence[float | int | str]) -> None:
-        if len(args) != 1 or args[0] not in MELODY_MODES:
-            raise ValueError(f"expected one of {', '.join(MELODY_MODES)}, got {list(args)}")
+        if len(args) != 1 or args[0] not in MELODY_SETTINGS:
+            raise ValueError(f"expected one of {', '.join(MELODY_SETTINGS)}, got {list(args)}")
         if args[0] == "off":
             self._melody_to(False, None)
         else:
-            self._melody_to(True, args[0] == "follow")
+            self._melody_to(True, args[0] != "fixed", args[0] == "still")
 
-    def _melody_to(self, on: bool | None, follow: bool | None) -> None:
-        """Set `melody` and `follow` (`None` keeps one); off drops the pending notes,
-        so the melody stops at once."""
+    def _melody_to(self, on: bool | None, follow: bool | None, still: bool | None = None) -> None:
+        """Set `melody`, `follow` and `still` (`None` keeps one); off drops the pending
+        notes, so the melody stops at once."""
         with self._lock:
+            if still is not None:
+                self.still = still
             if follow is not None:
                 self.follow = follow
             if on is not None:

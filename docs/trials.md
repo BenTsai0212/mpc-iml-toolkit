@@ -94,12 +94,22 @@ one (or your own practice) learned:
   is created at its first bar, so the settings check before the first condition
   leaves none (#217). Summarise each with `python -m mpc_iml.learn summary <log>`.
 
+**Only the bass learns.** `base` sends `melody-mode still` (#233): the melody plays
+its `home` line every bar at one brightness, whatever the drums do, while the bass
+follows the kicks with its rules and learns as in `follow`. So the three conditions
+differ only in the bass, and the musician judges the learning by the bass alone. With
+`follow` the melody also changed with the drums (and learned), which mixed two parts
+into one score; `fixed` stops the bass from following too, so the bass played `home`
+every bar and the condition could not be judged (#215's manual check).
+
 This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
-wanted bass variation in `demo` (pad 15 the melody's), and does nothing in `off`
+wanted bass variation in `demo`, and does nothing in `off`
 (`mode-pads 0`). Before the trial, tell the musician: press 16 whenever you like
-what the band plays (16 for the bass, 15 for the melody); press again to hear
+what the band plays (the bass); press again to hear
 the next variation; whatever you chose goes back by itself at the end of the
-4-bar phrase, and then the band plays what it learned (#215). The report's response
+4-bar phrase, and then the band plays what it learned (#215). Pad 15 does nothing
+here (`melody-mode still`; the terminal shows `ensemble: pad 15 ignored, the melody
+is still`), so tell the musician to press 16 only. The report's response
 measures are left empty beyond 64 bars.
 
 ## Reports

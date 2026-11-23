@@ -176,6 +176,18 @@ terminal shows the new mode (`ensemble: melody follow`, `ensemble: melody fixed`
 `ensemble: melody off`), as does group 8 **Ensemble** of the patch, and it applies
 from the next bar line. The preset starts in follow.
 
+**still** (#233, the control `melody-mode still`, for trials and practice) keeps the
+melody steady while the bass follows: the melody loop plays its `home` variation
+every bar at velocity 100 with its ornaments, and sends the brightness CC at one
+value (79) at each bar line, whatever the drums do, also in bars without drums (it
+never fades or stops; `no-drums` and `fade-bars` apply to the bass only). The bass
+follows the kicks as in follow, with its rules, learning, wants and pad 16. Learning
+chooses no melody variation: a like credits the bass only, and with `learn demo`
+pad 15 and `want melody` do nothing (the terminal shows `ensemble: pad 15 ignored,
+the melody is still`). Pad 15 does not cycle to still: from still it goes on to
+fixed, then off and follow. `chose` and the status line give `still` for the
+melody.
+
 To hear the melody in Live, add a second MIDI track with a keys instrument (for
 example an electric piano or a pluck preset of Drift). Set MIDI From to `mpc-iml`,
 the channel to **Ch. 3**, and Monitor to **In**. Stop in Live ends the melody notes
@@ -290,12 +302,13 @@ ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: kee
 
 - the bar (counted from 0 at Start);
 - the bass and melody variation playing in it and where each choice came from:
-  `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`); `-` when that
-  loop is silent;
+  `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`), `still` for the
+  melody in `melody-mode still` (#233); `-` when that loop is silent;
 - what pad 16 and pad 15 do if you press them now: `keep <variation>` and
   `next <variation>` with `learn demo`, `like` with `learn likes`, the mode they
   switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the pad
-  does nothing (`mode-pads 0`). In the first beat of a bar a keep keeps the bar
+  does nothing (`mode-pads 0`, or pad 15 with `learn demo` and `melody-mode still`).
+  In the first beat of a bar a keep keeps the bar
   before, as described above.
 
 A press of pad 16 or 15 that does nothing because the clock is not running (Live
@@ -408,7 +421,7 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | In the group | What it does |
 | --- | --- |
 | `bass`: `loop`, `rule`, `off` | Sets the bass mode. `now` shows the mode playing, `next` the one asked for. |
-| `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. |
+| `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. `still` (#233) has no button; `now` and `next` show it when set by the control. |
 | `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (`boom`, `walk`; `keys`, `pluck`; then installed and your own loops), and the box under them shows the one selected. |
 | `reload`, `errors` | `reload` reads your loop files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line)); `errors` shows how many were skipped (`loop-errors`). |
 | `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
@@ -448,12 +461,12 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | MIDI channel of the bass |
 | `/mpciml/preset/ensemble/role` | pad 1-16, then `kick`, `snare`, `hat` or `other` | the table above | The role of one pad, in every bank |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the bass mode; 0 for none |
-| `/mpciml/preset/ensemble/melody-mode` | `follow`, `fixed` or `off` | `follow` | The melody mode in one message (sets `melody` and `follow`); `off` also drops the notes still to come |
-| `/mpciml/preset/ensemble/melody` | 0 or 1 | 1 | The melody; 0 also drops the notes still to come |
+| `/mpciml/preset/ensemble/melody-mode` | `follow`, `fixed`, `off` or `still` | `follow` | The melody mode in one message (sets `melody` and `follow`); `off` also drops the notes still to come; `still` (#233): the melody plays `home` while the bass follows |
+| `/mpciml/preset/ensemble/melody` | 0, 1 or `still` | 1 | The melody; 0 also drops the notes still to come, 1 turns it on in the mode it had, `still` turns it on in `melody-mode still` |
 | `/mpciml/preset/ensemble/loop` | a melody loop's name (`keys`, `pluck` or your own) | `keys` | The melody loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 or -1 | - | The next or previous melody loop of `loops`, wrapping around |
 | `/mpciml/preset/ensemble/reload-loops` | none | - | Reads the loop files in `<data folder>/loops/` again; a changed loop plays from the next bar line |
-| `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed |
+| `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed; either ends `still` |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | Octave of the melody (A4 at 4) |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | MIDI channel of the melody and its CC |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | The brightness CC; 0 for none |
@@ -487,7 +500,7 @@ melody mode, a playing variation or a playing transformation changes:
 | Reply | Arguments |
 | --- | --- |
 | `bass` | next and playing mode (`loop`, `rule`, `off`) |
-| `melody-mode` | next and playing mode (`follow`, `fixed`, `off`) |
+| `melody-mode` | next and playing mode (`follow`, `fixed`, `off`, `still`) |
 | `bass-loop`, `loop`, `progression` | the selected name |
 | `bass-loops`, `loops`, `progressions` | the names to choose from (loops: built-in, then installed, then yours, each by name) |
 | `octave`, `melody-octave`, `channel`, `melody-channel`, `length`, `filter-cc`, `layer-pad`, `melody-pad`, `immediate`, `bar` | the value (`immediate` and `bar` as 0 or 1) |
@@ -500,7 +513,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learn` | the learning mode (`off`, `likes`, `demo`) |
 | `likes` | the likes that credited a choice since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules (`-` for none) |
 | `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
@@ -654,6 +667,8 @@ The table's `transform` column names the bass's and the melody's transformation
 moved line took and the steps its notes moved to, for example `kick 1 7 11 → bass 7`.
 In the piano roll, moved notes are a lighter shade of their part's colour. Play the
 same grid with `bass` to hear the moved line next to the plain one.
+The **melody mode** setting also offers `still` (#233): the keys play `home` every
+bar while the bass follows, and the table shows the melody as `(still)`.
 The same grid and seed always sound the same. Below the table, a piano roll shows
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.

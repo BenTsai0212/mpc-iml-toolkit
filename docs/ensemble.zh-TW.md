@@ -146,6 +146,14 @@ fixed，直到再按一次 pad 15 回到 follow。
 （`ensemble: melody follow`、`ensemble: melody fixed` 或 `ensemble: melody off`），patch 的
 第 8 組 **Ensemble** 也會顯示，從下一個小節線開始生效。preset 從 follow 開始。
 
+**still**（#233，控制項 `melody-mode still`，用於盲測與練習）讓旋律保持不變、bass 照常跟隨：
+不論鼓怎麼打、包括沒有鼓的小節，旋律 loop 每小節都以 velocity 100 奏出 `home` 變奏與裝飾音，
+並在每個小節線以同一個值（79）送出亮度 CC（不淡出也不停止；`no-drums` 與 `fade-bars` 只作用於
+bass）。bass 與 follow 時一樣跟隨 kick，規則、學習、`want` 與 pad 16 都照常。學習不選擇旋律的
+變奏：like 只計入 bass，`learn demo` 時 pad 15 與 `want melody` 不做任何事（終端機顯示
+`ensemble: pad 15 ignored, the melody is still`）。pad 15 不會切換到 still：從 still 按下會到
+fixed，再到 off 與 follow。`chose` 與狀態行中旋律的來源為 `still`。
+
 要在 Live 聽到旋律，新增第二條 MIDI 軌並放上鍵盤樂器（例如電鋼琴，或 Drift 的 pluck preset）。
 MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。在 Live 按 Stop 會結束
 正在發聲的旋律音符。
@@ -238,7 +246,7 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | 群組中的項目 | 作用 |
 | --- | --- |
 | `bass`：`loop`、`rule`、`off` | 設定 bass 的模式。`now` 顯示正在演奏的模式，`next` 顯示要求的模式。 |
-| `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。 |
+| `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。`still`（#233）沒有按鈕；以控制項設定時 `now` 與 `next` 會顯示。 |
 | `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（`boom`、`walk`；`keys`、`pluck`；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
 | `reload`、`errors` | `reload` 重新讀取你的 loop 檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)）；`errors` 顯示略過的檔案數（`loop-errors`）。 |
 | `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
@@ -273,12 +281,12 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/channel` | 1-16 | 2 | bass 的 MIDI channel |
 | `/mpciml/preset/ensemble/role` | pad 1-16，再接 `kick`、`snare`、`hat` 或 `other` | 上表 | 一個 pad 的角色，所有 bank 都適用 |
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換 bass 模式的 pad；0 表示不使用 |
-| `/mpciml/preset/ensemble/melody-mode` | `follow`、`fixed` 或 `off` | `follow` | 以一則訊息設定旋律的模式（設定 `melody` 與 `follow`）；`off` 也取消尚未發出的音符 |
-| `/mpciml/preset/ensemble/melody` | 0 或 1 | 1 | 旋律；0 時也取消尚未發出的音符 |
+| `/mpciml/preset/ensemble/melody-mode` | `follow`、`fixed`、`off` 或 `still` | `follow` | 以一則訊息設定旋律的模式（設定 `melody` 與 `follow`）；`off` 也取消尚未發出的音符；`still`（#233）：旋律奏 `home`、bass 照常跟隨 |
+| `/mpciml/preset/ensemble/melody` | 0、1 或 `still` | 1 | 旋律；0 時也取消尚未發出的音符，1 以原本的模式開啟，`still` 以 `melody-mode still` 開啟 |
 | `/mpciml/preset/ensemble/loop` | 旋律 loop 的名稱（`keys`、`pluck` 或你自己的） | `keys` | 旋律的 loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 或 -1 | - | `loops` 中的下一個或上一個旋律 loop，到尾端時繞回 |
 | `/mpciml/preset/ensemble/reload-loops` | 無 | - | 重新讀取 `<資料夾>/loops/` 中的 loop 檔案；改變的 loop 從下一個小節線開始演奏 |
-| `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed |
+| `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed；兩者都結束 `still` |
 | `/mpciml/preset/ensemble/melody-octave` | 2-6 | 4 | 旋律的八度（4 時為 A4） |
 | `/mpciml/preset/ensemble/melody-channel` | 1-16 | 3 | 旋律與其 CC 的 MIDI channel |
 | `/mpciml/preset/ensemble/filter-cc` | 0-127 | 74 | 亮度的 CC；0 表示不送 |
@@ -310,7 +318,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | 回覆 | 參數 |
 | --- | --- |
 | `bass` | 下一個與正在演奏的模式（`loop`、`rule`、`off`） |
-| `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`） |
+| `melody-mode` | 下一個與正在演奏的模式（`follow`、`fixed`、`off`、`still`） |
 | `bass-loop`、`loop`、`progression` | 選擇的名稱 |
 | `bass-loops`、`loops`、`progressions` | 可選擇的名稱（loop：內建、安裝的、你自己的，各依名稱排序） |
 | `octave`、`melody-octave`、`channel`、`melody-channel`、`length`、`filter-cc`、`layer-pad`、`melody-pad`、`immediate`、`bar` | 值（`immediate` 與 `bar` 為 0 或 1） |
@@ -323,7 +331,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `transform` | 正在演奏的 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learn` | 學習模式（`off`、`likes`、`demo`） |
 | `likes` | 載入 `ensemble` 之後計入選擇的「喜歡」次數 |
-| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learned` | 最多 4 個 `<部分>:<情境>><變奏>`，學到的最高選擇與規則不同的情境（沒有時為 `-`） |
 | `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
 | `examples` | 以 `learn demo` 示範的 bass 與旋律範例數（含 profile 中的範例） |
@@ -342,9 +350,10 @@ ensemble: bar 12  bass drive (rule)  melody home (rule)  16: keep drive  15: kee
 ```
 
 依序是小節（從 Start 的 0 起算）、bass 與旋律正在演奏的變奏與選擇的來源（`rule`、`bandit`、
-`model`、`want`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn demo` 時為
+`model`、`want`，`melody-mode still` 時旋律為 `still`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn demo` 時為
 `keep <變奏>`、`next <變奏>`，`learn likes` 時 pad 16 為 `like`，`mode-pads 1` 時為切換到的模式
-（`bass rule`、`melody fixed`），什麼都不做時為 `-`。clock 未執行（Live 停止或預備拍）時按
+（`bass rule`、`melody fixed`），什麼都不做時（`mode-pads 0`，或 `learn demo` 且 `melody-mode still`
+時的 pad 15）為 `-`。clock 未執行（Live 停止或預備拍）時按
 pad 16、15 而沒有作用，會印出 `ensemble: pad 16 ignored, the clock is not running`，`status 0`
 時也會印出。狀態行只用於顯示，不改變演奏。
 
@@ -467,6 +476,8 @@ bass 線條的音移向上一小節的 kick；`bass and melody` 時旋律的音�
 `-`），`took` 欄列出每條移動的線條取用的鼓，以及其音移到的步，例如 `kick 1 7 11 → bass 7`。
 在鋼琴捲簾中，移動的音以該聲部顏色較淺的色調顯示。以 `bass` 演奏同一個格子，就能把移動的線條與
 原樣的線條對照來聽。
+設定 **melody mode** 也有 `still`（#233）：鍵盤每小節奏 `home`、bass 照常跟隨，表中旋律標示
+`(still)`。
 相同的格子與 seed 一定發出相同的聲音。表的下方有鋼琴捲簾顯示鼓、bass 與鍵盤，**MIDI file**
 下載這首曲子（鼓在 channel 10，bass 在 2，鍵盤在 3，附亮度 CC 74），可在 DAW 中開啟。
 

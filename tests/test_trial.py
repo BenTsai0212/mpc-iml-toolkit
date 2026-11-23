@@ -123,6 +123,7 @@ def test_learn_trial_starts_every_condition_from_the_rules() -> None:
                 controls[control](list(args))
         assert ensemble._learned() == []
         assert dict(ensemble.state())["learn"] == [condition.name.removeprefix("learn-")]
+        assert dict(ensemble.state())["melody-mode"][0] == "still", "#233"
 
 
 @pytest.mark.parametrize("name", ["rhythm.json", "learn.json"])
