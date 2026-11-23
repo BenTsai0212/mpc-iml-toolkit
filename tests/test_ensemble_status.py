@@ -47,14 +47,17 @@ def test_learn_demo_shows_the_variations_and_what_pad_16_does_before_and_after_p
     bar_of(rig, 2, press=8)
     bar_of(rig, 3)
     assert status(rig) == [
-        "ensemble: bar 0  Am7  bass -  melody -  16: keep home  15: keep open",
-        "ensemble: bar 1  Am7  bass push (rule)  melody open (rule)  16: keep push  15: keep open",
-        "ensemble: bar 1  Am7  bass push (rule)  melody open (rule)  16: next drive  15: keep open",
-        "ensemble: bar 2  Fmaj7  bass push (want)  melody home (rule)  16: next drive"
+        "ensemble: bar 0  Am7  groove -  bass -  melody -  16: keep home  15: keep open",
+        "ensemble: bar 1  Am7  groove -  bass push (rule)  melody open (rule)"
+        "  16: keep push  15: keep open",
+        "ensemble: bar 1  Am7  groove -  bass push (rule)  melody open (rule)"
+        "  16: next drive  15: keep open",
+        "ensemble: bar 2  Fmaj7  groove -  bass push (want)  melody home (rule)  16: next drive"
         "  15: keep home",
-        "ensemble: bar 2  Fmaj7  bass push (want)  melody home (rule)  16: next home"
+        "ensemble: bar 2  Fmaj7  groove -  bass push (want)  melody home (rule)  16: next home"
         "  15: keep home",
-        "ensemble: bar 3  Fmaj7  bass drive (want)  melody home (rule)  16: next home"
+        "ensemble: bar 3  Fmaj7  groove 1 (bar 2)  bass drive (want)  melody home (rule)"
+        "  16: next home"
         "  15: keep home",
     ]
     assert all(for_musician(line) for line in status(rig))

@@ -15,7 +15,8 @@ per bar in bar order. It works with every `learn` mode, so a trial compares `off
      "source": {"bass": "bandit", "melody": "-"},
      "rule": {"bass": "push", "melody": "home"},
      "like": false, "want": {"bass": "auto", "melody": "auto"},
-     "example": {"bass": null, "melody": null}}
+     "example": {"bass": null, "melody": null},
+     "groove": {"id": 2, "position": 5, "fill": false, "free": false}}
 
 `bar` counts from song start, as the bars of a `record --clock` recording, so a
 trial joins the two files by bar; `t` is the time of the bar line's clock tick on
@@ -25,7 +26,12 @@ with the pads), `null` before any tick. `context` is the drums of the bar before
 where its variation came from (`-` when silent), `rule` what the #158 rules chose,
 `like` whether a like referred to the bar (`learn.liked_bar`), `want` the wanted
 variations it was planned with and `example` the label of the example the bar
-added (`learn demo`). A bar's line is written two bar lines later, once no like can
+added (`learn demo`). `groove` (#245) is the groove tracker's live decision on the
+bar before (`grooves.Tracker`, as the status line shows it): the groove's `id` and
+the bar's `position` in it (`null` outside a groove), `fill` and `free`. The field
+was added to version 1 without a version bump: a log without it is still a
+version 1 log, and `summary` adds its `grooves:` line only when the field is there.
+A bar's line is written two bar lines later, once no like can
 refer to it, and the lines still waiting when the log stops (`learn-log 0`); when
 the engine quits, the last two bars are not written. The file is created at the
 first bar, so a `learn-log 1` and `learn-log 0` with no bar between (as when a
@@ -165,8 +171,9 @@ def read_log(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 def summary(header: Mapping[str, Any], bars: list[dict[str, Any]]) -> str:
     """The text `python -m mpc_iml.learn summary` prints: per `learn` mode the bars,
-    the like rate, how often each loop's variation differed from the rules', and
-    the examples per label."""
+    the like rate, how often each loop's variation differed from the rules', the
+    examples per label, and the grooves, fill bars and free bars (#245) when the
+    log has them."""
     lines = [f"log: toolkit {header.get('toolkit')}, {len(bars)} bars"]
     modes = list(dict.fromkeys(str(b.get("learn", "off")) for b in bars))
     for mode in modes:
@@ -189,4 +196,10 @@ def summary(header: Mapping[str, Any], bars: list[dict[str, Any]]) -> str:
             if labels:
                 counted = ", ".join(f"{label} {n}" for label, n in sorted(labels.items()))
                 lines.append(f"  {part} examples: {counted}")
+    tracked = [b["groove"] for b in bars if isinstance(b.get("groove"), dict)]
+    if tracked:
+        ids = {g["id"] for g in tracked if g.get("id") is not None}
+        fills = sum(1 for g in tracked if g.get("fill"))
+        free = sum(1 for g in tracked if g.get("free"))
+        lines.append(f"grooves: {len(ids)}, fill bars: {fills}, free bars: {free}")
     return "\n".join(lines)

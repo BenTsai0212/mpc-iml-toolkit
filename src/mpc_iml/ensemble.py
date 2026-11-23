@@ -182,7 +182,8 @@ until a `save-profile`.
 With `learn-log 1` (#196 PR 4b, default 0, needs a data folder) each bar's context,
 choice, its source, the rules' choice, likes, wants and examples are written to
 `<data folder>/learn/log-<time>.jsonl` (`learn_log.BarLog`), in every `learn` mode
-and without changing what plays; the file is created at the first bar (#217).
+and without changing what plays; the file is created at the first bar (#217). Each
+line also has the groove of the bar before (#245, `groove_record`).
 `learn-log 0` writes the lines still waiting and closes it. The reply `learn-log`
 follows `playing-loops`.
 
@@ -193,15 +194,22 @@ condition then keeps the modes its settings give. Pad 16 is still a like with
 `mode-pads` follows `learn-log`.
 
 With `status 1` (#230, default 1, a setting) each bar line while the clock runs logs
-a status line for the musician (`status_line`): the bar, its chord (#236), each
-loop's variation and where it came from (`chose`), and what pads 16 and 15 do now
-(`pad_action`), for example `ensemble: bar 12  Am7  bass drive (rule)  melody home
-(rule)  16: keep drive  15: keep home`; a press of pad 16 or 15 while the clock runs
-logs it again. A press of pad 16 or 15 that does nothing because the clock is not
-running logs `ensemble: pad 16 ignored, the clock is not running`, also with
-`status 0`; the line names the pad, not the learn mode, so a blind trial stays
-blind. `for_musician` tells these lines from the others (`trial run` shows them).
-The reply `status` follows `mode-pads`.
+a status line for the musician (`status_line`): the bar, its chord (#236), its
+groove (#245), each loop's variation and where it came from (`chose`), and what pads
+16 and 15 do now (`pad_action`), for example `ensemble: bar 12  Am7  groove 2 (bar
+5)  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home`; a press
+of pad 16 or 15 while the clock runs logs it again. A press of pad 16 or 15 that
+does nothing because the clock is not running logs `ensemble: pad 16 ignored, the
+clock is not running`, also with `status 0`; the line names the pad, not the learn
+mode, so a blind trial stays blind. `for_musician` tells these lines from the others
+(`trial run` shows them). The reply `status` follows `mode-pads`.
+
+At each bar line, after every choice, the bar before goes to a `grooves.Tracker`
+(#245) when it is complete; an incomplete bar (after Start, or a lost clock) ends
+the groove, and the grooves seen stay as long as the preset is loaded. The status
+line shows the live decision after the chord (`groove_text`: `groove 2 (bar 5)`,
+`fill`, `groove free`, or `groove -`), and so does the learn log. The tracker uses
+no random generator and nothing that plays reads it.
 """
 
 import contextlib
@@ -231,6 +239,9 @@ from mpc_iml.clock import (
 )
 from mpc_iml.content import Content
 from mpc_iml.frames import PADS
+from mpc_iml.grooves import Decision as GrooveDecision
+from mpc_iml.grooves import Tracker
+from mpc_iml.grooves import pattern as groove_pattern
 from mpc_iml.learn import (
     CONTEXTS,
     PARTS,
@@ -306,6 +317,8 @@ __all__ = [
     "Progression",
     "bass_velocity",
     "for_musician",
+    "groove_record",
+    "groove_text",
     "make_preset",
 ]
 
@@ -373,6 +386,34 @@ def for_musician(line: str) -> bool:
     return line.startswith(STATUS_PREFIX) or (
         line.startswith("ensemble: ") and line.endswith((IGNORED, IGNORED_STILL))
     )
+
+
+def groove_text(decision: GrooveDecision | None) -> str:
+    """The groove field of the status line (#245): `groove <id> (bar <position>)`,
+    `fill`, `groove free`, or `groove -` (no groove yet, no drums, the clock not
+    running)."""
+    if decision is None:
+        return "groove -"
+    if decision.fill:
+        return "fill"
+    if decision.free:
+        return "groove free"
+    if decision.groove is None:
+        return "groove -"
+    return f"groove {decision.groove} (bar {decision.position})"
+
+
+def groove_record(decision: GrooveDecision | None) -> dict[str, object]:
+    """The `groove` field of a learn log line (#245): the live decision on the bar
+    before, `id` and `position` `null` outside a groove."""
+    if decision is None:
+        return {"id": None, "position": None, "fill": False, "free": False}
+    return {
+        "id": decision.groove,
+        "position": decision.position,
+        "fill": decision.fill,
+        "free": decision.free,
+    }
 
 
 def bass_velocity(velocity: int) -> int:
@@ -466,6 +507,10 @@ class Ensemble:
         self._seed = seed
         self._bar_log: BarLog | None = None
         """The per-bar log while `learn-log 1` (#196 PR 4b)."""
+        self._grooves = Tracker()
+        """Follows the drummer's grooves (#245); it changes nothing that plays."""
+        self._groove: GrooveDecision | None = None
+        """The tracker's decision on the bar before the last bar line, if any."""
         self.learn = "off"
         self.likes = 0
         """Likes that credited a choice, in this build (#196)."""
@@ -598,7 +643,8 @@ class Ensemble:
                 parts.append(f"{part} {variation}" + ("" if variation == "-" else f" ({source})"))
             pads = [f"{p}: {self.pad_action(p)}" for p in (self.layer_pad, self.melody_pad) if p]
             chord = self.progression.chord_name(bar)
-            return "  ".join([f"{STATUS_PREFIX}{bar}", chord, *parts, *pads])
+            groove = groove_text(self._groove)
+            return "  ".join([f"{STATUS_PREFIX}{bar}", chord, groove, *parts, *pads])
 
     def _mode_pad(self, hit: PadHit) -> bool:
         """Pad 16 or 15: like, want or switch a mode; `True` when it did, to report."""
@@ -753,10 +799,20 @@ class Ensemble:
                     ),
                 }
             self._bar_wants = dict(self.wants)
+            self._track_groove(start, drums)
             if self._bar_log is not None:
                 self._log_bar(start, drums, rules)
             if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
                 self._autosave_profile()
+
+    def _track_groove(self, start: BarStart, drums: Sequence[GridHit]) -> None:
+        """The groove of the bar before (#245), after every choice: a complete bar
+        goes to the tracker; an incomplete one (Start, lost) ends the groove."""
+        if start.complete and start.bar >= 1:
+            self._groove = self._grooves.observe(start.bar - 1, groove_pattern(drums, self.roles))
+        else:
+            self._grooves.stop()
+            self._groove = None
 
     def _log_bar(self, start: BarStart, drums: Sequence[GridHit], rules: dict[str, str]) -> None:
         """Add the bar that starts now to the per-bar log (`learn_log`)."""
@@ -779,6 +835,7 @@ class Ensemble:
             "source": dict(zip(PARTS, self._chose, strict=True)),
             "rule": rules,
             "want": dict(self.wants),
+            "groove": groove_record(self._groove),
         }
         try:
             self._bar_log.bar(record)

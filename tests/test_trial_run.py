@@ -357,8 +357,8 @@ def test_the_trial_shows_the_lines_for_the_musician_while_a_condition_plays(
     assert len(lines) == 2 + len(statuses)
     if status:
         assert statuses[:2] == [
-            "ensemble: bar 0  Am7  bass -  melody -  16: -  15: -",
-            "ensemble: bar 1  Am7  bass home (rule)  melody home (rule)  16: -  15: -",
+            "ensemble: bar 0  Am7  groove -  bass -  melody -  16: -  15: -",
+            "ensemble: bar 1  Am7  groove -  bass home (rule)  melody home (rule)  16: -  15: -",
         ]
         assert len(statuses) == 2 * 3, "two bar lines and a press, per condition"
     else:
