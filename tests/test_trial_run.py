@@ -23,6 +23,7 @@ from mpc_iml.ensemble import Ensemble
 from mpc_iml.recording import read_recording
 from mpc_iml.trial.__main__ import build_parser
 from mpc_iml.trial.run import (
+    START_TEXT,
     TRIAL_CLOCK_NAME,
     ChildEngine,
     EngineLink,
@@ -267,6 +268,39 @@ def test_a_whole_trial(tmp_path: Path) -> None:
     assert first.answers == {"heard-moment": "on the fill", "broken-moment": ""}
     events = read_recording(folder / "B.jsonl").events
     assert sum(1 for e in events if getattr(e, "data", b"") == b"\xf8") == 96
+
+
+def test_the_guide_is_shown_once_before_the_first_condition_and_before_each(
+    tmp_path: Path,
+) -> None:
+    """#241: `guide.start` after the setup text, `guide.condition` before every condition."""
+    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    data["guide"] = {"start": ["Lead the band.", "Change the groove."], "condition": "A new band."}
+    guided = tmp_path / "guided.json"
+    guided.write_text(json.dumps(data), encoding="utf-8")
+    status, said = play_trial(tmp_path, SCORES + SCORES + ["ab"], FakeEngine(), guided)
+    assert status == 0, said
+    plays = [i for i, line in enumerate(said) if "press Play in Live" in line]
+    assert len(plays) == 2
+    assert said[: plays[0]][-4:] == [
+        START_TEXT,
+        "Lead the band.",
+        "Change the groove.",
+        "A new band.",
+    ]
+    assert said[plays[1] - 1] == "A new band."
+    assert said.count("Lead the band.") == 1 and said.count("A new band.") == 2
+
+
+def test_a_trial_without_a_guide_shows_only_the_setup_text(tmp_path: Path) -> None:
+    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    del data["guide"]
+    plain = tmp_path / "plain.json"
+    plain.write_text(json.dumps(data), encoding="utf-8")
+    status, said = play_trial(tmp_path, SCORES + SCORES + ["ab"], FakeEngine(), plain)
+    assert status == 0, said
+    first = next(i for i, line in enumerate(said) if "press Play in Live" in line)
+    assert said[first - 1] == START_TEXT
 
 
 def test_a_refused_setting_stops_before_playing(tmp_path: Path) -> None:

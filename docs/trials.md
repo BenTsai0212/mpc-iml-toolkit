@@ -20,6 +20,16 @@ pads 15 and 16 never switch the bass or melody mode during a condition (#216).
 Both also send `status 0`: the status line names the variations' sources and what
 pads 16 and 15 do, which would tell the musician the learning mode (#230).
 
+The optional `guide` (#241) is what the musician reads, in musical terms: how to
+play, not what each control does. `guide.start` is shown once, after the setup
+text and before the first condition; `guide.condition` before every condition's
+"press Play" line. Each is one string or a list of strings (one line each); other
+fields in `guide`, or values that are not text, are errors that name them. Keep
+`guide.condition` the same for every condition, so it does not tell which one is
+playing. The session file keeps the whole trial file, guide included. Trial files
+without `guide` work as before; the field is optional, so the format stays
+`format_version` 1. Both example files have a guide.
+
 ## Before a trial
 
 Trials are played with the Ableton starter set (`assets/ableton/`), without Pure Data.
@@ -103,13 +113,19 @@ into one score; `fixed` stops the bass from following too, so the bass played `h
 every bar and the condition could not be judged (#215's manual check).
 
 This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
-wanted bass variation in `demo`, and does nothing in `off`
-(`mode-pads 0`). Before the trial, tell the musician: press 16 whenever you like
-what the band plays (the bass); press again to hear
-the next variation; whatever you chose goes back by itself at the end of the
-4-bar phrase, and then the band plays what it learned (#215). Pad 15 does nothing
-here (`melody-mode still`; the terminal shows `ensemble: pad 15 ignored, the melody
-is still`), so tell the musician to press 16 only. The report's response
+wanted bass variation in `demo`, and does nothing in `off` (`mode-pads 0`). The
+trial shows the musician the guide in `learn.json` (`guide`, #241) instead of a
+description of the controls: lead the band as in a jam, stay with a groove for a
+few phrases, tap pad 16 once "like a nod to the bass player" when the bass plays
+something worth hearing again, change the groove to change the bass, and later come
+back to a groove where you nodded. In the #215 checks the musician pressed rarely
+when unsure what a press does; guidance in terms of playing lets them keep playing
+and press without having to understand the engine. The guide is the same before
+every condition, so it does not reveal which one is playing, and it no longer
+teaches pressing again for the next variation (that still works in `learn demo`,
+it is only not taught). Pad 15 does nothing here (`melody-mode still`; the terminal
+shows `ensemble: pad 15 ignored, the melody is still`), and the guide names pad 16
+only. The report's response
 measures are left empty beyond 64 bars.
 
 ## Reports

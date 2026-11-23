@@ -3,6 +3,19 @@
   "format_version": 1,
   "title": "Learning off, from likes, or from demonstrations",
   "bars": 240,
+  "guide": {
+    "start": [
+      "You lead a band with your drums. The bass and keys follow your groove.",
+      "Play as in a jam: start a groove, stay with it for a few phrases (4 bars each), then change it.",
+      "When the bass plays something you want to hear again with this groove, tap pad 16 once, like a nod to the bass player. Keep your hands going.",
+      "If you want the bass to change, change your groove. You do not need a pad for that.",
+      "Try a few grooves: steady kicks on the beat, kicks that push ahead of the beat, a busy groove. Later, come back to a groove where you nodded, and listen whether the bass remembers.",
+      "To rest, stop drumming; the band keeps playing. Do not press Stop in Live."
+    ],
+    "condition": [
+      "A new band. Play the same way: start a groove, nod (pad 16) when you like the bass, and come back to that groove later."
+    ]
+  },
   "base": {
     "bass": ["loop"],
     "melody-mode": ["still"],

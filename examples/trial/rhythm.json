@@ -3,6 +3,16 @@
   "format_version": 1,
   "title": "Rhythm transformation off or on",
   "bars": 16,
+  "guide": {
+    "start": [
+      "You lead a band with your drums. The bass and keys follow your groove.",
+      "Play a few grooves, from sparse to busy, and stay with each one for a few phrases (4 bars each).",
+      "No pads to press: just play."
+    ],
+    "condition": [
+      "A new band. Play the same way: a few grooves, sparse to busy, a few phrases each."
+    ]
+  },
   "base": {
     "bass": ["loop"],
     "melody-mode": ["follow"],
