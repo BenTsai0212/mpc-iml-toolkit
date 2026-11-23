@@ -2,7 +2,8 @@
   "format": "mpc-iml-trial",
   "format_version": 1,
   "title": "Rhythm transformation off or on",
-  "bars": 16,
+  "bars": 32,
+  "min_bars": 32,
   "guide": {
     "start": [
       "You lead a band with your drums. The bass and keys follow your groove.",

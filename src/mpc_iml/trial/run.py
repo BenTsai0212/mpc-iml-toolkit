@@ -15,6 +15,12 @@ The trial file's `guide` (#241) is shown too: `guide.start` after the setup text
 before the first condition, and `guide.condition` before each condition's "press
 Play" line. Last come the ranking and the reveal. The terminal only shows code letters until then.
 
+The tool also shows the trial's structure (#243): after `guide.start`, how many
+conditions there are and how long to play each (`structure`), and `Band k of n`
+before each condition. With `min_bars`, Enter before that many bars asks whether
+to end the condition anyway; anything but `y` keeps it playing, and the session
+file records a condition ended early.
+
 While a condition plays, the engine's lines for the musician (`ensemble.for_musician`,
 #230) are shown in the terminal too: the status lines (`status 1`) and the presses
 ignored because Live is stopped. Both example trial files send `status 0`, so a blind
@@ -38,6 +44,7 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.udp_client import SimpleUDPClient
 
 from mpc_iml import __version__
+from mpc_iml.clock import MidiClock
 from mpc_iml.ensemble import for_musician
 from mpc_iml.events import Event, RawMidiEvent
 from mpc_iml.osc import DEFAULT_HOST
@@ -75,6 +82,7 @@ __all__ = [
     "TickCounter",
     "add_run_parser",
     "run",
+    "structure",
 ]
 
 PREFIX = "/mpciml/"
@@ -248,6 +256,19 @@ def ask_question(question: Question, musician: Musician) -> int | str:
         musician.say("Please type a whole number 1-5.")
 
 
+def structure(trial: Trial, bands: int, beats_per_bar: int, bpm: float | None) -> str:
+    """The line that tells the musician how many conditions there are and how long to
+    play each (#243): the minimum length with `min_bars`, else the length; with the
+    tempo, also in minutes."""
+    if trial.min_bars is None:
+        return f"{bands} bands, up to {trial.bars} bars each."
+    length = f"at least {trial.min_bars} bars"
+    if bpm:
+        minutes = max(1, round(trial.min_bars * beats_per_bar / bpm))
+        length += f" (about {minutes} min at {round(bpm)} BPM)"
+    return f"{bands} bands, {length} each."
+
+
 def ask_ranking(codes: Sequence[str], musician: Musician) -> list[str]:
     while True:
         answer = list(musician.ask(f"Rank {''.join(codes)}, best first: ").strip().upper())
@@ -268,18 +289,40 @@ class Rig:
     sources: list[LiveSource] = field(default_factory=list)
     playing: threading.Event = field(default_factory=threading.Event)
     """Set while a condition plays: the engine's lines for the musician are shown."""
+    tempo: Callable[[], float | None] = field(default=lambda: None)
+    """The tempo of the recorder's clock in BPM, `None` while unknown (#243)."""
 
 
-def play(rig: Rig, path: Path, limit: int, musician: Musician) -> int:
-    """Record one condition to `path`; return the ticks counted from Start."""
+def play(
+    rig: Rig,
+    path: Path,
+    limit: int,
+    musician: Musician,
+    bar_ticks: int = 4 * TICKS_PER_BEAT,
+    min_bars: int | None = None,
+) -> tuple[int, bool]:
+    """Record one condition to `path`; return the ticks counted from Start and whether
+    the musician ended it before `min_bars` bars (#243)."""
     counter = TickCounter(limit)
     ended = threading.Event()
+    early = False
     source = LiveSource(port_match=rig.port, backend=rig.mpc())
     source.open()
     rig.sources[:] = [source]
 
     def wait_enter() -> None:
-        musician.enter()
+        nonlocal early
+        while True:
+            musician.enter()
+            bars = counter.ticks // bar_ticks
+            if min_bars is None or bars >= min_bars or counter.done:
+                break
+            answer = musician.ask(
+                f"Only {bars} bars so far (at least {min_bars}). End this band anyway? [y/N] "
+            )
+            if answer.strip().lower() == "y":
+                early = not counter.done
+                break
         ended.set()
 
     waiter = threading.Thread(target=wait_enter, daemon=True)
@@ -297,7 +340,7 @@ def play(rig: Rig, path: Path, limit: int, musician: Musician) -> int:
             waiter.join()
     finally:
         rig.playing.clear()
-    return counter.ticks
+    return counter.ticks, early
 
 
 def _counted(events: Iterator[Event], see: Callable[[bytes], None]) -> Iterator[Event]:
@@ -336,18 +379,22 @@ def run_trial(
     musician.say(START_TEXT)
     for line in trial.guide.start:
         musician.say(line)
-    limit = trial.bars * beats_per_bar * TICKS_PER_BEAT
+    musician.say(structure(trial, len(order), beats_per_bar, rig.tempo()))
+    bar_ticks = beats_per_bar * TICKS_PER_BEAT
+    limit = trial.bars * bar_ticks
     played: dict[str, int] = {}
     for position, index in enumerate(order):
         letter = codes[index]
         played[letter] = played.get(letter, 0) + 1
         name = letter if played[letter] == 1 else f"{letter}-{played[letter]}"
         errors = rig.engine.apply(trial.messages(trial.conditions[index]))
+        musician.say(f"Band {position + 1} of {len(order)}")
         for line in trial.guide.condition:
             musician.say(line)
         musician.say(f"Condition {letter}: press Play in Live ({trial.bars} bars, Enter ends).")
-        ticks = play(rig, args.folder / f"{name}.jsonl", limit, musician)
-        bars = ticks // (beats_per_bar * TICKS_PER_BEAT)
+        path = args.folder / f"{name}.jsonl"
+        ticks, early = play(rig, path, limit, musician, bar_ticks, trial.min_bars)
+        bars = ticks // bar_ticks
         musician.say(f"Condition {letter}: {bars} bars. Questions:")
         scores: dict[str, int] = {}
         answers: dict[str, str] = {}
@@ -358,7 +405,7 @@ def run_trial(
             else:
                 answers[question.id] = answer
         writer.condition(
-            ConditionRecord(letter, position, f"{name}.jsonl", bars, scores, answers, errors)
+            ConditionRecord(letter, position, path.name, bars, scores, answers, errors, early)
         )
     ranking = ask_ranking(sorted(header.mapping), musician)
     writer.ranking(ranking)
@@ -414,6 +461,7 @@ def run(
     args.folder = session_folder(data, datetime.now())
     sources: list[LiveSource] = []
     playing = threading.Event()
+    tempo = MidiClock(args.beats_per_bar)
 
     def show(line: str) -> None:
         if playing.is_set() and for_musician(line):
@@ -421,6 +469,7 @@ def run(
 
     def on_clock(message: bytes) -> None:
         if message and message[0] in CLOCK_BYTES:
+            tempo.feed(message, time.monotonic())
             for source in list(sources):
                 source.inject(message)
 
@@ -438,7 +487,7 @@ def run(
         return 1
     try:
         recorder = {"options": options, "recorder_clock": clock.port_name}
-        rig = Rig(handle, mpc, args.port, recorder, sources, playing)
+        rig = Rig(handle, mpc, args.port, recorder, sources, playing, lambda: tempo.state().bpm)
         return run_trial(trial, content, args, rig, musician)
     except PortNotFoundError as error:
         print(f"error: {error}", file=sys.stderr)
