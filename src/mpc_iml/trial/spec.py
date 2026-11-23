@@ -20,6 +20,10 @@ The optional `guide` (#241) is what the musician reads, in musical terms:
 condition. Each is a string or a list of strings, the same for every condition so
 it does not reveal which one plays. Files without it are read as before, so the
 field did not need a new format version.
+
+The optional `min_bars` (#243) is the shortest a condition should be: Enter before
+it asks the musician whether to end the condition anyway. A positive whole number,
+at most `bars`; files without it end at Enter as before.
 """
 
 import json
@@ -51,7 +55,17 @@ SCALES = ("1-5", "text")
 """Question scales: a whole score 1-5, or free text."""
 
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
-_KEYS = {"format", "format_version", "title", "bars", "base", "conditions", "questions", "guide"}
+_KEYS = {
+    "format",
+    "format_version",
+    "title",
+    "bars",
+    "min_bars",
+    "base",
+    "conditions",
+    "questions",
+    "guide",
+}
 _GUIDE_KEYS = ("start", "condition")
 
 Arg = int | float | str
@@ -98,6 +112,8 @@ class Trial:
     questions: tuple[Question, ...]
     title: str = ""
     guide: Guide = Guide()
+    min_bars: int | None = None
+    """The shortest a condition should be (#243); `None` when the file has none."""
 
     def messages(self, condition: Condition) -> list[tuple[str, tuple[Arg, ...]]]:
         """The controls to send before `condition`: `base`, then its own settings."""
@@ -171,6 +187,13 @@ def parse_trial(data: Any, origin: str = "trial") -> Trial:
     bars = data.get("bars", DEFAULT_BARS)
     if isinstance(bars, bool) or not isinstance(bars, int) or not BARS[0] <= bars <= BARS[1]:
         raise _fail(origin, f"bars must be a whole number {BARS[0]}-{BARS[1]}, got {bars!r}")
+    min_bars = data.get("min_bars")
+    if min_bars is not None and (
+        isinstance(min_bars, bool) or not isinstance(min_bars, int) or not 1 <= min_bars <= bars
+    ):
+        raise _fail(
+            origin, f"min_bars must be a whole number 1-{bars} (at most bars), got {min_bars!r}"
+        )
     base = _settings(data.get("base", {}), origin, "base")
     entries = data.get("conditions")
     if not isinstance(entries, list) or len(entries) < 2:
@@ -202,7 +225,7 @@ def parse_trial(data: Any, origin: str = "trial") -> Trial:
     if len(set(ids)) != len(ids):
         raise _fail(origin, "question ids must be unique")
     guide = _guide(data.get("guide", {}), origin)
-    return Trial(bars, base, tuple(conditions), questions, title, guide)
+    return Trial(bars, base, tuple(conditions), questions, title, guide, min_bars)
 
 
 def load_trial(path: Path) -> tuple[Trial, dict[str, Any]]:

@@ -31,8 +31,10 @@ from mpc_iml.trial.run import (
     Settings,
     TickCounter,
     run,
+    structure,
 )
 from mpc_iml.trial.session import read_session
+from mpc_iml.trial.spec import load_trial, parse_trial
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "trial" / "rhythm.json"
 BAR = [b"\xfa"] + [b"\xf8"] * 96
@@ -160,6 +162,7 @@ class EnsembleEngine:
 def trial_file(tmp_path: Path, example: Path = EXAMPLE) -> Path:
     data = json.loads(example.read_text(encoding="utf-8"))
     data["bars"] = 1
+    data.pop("min_bars", None)
     path = tmp_path / "trial.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
@@ -282,13 +285,15 @@ def test_the_guide_is_shown_once_before_the_first_condition_and_before_each(
     assert status == 0, said
     plays = [i for i, line in enumerate(said) if "press Play in Live" in line]
     assert len(plays) == 2
-    assert said[: plays[0]][-4:] == [
+    assert said[: plays[0]][-6:] == [
         START_TEXT,
         "Lead the band.",
         "Change the groove.",
+        "2 bands, up to 1 bars each.",
+        "Band 1 of 2",
         "A new band.",
     ]
-    assert said[plays[1] - 1] == "A new band."
+    assert said[plays[1] - 2 : plays[1]] == ["Band 2 of 2", "A new band."]
     assert said.count("Lead the band.") == 1 and said.count("A new band.") == 2
 
 
@@ -300,7 +305,7 @@ def test_a_trial_without_a_guide_shows_only_the_setup_text(tmp_path: Path) -> No
     status, said = play_trial(tmp_path, SCORES + SCORES + ["ab"], FakeEngine(), plain)
     assert status == 0, said
     first = next(i for i, line in enumerate(said) if "press Play in Live" in line)
-    assert said[first - 1] == START_TEXT
+    assert said[first - 3 : first] == [START_TEXT, "2 bands, up to 1 bars each.", "Band 1 of 2"]
 
 
 def test_a_refused_setting_stops_before_playing(tmp_path: Path) -> None:
@@ -388,3 +393,111 @@ def test_the_child_engine_writes_every_line_to_the_log_and_shows_each_one(
     engine.close()
     assert shown == ["one", IGNORED]
     assert log.read_text() == f"one\n{IGNORED}\n"
+
+
+def test_the_structure_is_shown_once_and_the_position_before_each_band(tmp_path: Path) -> None:
+    """#243: the number of bands and their length after the start guide, then
+    `Band k of n` before each condition's guide."""
+    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    data["guide"] = {"start": "Lead the band.", "condition": "A new band."}
+    guided = tmp_path / "guided.json"
+    guided.write_text(json.dumps(data), encoding="utf-8")
+    status, said = play_trial(tmp_path, SCORES + SCORES + ["ab"], FakeEngine(), guided)
+    assert status == 0, said
+    bands = [line for line in said if line.endswith(" bands, up to 1 bars each.")]
+    assert bands == ["2 bands, up to 1 bars each."]
+    assert said.index(bands[0]) == said.index("Lead the band.") + 1
+    positions = [i for i, line in enumerate(said) if line.startswith("Band ")]
+    assert [said[i] for i in positions] == ["Band 1 of 2", "Band 2 of 2"]
+    assert all(said[i + 1] == "A new band." for i in positions)
+
+
+def test_the_structure_line_gives_the_minimum_length_and_minutes_when_the_tempo_is_known() -> None:
+    trial = load_trial(EXAMPLE.with_name("learn.json"))[0]
+    assert (
+        structure(trial, 3, 4, 90.0) == "3 bands, at least 100 bars (about 4 min at 90 BPM) each."
+    )
+    assert structure(trial, 3, 4, None) == "3 bands, at least 100 bars each."
+    assert (
+        structure(trial, 6, 4, 120.4) == "6 bands, at least 100 bars (about 3 min at 120 BPM) each."
+    )
+    assert structure(parse_trial(_with_bars(8)), 2, 4, 90.0) == "2 bands, up to 8 bars each."
+
+
+def _with_bars(bars: int) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    data["bars"] = bars
+    data.pop("min_bars")
+    return data
+
+
+class IdleMpc(FakeMpc):
+    """`FakeMpc` that sets `idle` once its hit and the DAW's bar have all been read,
+    so the bar is counted before the musician presses Enter."""
+
+    def __init__(self, daw: FakeDaw, idle: threading.Event) -> None:
+        super().__init__(daw)
+        self.idle = idle
+
+    def poll(self) -> bytes | None:
+        data = super().poll()
+        if data is None:
+            self.idle.set()
+        return data
+
+
+def play_early(tmp_path: Path, min_bars: int, ends: list[str]) -> tuple[int, list[str], list[str]]:
+    """A two-band trial of 2 bars, of which the DAW plays one; the musician presses
+    Enter after it, answering the early-end question from `ends` (one list for both
+    bands), then answers the questions."""
+    data = _with_bars(2)
+    data["min_bars"] = min_bars
+    path = tmp_path / "early.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    said: list[str] = []
+    prompts: list[str] = []
+    idle = threading.Event()
+    replies = iter(ends)
+    scores = iter(SCORES + SCORES + ["ab"])
+
+    def ask(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(replies) if prompt.startswith("Only ") else next(scores)
+
+    def enter() -> None:
+        assert idle.wait(10)
+
+    def mpc() -> FakeMpc:
+        idle.clear()
+        return IdleMpc(daw, idle)
+
+    musician = Musician(ask=ask, say=said.append, enter=enter)
+    daw = FakeDaw()
+    args = build_parser().parse_args(["run", str(path), str(tmp_path / "data")])
+    args.seed = 0
+    status = run(args, musician, lambda *_: FakeEngine(), mpc, lambda: daw)
+    return status, said, prompts
+
+
+ASKED = "Only 1 bars so far (at least 2). End this band anyway? [y/N] "
+
+
+def test_enter_before_min_bars_asks_and_only_y_ends_the_band(tmp_path: Path) -> None:
+    """#243: `n` and an empty answer keep the band playing; `y` (any case) ends it,
+    and the session marks it."""
+    status, said, prompts = play_early(tmp_path, 2, ["n", "", "Y", "y"])
+    assert status == 0, said
+    assert [p for p in prompts if p.startswith("Only ")] == [ASKED] * 4
+    assert "2 bands, at least 2 bars each." in said
+    (folder,) = (tmp_path / "data" / "trials").iterdir()
+    session = read_session(folder / "session.jsonl")
+    assert [(c.bars, c.ended_early) for c in session.conditions] == [(1, True), (1, True)]
+
+
+def test_enter_after_min_bars_ends_at_once(tmp_path: Path) -> None:
+    status, said, prompts = play_early(tmp_path, 1, [])
+    assert status == 0, said
+    assert not any(p.startswith("Only ") for p in prompts)
+    (folder,) = (tmp_path / "data" / "trials").iterdir()
+    session = read_session(folder / "session.jsonl")
+    assert [(c.bars, c.ended_early) for c in session.conditions] == [(1, False), (1, False)]

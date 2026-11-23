@@ -30,6 +30,23 @@ playing. The session file keeps the whole trial file, guide included. Trial file
 without `guide` work as before; the field is optional, so the format stays
 `format_version` 1. Both example files have a guide.
 
+The optional `min_bars` (#243) is the shortest each condition should be: a whole
+number from 1 to `bars`. Pressing Enter before that many bars asks
+`Only N bars so far (at least M). End this band anyway? [y/N]`; `y` ends the
+condition, any other answer keeps it playing (the recording goes on while the
+question waits). Enter after `min_bars` ends it at once, as before. The session
+file's `condition` record has `ended_early: true` for a condition ended before
+`min_bars`; sessions written before this field read as `false`. Without
+`min_bars`, Enter ends a condition at once. Other values, or more than `bars`, are
+errors that name it. `learn.json` sets 100 (of 240 bars), `rhythm.json` 32 (of 32).
+
+**Why**: in the learning trial of 2026-11-23 the musician skipped the second
+condition (0 bars) and played the third for 25: he did not know in advance how many
+conditions there were, so he was unsure whether to play each one fully, and only
+one condition gave usable data. So the tool tells the structure (below), the
+`learn.json` guide starts with "give each one a full go", and `min_bars` keeps a
+condition from ending too early by accident.
+
 ## Before a trial
 
 Trials are played with the Ableton starter set (`assets/ableton/`), without Pure Data.
@@ -53,9 +70,17 @@ the session folder:
 uv run python -m mpc_iml.trial run examples/trial/rhythm.json ~/mpc-iml-data
 ```
 
+After the guide's start lines, the terminal shows the trial's structure, for example
+`3 bands, at least 100 bars (about 4 min at 90 BPM) each.` (#243): the number of
+conditions played (with `--repeats`, every repeat counts) and `min_bars`, in minutes
+too when the recorder's clock already gives the tempo; without `min_bars`,
+`up to <bars> bars each.` Before each condition it shows its position, for example
+`Band 2 of 3`, then `guide.condition`. The tool adds these lines, so trial files do
+not repeat them.
+
 For each condition the terminal shows only its letter. Press Play in Live and play
 for `bars` bars; then press Stop in Live and Enter (Enter also ends a condition
-early). Then answer the questions: 1-5 answers are asked again until they are
+early; before `min_bars` it asks first). Then answer the questions: 1-5 answers are asked again until they are
 valid, and text answers can be left empty. After the last condition, type the letters best first (for example
 `BA`); then the conditions are revealed.
 

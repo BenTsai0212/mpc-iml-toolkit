@@ -3,8 +3,10 @@
   "format_version": 1,
   "title": "Learning off, from likes, or from demonstrations",
   "bars": 240,
+  "min_bars": 100,
   "guide": {
     "start": [
+      "You will play with three bands, one after another. Give each one a full go; they may sound alike, and that is fine. Play each the same way.",
       "You lead a band with your drums. The bass and keys follow your groove.",
       "Play as in a jam: start a groove, stay with it for a few phrases (4 bars each), then change it.",
       "When the bass plays something you want to hear again with this groove, tap pad 16 once, like a nod to the bass player. Keep your hands going.",

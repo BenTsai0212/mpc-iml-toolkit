@@ -7,7 +7,9 @@ to the recordings. A crash keeps what was already answered. The records:
   content, seed, repeats, play order as letters, letter to condition mapping and
   engine options;
 - `condition` (one per condition played): letter, position in the order,
-  recording file name, bars played, scores, answers and engine errors;
+  recording file name, bars played, scores, answers, engine errors and
+  `ended_early`, whether the musician ended it before the trial's `min_bars`
+  (#243; sessions written before it read as `false`);
 - `ranking` (last, optional): the letters best first.
 
 The tool writes only into the session folder and does not upload or commit
@@ -74,6 +76,8 @@ class ConditionRecord:
     scores: Mapping[str, int]
     answers: Mapping[str, str]
     errors: Sequence[str] = ()
+    ended_early: bool = False
+    """Ended with Enter before the trial's `min_bars` (#243)."""
 
 
 @dataclass(frozen=True)
@@ -181,12 +185,14 @@ def read_session(path: Path) -> Session:
         if ranking is not None:
             raise SessionError(f"{origin}: nothing may follow the ranking")
         if kind == "condition":
-            names = [f for f in ConditionRecord.__dataclass_fields__ if f != "errors"]
+            optional = ("errors", "ended_early")
+            names = [f for f in ConditionRecord.__dataclass_fields__ if f not in optional]
             values = _fields(record, names, origin)
             if values["letter"] not in header.mapping:
                 raise SessionError(f"{origin}: unknown letter {values['letter']!r}")
             errors = tuple(record.get("errors", ()))
-            conditions.append(ConditionRecord(**values, errors=errors))
+            early = bool(record.get("ended_early", False))
+            conditions.append(ConditionRecord(**values, errors=errors, ended_early=early))
         elif kind == "ranking":
             ranking = tuple(_fields(record, ["ranking"], origin)["ranking"])
         else:

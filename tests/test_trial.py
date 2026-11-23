@@ -78,6 +78,19 @@ def test_bars_default_to_16() -> None:
     assert parse_trial(data).bars == 16
 
 
+def test_min_bars_is_optional_and_at_most_bars() -> None:
+    """#243: without `min_bars` Enter ends a condition as before."""
+    assert parse_trial(_with()).min_bars is None
+    assert parse_trial(_with(min_bars=8)).min_bars == 8
+
+
+def test_example_trials_set_a_minimum_length() -> None:
+    """#243: 100 of 240 bars in the learning trial, 32 in the rhythm trial."""
+    assert load_trial(EXAMPLE.with_name("learn.json"))[0].min_bars == 100
+    rhythm = load_trial(EXAMPLE)[0]
+    assert rhythm.min_bars == 32 and rhythm.bars >= 32
+
+
 @pytest.mark.parametrize(
     ("data", "message"),
     [
@@ -86,6 +99,11 @@ def test_bars_default_to_16() -> None:
         (_with(extra=1), "unknown fields: extra"),
         (_with(bars=0), "bars must be"),
         (_with(bars=True), "bars must be"),
+        (_with(min_bars=0), "min_bars must be a whole number 1-8"),
+        (_with(min_bars=9), "min_bars must be .*at most bars.*got 9"),
+        (_with(min_bars=2.5), "min_bars must be"),
+        (_with(min_bars=True), "min_bars must be"),
+        (_with(min_bars="4"), "min_bars must be"),
         (_with(conditions=TRIAL["conditions"][:1]), "at least 2"),
         (
             _with(conditions=[{"name": "a", "settings": {}}, {"name": "a", "settings": {}}]),
@@ -144,6 +162,8 @@ def test_learn_trial_starts_every_condition_from_the_rules() -> None:
 
 
 LEARN_GUIDE_START = [
+    "You will play with three bands, one after another. Give each one a full go; "
+    "they may sound alike, and that is fine. Play each the same way.",
     "You lead a band with your drums. The bass and keys follow your groove.",
     "Play as in a jam: start a groove, stay with it for a few phrases (4 bars each), "
     "then change it.",
@@ -268,6 +288,23 @@ def test_session_file_round_trips(tmp_path: Path) -> None:
     assert session.conditions == (_record("A", 0), _record("B", 1))
     assert session.ranking == ("B", "A")
     assert session.condition_name("A") == "moved"
+
+
+def test_session_file_marks_a_condition_ended_early(tmp_path: Path) -> None:
+    """#243: `ended_early` round-trips; a session written before it reads as false."""
+    path = tmp_path / "session.jsonl"
+    writer = SessionWriter(path, _header())
+    early = ConditionRecord("A", 0, "A.jsonl", 3, {"fun": 2}, {}, ended_early=True)
+    writer.condition(early)
+    writer.condition(_record("B", 1))
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [line["ended_early"] for line in lines[1:]] == [True, False]
+    assert read_session(path).conditions == (early, _record("B", 1))
+    for line in lines[1:]:
+        del line["ended_early"]
+    old = tmp_path / "old.jsonl"
+    old.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    assert [c.ended_early for c in read_session(old).conditions] == [False, False]
 
 
 def test_session_file_keeps_records_written_before_a_crash(tmp_path: Path) -> None:
