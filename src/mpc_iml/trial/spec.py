@@ -14,6 +14,12 @@ its argument list; the engine checks the values. `base` is sent before every
 condition, then the condition's own settings, so every control a condition sets
 must also be in `base`: nothing carries over from the condition played before.
 Code letters are not in the file; `order.letters` gives them by play order.
+
+The optional `guide` (#241) is what the musician reads, in musical terms:
+`guide.start` once before the first condition, `guide.condition` before every
+condition. Each is a string or a list of strings, the same for every condition so
+it does not reveal which one plays. Files without it are read as before, so the
+field did not need a new format version.
 """
 
 import json
@@ -29,6 +35,7 @@ __all__ = [
     "SCALES",
     "TRIAL_FORMAT",
     "Condition",
+    "Guide",
     "Question",
     "Trial",
     "TrialError",
@@ -44,7 +51,8 @@ SCALES = ("1-5", "text")
 """Question scales: a whole score 1-5, or free text."""
 
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
-_KEYS = {"format", "format_version", "title", "bars", "base", "conditions", "questions"}
+_KEYS = {"format", "format_version", "title", "bars", "base", "conditions", "questions", "guide"}
+_GUIDE_KEYS = ("start", "condition")
 
 Arg = int | float | str
 Settings = Mapping[str, tuple[Arg, ...]]
@@ -72,6 +80,15 @@ class Question:
 
 
 @dataclass(frozen=True)
+class Guide:
+    """Lines for the musician: `start` once before the first condition, `condition`
+    before every condition."""
+
+    start: tuple[str, ...] = ()
+    condition: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Trial:
     """A validated trial file."""
 
@@ -80,6 +97,7 @@ class Trial:
     conditions: tuple[Condition, ...]
     questions: tuple[Question, ...]
     title: str = ""
+    guide: Guide = Guide()
 
     def messages(self, condition: Condition) -> list[tuple[str, tuple[Arg, ...]]]:
         """The controls to send before `condition`: `base`, then its own settings."""
@@ -121,6 +139,22 @@ def _question(entry: Any, origin: str, index: int) -> Question:
     if scale not in SCALES:
         raise _fail(origin, f"{what}: scale must be one of {', '.join(SCALES)}, got {scale!r}")
     return Question(_name(entry.get("id"), origin, f"{what}: id"), text, str(scale))
+
+
+def _lines(value: Any, origin: str, what: str) -> tuple[str, ...]:
+    lines = [value] if isinstance(value, str) else value
+    if not isinstance(lines, list) or not all(isinstance(line, str) for line in lines):
+        raise _fail(origin, f"{what} must be a string or a list of strings")
+    return tuple(lines)
+
+
+def _guide(value: Any, origin: str) -> Guide:
+    if not isinstance(value, dict):
+        raise _fail(origin, f"guide must be an object with {' and/or '.join(_GUIDE_KEYS)}")
+    if unknown := set(value) - set(_GUIDE_KEYS):
+        raise _fail(origin, f"guide: unknown fields: {', '.join(sorted(map(str, unknown)))}")
+    start, condition = (_lines(value.get(key, []), origin, f"guide.{key}") for key in _GUIDE_KEYS)
+    return Guide(start, condition)
 
 
 def parse_trial(data: Any, origin: str = "trial") -> Trial:
@@ -167,7 +201,8 @@ def parse_trial(data: Any, origin: str = "trial") -> Trial:
     ids = [q.id for q in questions]
     if len(set(ids)) != len(ids):
         raise _fail(origin, "question ids must be unique")
-    return Trial(bars, base, tuple(conditions), questions, title)
+    guide = _guide(data.get("guide", {}), origin)
+    return Trial(bars, base, tuple(conditions), questions, title, guide)
 
 
 def load_trial(path: Path) -> tuple[Trial, dict[str, Any]]:

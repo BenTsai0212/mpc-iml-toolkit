@@ -19,7 +19,7 @@ from mpc_iml.trial.session import (
     read_session,
     session_folder,
 )
-from mpc_iml.trial.spec import TrialError, load_trial, parse_trial
+from mpc_iml.trial.spec import Guide, TrialError, load_trial, parse_trial
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "trial" / "rhythm.json"
 
@@ -59,6 +59,19 @@ def test_parse_trial_reads_conditions_questions_and_messages() -> None:
     ]
 
 
+def test_guide_lines_are_a_list_or_one_string() -> None:
+    """#241: `guide.start` and `guide.condition`, each a list of strings or one string."""
+    trial = parse_trial(
+        _with(guide={"start": ["Lead the band.", "Nod with 16."], "condition": "Again."})
+    )
+    assert trial.guide == Guide(("Lead the band.", "Nod with 16."), ("Again.",))
+    assert parse_trial(_with(guide={"condition": ["Again."]})).guide == Guide((), ("Again.",))
+
+
+def test_a_trial_without_a_guide_has_no_lines() -> None:
+    assert parse_trial(TRIAL).guide == Guide((), ())
+
+
 def test_bars_default_to_16() -> None:
     data = _with()
     del data["bars"]
@@ -85,6 +98,10 @@ def test_bars_default_to_16() -> None:
         (_with(base={"rhythm": 0}), "base rhythm: expected a list"),
         (_with(base={"Rhythm": [0]}), "control must be lower case"),
         (_with(questions=[]), "questions must be"),
+        (_with(guide=["Play."]), "guide must be an object"),
+        (_with(guide={"start": [], "during": ["Play."]}), "guide: unknown fields: during"),
+        (_with(guide={"start": ["Play.", 16]}), "guide.start must be a string or a list"),
+        (_with(guide={"condition": 16}), "guide.condition must be a string or a list"),
         (_with(questions=[{"id": "a", "text": "A", "scale": "1-7"}]), "scale must be one of"),
         (
             _with(questions=[{"id": "a", "text": "A", "scale": "text"}] * 2),
@@ -124,6 +141,39 @@ def test_learn_trial_starts_every_condition_from_the_rules() -> None:
         assert ensemble._learned() == []
         assert dict(ensemble.state())["learn"] == [condition.name.removeprefix("learn-")]
         assert dict(ensemble.state())["melody-mode"][0] == "still", "#233"
+
+
+LEARN_GUIDE_START = [
+    "You lead a band with your drums. The bass and keys follow your groove.",
+    "Play as in a jam: start a groove, stay with it for a few phrases (4 bars each), "
+    "then change it.",
+    "When the bass plays something you want to hear again with this groove, tap pad 16 "
+    "once, like a nod to the bass player. Keep your hands going.",
+    "If you want the bass to change, change your groove. You do not need a pad for that.",
+    "Try a few grooves: steady kicks on the beat, kicks that push ahead of the beat, a busy "
+    "groove. Later, come back to a groove where you nodded, and listen whether the bass "
+    "remembers.",
+    "To rest, stop drumming; the band keeps playing. Do not press Stop in Live.",
+]
+LEARN_GUIDE_CONDITION = [
+    "A new band. Play the same way: start a groove, nod (pad 16) when you like the bass, "
+    "and come back to that groove later.",
+]
+
+
+def test_learn_trial_guides_the_musician_in_musical_terms() -> None:
+    """#241: the text of the Issue, the same before every condition."""
+    trial, content = load_trial(EXAMPLE.with_name("learn.json"))
+    assert trial.guide == Guide(tuple(LEARN_GUIDE_START), tuple(LEARN_GUIDE_CONDITION))
+    assert content["guide"]["start"] == LEARN_GUIDE_START
+
+
+def test_rhythm_trial_guide_has_no_pads_to_press() -> None:
+    trial, _ = load_trial(EXAMPLE)
+    lines = trial.guide.start + trial.guide.condition
+    assert trial.guide.start and trial.guide.condition
+    assert not any("pad 1" in line for line in lines)
+    assert any("sparse to busy" in line for line in trial.guide.condition)
 
 
 @pytest.mark.parametrize("name", ["rhythm.json", "learn.json"])

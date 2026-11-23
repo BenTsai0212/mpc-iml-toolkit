@@ -11,7 +11,9 @@ condition's settings are checked once before playing. Then, in the seeded order:
    or Enter;
 3. the questions of the trial file are asked, and a `condition` record is written.
 
-Last come the ranking and the reveal. The terminal only shows code letters until then.
+The trial file's `guide` (#241) is shown too: `guide.start` after the setup text,
+before the first condition, and `guide.condition` before each condition's "press
+Play" line. Last come the ranking and the reveal. The terminal only shows code letters until then.
 
 While a condition plays, the engine's lines for the musician (`ensemble.for_musician`,
 #230) are shown in the terminal too: the status lines (`status 1`) and the presses
@@ -332,6 +334,8 @@ def run_trial(
     )
     writer = SessionWriter(args.folder / SESSION_FILE, header)
     musician.say(START_TEXT)
+    for line in trial.guide.start:
+        musician.say(line)
     limit = trial.bars * beats_per_bar * TICKS_PER_BEAT
     played: dict[str, int] = {}
     for position, index in enumerate(order):
@@ -339,6 +343,8 @@ def run_trial(
         played[letter] = played.get(letter, 0) + 1
         name = letter if played[letter] == 1 else f"{letter}-{played[letter]}"
         errors = rig.engine.apply(trial.messages(trial.conditions[index]))
+        for line in trial.guide.condition:
+            musician.say(line)
         musician.say(f"Condition {letter}: press Play in Live ({trial.bars} bars, Enter ends).")
         ticks = play(rig, args.folder / f"{name}.jsonl", limit, musician)
         bars = ticks // (beats_per_bar * TICKS_PER_BEAT)
