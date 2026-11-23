@@ -100,12 +100,16 @@ With `--clock` and Live playing, the bass in loop mode plays a loop written in
 chord tones, like the melody ([below](#the-melody-loop)), so it follows each chord of
 the progression. Its approach and passing notes aim at the **next** bar's chord: a
 half step or a whole step below the next root, leading into the chord change. There
-are two loops:
+are six loops:
 
 - `boom` (default): a 1-bar boom-bap line with rests: the root on beat 1 and the
   fifth on beat 3, a ghost note, the root an octave up and an approach note into
   the next bar.
 - `walk`: a 2-bar line with more motion, a passing note and approach notes.
+- `knock`: a 2-bar boom-bap line on root, fifth and a ghost seventh (#232).
+- `lazy`: a 2-bar lo-fi line that sits a little behind the beat (#232).
+- `soul`: a 2-bar melodic line up to the octave and back, with a chromatic walk up (#232).
+- `sub`: a 2-bar half-time line of long roots with an octave pop, like an 808 (#232).
 
 Each loop has three **variations**, each a complete bass line (#158): `home` (the
 loop as described above), `push` (anticipations: notes a 16th early that answer
@@ -140,10 +144,20 @@ With `--clock` and Live playing, `ensemble` loops a short melody over the chord
 progression, as MIDI notes on **channel 3** of `mpc-iml`
 (`src/mpc_iml/melody.py`). The notes are written as chord tones (root, third,
 fifth, seventh), so the loop follows each chord, also when it changes from minor to
-major. There are two loops:
+major. There are six loops:
 
 - `keys` (default): a sparse 2-bar keys riff.
 - `pluck`: a 1-bar 8th-note arpeggio.
+- `rhodes`: 2 bars of Rhodes chords (third, seventh and ninth together) (#232).
+- `flute`: a 2-bar lead motif of third, ninth and root (#232).
+- `horns`: short soul horn hits, two notes at a time (#232).
+- `bells`: a high, sparse lo-fi bell figure, a little behind the beat (#232).
+
+The hip-hop loops (`knock` to `bells`) also play notes outside the chord tones: a
+ninth (the root a whole step up) and approach notes; the variations below describe
+`keys` and `pluck`, the others are described in their loop files. In `rhodes` and
+`horns` several notes start together; they all sound, and the surprise `passing`
+moves every note of a chord on the last step.
 
 The melody starts in octave 4 (A4 is MIDI note 69). As the bass, each loop has three
 variations, each a complete line with ornaments on top (#158): `home` (the loop as
@@ -362,7 +376,7 @@ your profile out of it.
 
 ### Write your own bass line
 
-The loops are loop files (ADR 0010): `boom`, `walk`, `keys` and `pluck` are built
+The loops are loop files (ADR 0010): the loops above are built
 in, and you can add your own without changing the toolkit (#173). Write a line in
 Live, turn it into a loop file, and play it:
 
@@ -422,7 +436,7 @@ in group 1 **Connect**, or start with `--preset ensemble`. The whole patch fits 
 | --- | --- |
 | `bass`: `loop`, `rule`, `off` | Sets the bass mode. `now` shows the mode playing, `next` the one asked for. |
 | `melody`: `follow`, `fixed`, `off` | Sets the melody mode (`melody-mode`), with `now` and `next` as for the bass. `still` (#233) has no button; `now` and `next` show it when set by the control. |
-| `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (`boom`, `walk`; `keys`, `pluck`; then installed and your own loops), and the box under them shows the one selected. |
+| `bass loop`, `melody loop` | `<` and `>` choose the previous or next loop the engine lists (the built-in loops by name; then installed and your own loops), and the box under them shows the one selected. |
 | `reload`, `errors` | `reload` reads your loop files again (`reload-loops`, [Write your own bass line](#write-your-own-bass-line)); `errors` shows how many were skipped (`loop-errors`). |
 | `progression` | Up to 4 buttons labelled with the progressions (`minor-two`, `minor-four`), and the one selected. |
 | `octave`, `melody octave` | Number boxes for the bass octave (0-3) and the melody octave (2-6). |
@@ -451,7 +465,7 @@ sends the most used ones; send the others from any OSC client:
 | Message | Values | Default | Meaning |
 | --- | --- | --- | --- |
 | `/mpciml/preset/ensemble/bass` | `loop`, `rule` or `off` | `loop` | The bass mode |
-| `/mpciml/preset/ensemble/bass-loop` | a bass loop's name (`boom`, `walk` or your own) | `boom` | The bass loop |
+| `/mpciml/preset/ensemble/bass-loop` | a bass loop's name (a built-in loop such as `walk` or `knock`, or your own) | `boom` | The bass loop |
 | `/mpciml/preset/ensemble/bass-loop-step` | 1 or -1 | - | The next or previous bass loop of `bass-loops`, wrapping around |
 | `/mpciml/preset/ensemble/immediate` | 0 or 1 | 1 | The immediate layer of the rule bass |
 | `/mpciml/preset/ensemble/bar` | 0 or 1 | 1 | The bar layer of the rule bass |
@@ -463,7 +477,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | The pad that cycles the bass mode; 0 for none |
 | `/mpciml/preset/ensemble/melody-mode` | `follow`, `fixed`, `off` or `still` | `follow` | The melody mode in one message (sets `melody` and `follow`); `off` also drops the notes still to come; `still` (#233): the melody plays `home` while the bass follows |
 | `/mpciml/preset/ensemble/melody` | 0, 1 or `still` | 1 | The melody; 0 also drops the notes still to come, 1 turns it on in the mode it had, `still` turns it on in `melody-mode still` |
-| `/mpciml/preset/ensemble/loop` | a melody loop's name (`keys`, `pluck` or your own) | `keys` | The melody loop |
+| `/mpciml/preset/ensemble/loop` | a melody loop's name (a built-in loop such as `pluck` or `rhodes`, or your own) | `keys` | The melody loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 or -1 | - | The next or previous melody loop of `loops`, wrapping around |
 | `/mpciml/preset/ensemble/reload-loops` | none | - | Reads the loop files in `<data folder>/loops/` again; a changed loop plays from the next bar line |
 | `/mpciml/preset/ensemble/follow` | 0 or 1 | 1 | 1: the drums change the bass and melody loops; 0: fixed; either ends `still` |

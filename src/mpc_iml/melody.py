@@ -10,7 +10,7 @@ Variations (#158): every loop holds three named variations (`Loop.variations`),
 each a complete line with two levels: level 1 is the full line, level 2 adds
 ornaments. The loop's own notes are its skeleton, what `no-drums thin` plays. The
 loops themselves are loop files (`mpc_iml.loops`, ADR 0010, #173); the built-in
-`keys` and `pluck` live in `mpc_iml/loops/ensemble/`.
+`keys`, `pluck` and the hip-hop loops (#232) live in `mpc_iml/loops/ensemble/`.
 
 Once per bar, at the bar line, a `Follower` decides the next bar from the drum hits
 of the bar that just ended (RFC 0005, causality first): the hits choose the
@@ -209,11 +209,13 @@ def octave_up(notes: Sequence[LoopNote]) -> tuple[LoopNote, ...]:
 
 def passing(notes: Sequence[LoopNote]) -> tuple[LoopNote, ...]:
     """`notes` with the last one replaced by a passing note half a step below the same
-    chord tone of the next bar's chord (the surprise `passing`)."""
+    chord tone of the next bar's chord (the surprise `passing`). When the last step
+    holds a chord, every note of it moves, so the chord slides into the next one
+    (#232)."""
     if not notes:
         return tuple(notes)
-    last = max(notes, key=lambda n: n.step)
-    return tuple(replace(n, chord=1, semitones=-1) if n is last else n for n in notes)
+    last = max(n.step for n in notes)
+    return tuple(replace(n, chord=1, semitones=-1) if n.step == last else n for n in notes)
 
 
 @dataclass(frozen=True)

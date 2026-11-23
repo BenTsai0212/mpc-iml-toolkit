@@ -1,0 +1,58 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "soul",
+  "title": "Soul",
+  "description": "A 2-bar melodic line from a soul sample: root, fifth, seventh, octave and back down, with a chromatic walk up into the next bar. push anticipates each move; drive is a quarter-note walk with 8th ornaments.",
+  "preset": "ensemble",
+  "part": "bass",
+  "bars": 2,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 3, "skeleton": true},
+      {"bar": 0, "step": 4, "tone": 2, "length": 2},
+      {"bar": 0, "step": 6, "tone": 3, "length": 2},
+      {"bar": 0, "step": 8, "tone": 0, "length": 3, "octave": 1, "skeleton": true},
+      {"bar": 0, "step": 12, "tone": 3, "length": 2, "velocity": 0.85},
+      {"bar": 0, "step": 14, "tone": 2, "length": 2, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 0, "tone": 0, "length": 3, "skeleton": true},
+      {"bar": 1, "step": 4, "tone": 1, "length": 2},
+      {"bar": 1, "step": 6, "tone": 2, "length": 2},
+      {"bar": 1, "step": 8, "tone": 3, "length": 4, "skeleton": true},
+      {"bar": 1, "step": 12, "tone": 2, "length": 2},
+      {"bar": 1, "step": 14, "tone": 0, "length": 1, "chord": 1, "semitones": -2, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 15, "tone": 0, "length": 1, "chord": 1, "semitones": -1}
+    ],
+    "push": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2},
+      {"bar": 0, "step": 3, "tone": 2, "length": 3},
+      {"bar": 0, "step": 7, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 10, "tone": 3, "length": 3},
+      {"bar": 0, "step": 14, "tone": 2, "length": 2, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 0, "tone": 0, "length": 2},
+      {"bar": 1, "step": 3, "tone": 1, "length": 3},
+      {"bar": 1, "step": 6, "tone": 2, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 7, "tone": 3, "length": 3},
+      {"bar": 1, "step": 11, "tone": 2, "length": 3},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "drive": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 2},
+      {"bar": 0, "step": 2, "tone": 0, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 4, "tone": 1, "length": 2},
+      {"bar": 0, "step": 6, "tone": 2, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 8, "tone": 3, "length": 2},
+      {"bar": 0, "step": 10, "tone": 2, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 0, "step": 12, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 0, "step": 14, "tone": 3, "length": 2},
+      {"bar": 1, "step": 0, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 2, "tone": 3, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 4, "tone": 2, "length": 2},
+      {"bar": 1, "step": 6, "tone": 1, "length": 1, "level": 2, "velocity": 0.7},
+      {"bar": 1, "step": 8, "tone": 0, "length": 2},
+      {"bar": 1, "step": 10, "tone": 1, "length": 2, "level": 2, "velocity": 0.75},
+      {"bar": 1, "step": 12, "tone": 2, "length": 2},
+      {"bar": 1, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ]
+  }
+}

@@ -28,6 +28,7 @@ from mpc_iml.ensemble import (
     make_preset,
 )
 from mpc_iml.events import MidiEvent
+from mpc_iml.loops import LoopLibrary
 from mpc_iml.presets import available_presets
 
 receivers = test_engine.receivers
@@ -63,7 +64,7 @@ class Rig:
     off unless `melody` (its tests are in `test_melody.py`), the bass in mode `bass`.
     The surprises (#158) are off unless `surprise` (the control's 0-2, #178), with the
     fixed seed `seed`, and the rhythm transformation (#189) unless `rhythm`; the
-    status line (#230) is off unless `status`."""
+    status line (#230) is off unless `status`; `library` replaces the installed loops."""
 
     def __init__(
         self,
@@ -74,6 +75,7 @@ class Rig:
         seed: int = 0,
         rhythm: int = 0,
         status: int = 0,
+        library: LoopLibrary | None = None,
     ) -> None:
         self.sent: list[tuple[int, bytes]] = []
         self.log: list[str] = []
@@ -85,7 +87,7 @@ class Rig:
         self.access = ClockAccess(
             self.clock, self.log.append, self.scheduler, self.record, report=self.report
         )
-        self.ensemble = Ensemble(self.log.append, self.timer, seed=seed)
+        self.ensemble = Ensemble(self.log.append, self.timer, seed=seed, library=library)
         self.ensemble.surprise = surprise
         self.ensemble.rhythm = rhythm
         self.ensemble.status = bool(status)

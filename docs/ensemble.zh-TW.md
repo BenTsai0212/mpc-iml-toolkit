@@ -83,11 +83,15 @@ preset 從 loop 開始。
 
 有 `--clock` 且 Live 正在播放時，loop 模式的 bass 演奏以和弦音寫成的 loop（與旋律相同，見
 [下文](#旋律-loop)），所以會跟著和弦進行的每個和弦走。它的趨近音與經過音瞄準**下一個**小節的
-和弦：在下一個根音的半音或全音之下，帶進和弦的轉換。有兩個 loop：
+和弦：在下一個根音的半音或全音之下，帶進和弦的轉換。有六個 loop：
 
 - `boom`（預設）：一小節、有休止的 boom-bap 線條：第 1 拍的根音與第 3 拍的五度、一個 ghost
   note、高八度的根音，以及進入下一小節的趨近音。
 - `walk`：兩小節、動得更多的線條，有一個經過音與幾個趨近音。
+- `knock`：兩小節的 boom-bap 線條，由根音、五度與 ghost 七度組成（#232）。
+- `lazy`：兩小節的 lo-fi 線條，稍微落在拍子後面（#232）。
+- `soul`：兩小節、有旋律的線條，上到八度再下來，以半音往上走進下一小節（#232）。
+- `sub`：兩小節的 half-time 線條，長的根音加上一個八度的跳音，像 808（#232）。
 
 每個 loop 有三個**變奏**，每個都是完整的 bass 線條（#158）：`home`（上面描述的 loop）、`push`
 （提前一個 16 分音符的音，回應往前推的 kick）與 `drive`（`boom` 是 8 分音符，`walk` 是四分音符的
@@ -116,10 +120,18 @@ fixed，直到再按一次 pad 15 回到 follow。
 
 有 `--clock` 且 Live 正在播放時，`ensemble` 在和弦進行上循環一段短旋律，以 MIDI 音符送到
 `mpc-iml` 的 **channel 3**（`src/mpc_iml/melody.py`）。音符以和弦音（根音、三度、五度、七度）
-寫成，所以 loop 會跟著每個和弦走，和弦從小調換成大調時也一樣。有兩個 loop：
+寫成，所以 loop 會跟著每個和弦走，和弦從小調換成大調時也一樣。有六個 loop：
 
 - `keys`（預設）：稀疏的兩小節鍵盤 riff。
 - `pluck`：一小節的 8 分音符琶音。
+- `rhodes`：兩小節的 Rhodes 和弦（三度、七度與九度同時）（#232）。
+- `flute`：兩小節的主奏動機，由三度、九度與根音組成（#232）。
+- `horns`：短促的 soul 銅管，一次兩個音（#232）。
+- `bells`：高音、稀疏的 lo-fi 鐘聲，稍微落在拍子後面（#232）。
+
+hip-hop 的 loop（`knock` 到 `bells`）也會奏和弦音以外的音：九度（根音往上一個全音）與趨近音；
+下文的變奏描述的是 `keys` 與 `pluck`，其他 loop 的描述在它們的 loop 檔案中。`rhodes` 與 `horns`
+有幾個音同時開始，它們全部都會發聲；surprise `passing` 會移動最後一個 step 上和弦的每一個音。
 
 旋律從第 4 八度開始（A4 是 MIDI 音符 69）。與 bass 相同，每個 loop 有三個變奏，每個都是完整的
 線條，上面再加裝飾音（#158）：`home`（上面描述的 loop）、`open`（較長的音：`keys` 在第一小節
@@ -199,7 +211,7 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 
 ### 寫自己的 bass 線條
 
-loop 是 loop 檔案（ADR 0010）：`boom`、`walk`、`keys` 與 `pluck` 是內建的，你也可以不修改工具包
+loop 是 loop 檔案（ADR 0010）：上面列出的 loop 是內建的，你也可以不修改工具包
 就加入自己的 loop（#173）。在 Live 寫一段線條，轉成 loop 檔案，然後演奏：
 
 1. 在 Live 建立一個 1、2 或 4 小節、從小節線開始的 MIDI clip，在 `minor-two` 的和弦上寫 bass
@@ -247,7 +259,7 @@ patch（`src/mpc_iml/patches/mpc-iml.pd`，ADR 0009）的第 8 組 **Ensemble** 
 | --- | --- |
 | `bass`：`loop`、`rule`、`off` | 設定 bass 的模式。`now` 顯示正在演奏的模式，`next` 顯示要求的模式。 |
 | `melody`：`follow`、`fixed`、`off` | 設定旋律的模式（`melody-mode`），`now` 與 `next` 同 bass。`still`（#233）沒有按鈕；以控制項設定時 `now` 與 `next` 會顯示。 |
-| `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（`boom`、`walk`；`keys`、`pluck`；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
+| `bass loop`、`melody loop` | `<` 與 `>` 選擇 engine 列出的上一個或下一個 loop（內建的 loop 依名稱排列；再來是安裝的與你自己的 loop），下方的方塊顯示選擇的 loop。 |
 | `reload`、`errors` | `reload` 重新讀取你的 loop 檔案（`reload-loops`，見[寫自己的 bass 線條](#寫自己的-bass-線條)）；`errors` 顯示略過的檔案數（`loop-errors`）。 |
 | `progression` | 最多 4 個按鈕，標示和弦進行（`minor-two`、`minor-four`），並顯示選擇的和弦進行。 |
 | `octave`、`melody octave` | bass 的八度（0-3）與旋律的八度（2-6）的數字方塊。 |
@@ -271,7 +283,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | 訊息 | 值 | 預設 | 意義 |
 | --- | --- | --- | --- |
 | `/mpciml/preset/ensemble/bass` | `loop`、`rule` 或 `off` | `loop` | bass 的模式 |
-| `/mpciml/preset/ensemble/bass-loop` | bass loop 的名稱（`boom`、`walk` 或你自己的） | `boom` | bass 的 loop |
+| `/mpciml/preset/ensemble/bass-loop` | bass loop 的名稱（內建的 loop，例如 `walk` 或 `knock`，或你自己的） | `boom` | bass 的 loop |
 | `/mpciml/preset/ensemble/bass-loop-step` | 1 或 -1 | - | `bass-loops` 中的下一個或上一個 bass loop，到尾端時繞回 |
 | `/mpciml/preset/ensemble/immediate` | 0 或 1 | 1 | rule bass 的 immediate 層 |
 | `/mpciml/preset/ensemble/bar` | 0 或 1 | 1 | rule bass 的 bar 層 |
@@ -283,7 +295,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/layer-pad` | 0-16 | 16 | 切換 bass 模式的 pad；0 表示不使用 |
 | `/mpciml/preset/ensemble/melody-mode` | `follow`、`fixed`、`off` 或 `still` | `follow` | 以一則訊息設定旋律的模式（設定 `melody` 與 `follow`）；`off` 也取消尚未發出的音符；`still`（#233）：旋律奏 `home`、bass 照常跟隨 |
 | `/mpciml/preset/ensemble/melody` | 0、1 或 `still` | 1 | 旋律；0 時也取消尚未發出的音符，1 以原本的模式開啟，`still` 以 `melody-mode still` 開啟 |
-| `/mpciml/preset/ensemble/loop` | 旋律 loop 的名稱（`keys`、`pluck` 或你自己的） | `keys` | 旋律的 loop |
+| `/mpciml/preset/ensemble/loop` | 旋律 loop 的名稱（內建的 loop，例如 `pluck` 或 `rhodes`，或你自己的） | `keys` | 旋律的 loop |
 | `/mpciml/preset/ensemble/loop-step` | 1 或 -1 | - | `loops` 中的下一個或上一個旋律 loop，到尾端時繞回 |
 | `/mpciml/preset/ensemble/reload-loops` | 無 | - | 重新讀取 `<資料夾>/loops/` 中的 loop 檔案；改變的 loop 從下一個小節線開始演奏 |
 | `/mpciml/preset/ensemble/follow` | 0 或 1 | 1 | 1：鼓改變 bass 與旋律的 loop；0：fixed；兩者都結束 `still` |

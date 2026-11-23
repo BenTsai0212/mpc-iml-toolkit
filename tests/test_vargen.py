@@ -25,6 +25,8 @@ from mpc_iml.vargen import (
 
 A, B, C = (0, 0, 0, 0), (2, 0, 0, 0), (0, 1, -1, 0)
 
+BASS = ["boom", "knock", "lazy", "soul", "sub", "walk"]
+"""The built-in bass loops, by name (#232)."""
 TINY = [
     {"bar": 0, "step": 0, "tone": 0, "length": 4},
     {"bar": 0, "step": 8, "tone": 2, "length": 2, "velocity": 0.7},
@@ -134,7 +136,7 @@ def test_each_file_totals_one() -> None:
     for order in (1, 2):
         total = sum(sum(c.values()) for k, c in model.pitch.items() if len(k) == order)
         assert total == pytest.approx(len(files))
-    assert [name for name, _ in model.files] == ["boom", "walk", "tiny"]
+    assert [name for name, _ in model.files] == [*BASS, "tiny"]
 
 
 def test_build_model_needs_one_part() -> None:
@@ -152,10 +154,10 @@ def test_corpus_settings(tmp_path: Path) -> None:
     assert sorted(loop.name for loop in user) == ["my-boom", "my-keys"]
     names = {s: [f.name for f in corpus(source, s, installed, user)] for s in ("source", "own")}
     assert names == {"source": ["boom"], "own": ["boom", "my-boom"]}
-    assert [f.name for f in corpus(source, "all", installed, user)] == ["boom", "walk", "my-boom"]
+    assert [f.name for f in corpus(source, "all", installed, user)] == [*BASS, "my-boom"]
     mine, _, _ = find_loop("my-boom", tmp_path)
     assert [f.name for f in corpus(mine, "own", installed, user)] == ["my-boom"]
-    assert [f.name for f in corpus(mine, "all", installed, user)] == ["my-boom", "boom", "walk"]
+    assert [f.name for f in corpus(mine, "all", installed, user)] == ["my-boom", *BASS]
     with pytest.raises(ValueError):
         corpus(source, "everything", installed, user)
 

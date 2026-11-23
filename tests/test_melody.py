@@ -28,6 +28,8 @@ from mpc_iml.melody import (
 )
 
 LOOPS = load_loops().played("melody")
+FIRST = ("keys", "pluck")
+"""The melody loops before the hip-hop library (#232)."""
 
 HAT, MELODY = 38, 50
 """Notes of pad 3 (hat) and pad 15 (the melody pad), bank A."""
@@ -126,15 +128,22 @@ def test_the_skeleton_is_part_of_home(name: str) -> None:
 
 @pytest.mark.parametrize("name", list(LOOPS))
 def test_every_melody_variation_is_a_full_line(name: str) -> None:
+    """Every built-in melody loop; `keys` and `pluck` (`FIRST`) also keep their shape:
+    chord tones only, both levels and at least 2 notes a bar. The hip-hop loops (#232)
+    add ninths, approach notes and sparser bars (`bells` open)."""
     loop = LOOPS[name]
     assert tuple(v.name for v in loop.variations) == MELODY_VARIATIONS
     for variation in loop.variations:
         assert variation.bars == loop.bars
-        assert {n.level for n in variation.notes} == {1, ORNAMENTS}
-        assert all(0 <= n.tone <= 3 and n.chord == n.semitones == 0 for n in variation.notes)
+        assert 1 in {n.level for n in variation.notes} <= {1, ORNAMENTS}
+        assert all(0 <= n.tone <= 3 for n in variation.notes)
+        if name in FIRST:
+            assert {n.level for n in variation.notes} == {1, ORNAMENTS}
+            assert all(n.chord == n.semitones == 0 for n in variation.notes)
         for bar in range(loop.bars):
             line = variation.bar_notes(bar, 1)
-            assert len(line) >= 2 and sum(n.length for n in line) >= 6
+            assert len(line) >= (2 if name in FIRST else 1)
+            assert sum(n.length for n in line) >= 6
             assert all(n.step + n.length <= 16 for n in variation.bar_notes(bar, ORNAMENTS))
 
 

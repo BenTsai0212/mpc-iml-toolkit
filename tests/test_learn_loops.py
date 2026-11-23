@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from test_ensemble import BAR, LAYER, START, Rig
 from test_ensemble_learn import STEADY, bar_of, reply
-from test_ensemble_user_loops import named, write
+from test_ensemble_user_loops import BASS, KEYS, named, write
 from test_learn_profile import SETTINGS, taught
 
 from mpc_iml.learn import FORGET, LOOP_PRIOR, STEP, LoopLearner
@@ -109,8 +109,9 @@ def test_the_loop_changes_only_at_a_phrase_start() -> None:
     for bar in range(1, len(seen)):
         if (bar + 1) % 4:
             assert seen[bar] == seen[bar - 1], bar
-    assert {s[0] for s in seen} == {"boom", "walk"}
-    assert {s[1] for s in seen} == {"keys", "pluck"}
+    bass, melody = {s[0] for s in seen}, {s[1] for s in seen}
+    assert "boom" in bass and len(bass) > 1 and bass <= set(BASS)
+    assert "keys" in melody and len(melody) > 1 and melody <= set(KEYS)
     assert any(line.startswith("ensemble: bass loop walk from bar") for line in rig.log)
     assert playing(loops_rig(True, seed=3), 40) == seen
 
@@ -142,7 +143,7 @@ def test_a_user_loop_joins_and_a_gone_one_plays_to_the_phrase_end(tmp_path: Path
     assert [s[0] for s in playing(rig, 5)] == ["boom"] * 3 + ["line"] * 2
     (tmp_path / "loops" / "line.json").unlink()
     rig.ensemble.controls()["reload-loops"]([])
-    assert reply(rig, "bass-loops") == ["boom", "walk"]
+    assert reply(rig, "bass-loops") == BASS
     seen = [s[0] for s in playing(rig, 3, first=5)]
     assert seen[:2] == ["line", "line"] and seen[2] != "line"
     assert rig.ensemble._loop_learners["bass"].table()[CONTEXT]["line"] > 0
