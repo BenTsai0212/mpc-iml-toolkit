@@ -28,17 +28,20 @@ the learning log lines and the final `learned` reply. Nothing is saved: the demo
 no data folder, so there is no profile and no learn log.
 """
 
+import functools
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from types import MappingProxyType
 
 from mpc_iml.clock import SIXTEENTHS, TICKS_PER_BEAT, BarStart, ClockAccess, MidiClock, Scheduler
-from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_MODES, PROGRESSIONS, Ensemble
+from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_MODES, Ensemble
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.frames import bank_pad_to_note, note_to_bank_pad
 from mpc_iml.learn import PARTS, WANTS
 from mpc_iml.learn import context as learn_context
 from mpc_iml.melody import BarPlan
+from mpc_iml.progressions import NAMES, Progression, load_progressions
 from mpc_iml.sources import CLOCK_BYTES
 
 __all__ = [
@@ -85,7 +88,13 @@ _LEARNING = re.compile(r"ensemble: (like|learned|trained|want) .*")
 LIKE_STEP = 8
 """The step of the answering bar where `Settings.likes` presses like: past the
 first beat, so the like credits the bar playing (`learn.liked_bar`)."""
-_NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+
+
+@functools.cache
+def progressions() -> Mapping[str, Progression]:
+    """The built-in and installed progressions (#236), read once: the demo has no
+    data folder."""
+    return MappingProxyType(load_progressions())
 
 
 @dataclass(frozen=True)
@@ -211,9 +220,9 @@ Grid = Sequence[Mapping[str, Sequence[int]]]
 
 def chord_name(progression: str, bar: int) -> str:
     """The name of the chord of `bar` in `progression`, for example `Am7`."""
-    p = PROGRESSIONS[progression]
+    p = progressions()[progression]
     chord = p.chord(bar)
-    return _NAMES[(p.tonic + chord.root) % 12] + chord.quality
+    return NAMES[(p.tonic + chord.root) % 12] + chord.quality
 
 
 def simulate(grid: Grid, settings: Settings = Settings()) -> Song:
@@ -336,7 +345,7 @@ class _Run:
         clock = self.clock
         self.scheduler = Scheduler(clock, lambda m: self.sent.append((clock.state().tick, m)))
         self.access = ClockAccess(clock, self.log.append, self.scheduler)
-        ensemble = Ensemble(self._ensemble_log, seed=settings.seed)
+        ensemble = Ensemble(self._ensemble_log, seed=settings.seed, progressions=progressions())
         controls = ensemble.controls()
         controls["bass"](["loop"])
         controls["bass-loop"]([settings.bass_loop])

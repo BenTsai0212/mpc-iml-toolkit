@@ -58,7 +58,10 @@ them:
 The chords come from one of two progressions: `minor-two` (default: Am7 for
 2 bars, then Fmaj7 for 2 bars) and `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
 each). The bass plays in octave 1 (A1 is MIDI note 33). With Live's MIDI Clock Type
-set to **Song**, Live's bar 1 is the start of the progression.
+set to **Song**, Live's bar 1 is the start of the progression. Each progression
+is a progression file (`mpc-iml-progression`, ADR 0011) in the package;
+`uv run python -m mpc_iml.progressions list` prints them with their chords, and
+`uv run python -m mpc_iml.progressions check <file>` checks one.
 
 ### Set up Live for the bass
 

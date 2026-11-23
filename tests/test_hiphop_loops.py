@@ -14,11 +14,13 @@ import pytest
 
 from mpc_iml.bass import BASS_VARIATIONS
 from mpc_iml.clock import TICKS_PER_BEAT
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.loop_midi import main
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import MELODY_VARIATIONS, LoopNote, loop_pitch
+from mpc_iml.progressions import load_progressions
 from mpc_iml.webdemo.sim import Settings, Song, simulate
+
+PROGRESSIONS = load_progressions()
 
 FOLDER = Path(__file__).parents[1] / "src" / "mpc_iml" / "loops" / "ensemble"
 BASS = ("knock", "lazy", "soul", "sub")

@@ -48,7 +48,9 @@ rule bass 有兩層，可以用控制項 `immediate` 與 `bar`（見 [ensemble �
 
 和弦取自兩個和弦進行之一：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）與 `minor-four`
 （Dm7、Gm7、Bbmaj7、A7，各一小節）。bass 在第 1 八度演奏（A1 是 MIDI 音符 33）。Live 的
-MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。
+MIDI Clock Type 設為 **Song** 時，Live 的第 1 小節就是和弦進行的開頭。每個和弦進行是套件中的
+和弦進行檔（`mpc-iml-progression`，ADR 0011）；`uv run python -m mpc_iml.progressions list`
+列出它們與和弦，`uv run python -m mpc_iml.progressions check <檔案>` 檢查一個檔案。
 
 ### 為 bass 設定 Live
 

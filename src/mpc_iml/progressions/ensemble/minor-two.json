@@ -1,0 +1,13 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "minor-two",
+  "title": "Minor two",
+  "description": "Am7 and Fmaj7, 2 bars each. The default.",
+  "preset": "ensemble",
+  "tonic": "A",
+  "chords": [
+    {"root": 0, "quality": "m7", "bars": 2},
+    {"root": 8, "quality": "maj7", "bars": 2}
+  ]
+}

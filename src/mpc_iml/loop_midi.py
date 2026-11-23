@@ -18,7 +18,6 @@ from typing import Any
 
 from mpc_iml import smf
 from mpc_iml.content import ContentError
-from mpc_iml.ensemble import PROGRESSIONS, Progression
 from mpc_iml.launch import DEFAULT_DATA
 from mpc_iml.loops import (
     BARS,
@@ -34,6 +33,7 @@ from mpc_iml.loops import (
     parse_loop,
 )
 from mpc_iml.melody import ORNAMENTS, QUALITIES, LoopNote, loop_pitch
+from mpc_iml.progressions import DEFAULT, Progression, load_progressions
 
 __all__ = ["OCTAVES", "ORNAMENT_CHANNEL", "Imported", "dump", "from_midi", "main", "to_midi"]
 
@@ -250,7 +250,7 @@ def _import(args: argparse.Namespace) -> None:
         allowed = ", ".join(VARIATIONS[part])
         raise ContentError(f"unknown variation {args.variation!r} for the {part}; {allowed}")
     bars = args.bars or (old.bars if args.into else None)
-    progression = PROGRESSIONS[args.progression]
+    progression = load_progressions()[args.progression]
     found = from_midi(clip, part, progression, args.start_bar, bars, args.ornament_below)
     for message in found.messages:
         print(message)
@@ -287,7 +287,7 @@ def _export(args: argparse.Namespace) -> None:
     loop = _find(args.loop, args.data)
     if args.variation not in VARIATIONS[loop.part]:
         raise ContentError(f"unknown variation {args.variation!r} for the {loop.part}")
-    progression = PROGRESSIONS[args.progression]
+    progression = load_progressions()[args.progression]
     Path(args.out).write_bytes(to_midi(loop, args.variation, progression, args.start_bar))
     print(f"wrote {args.variation} of {loop.name} over {args.progression} to {args.out}")
 
@@ -303,7 +303,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m mpc_iml.loops", description="Import, export and check loop files."
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    chords = list(PROGRESSIONS)
+    chords = list(load_progressions())
     imp = commands.add_parser("import", help="turn a MIDI clip into a loop file")
     imp.add_argument("clip", help="a Standard MIDI File, for example from Live's Export MIDI Clip")
     imp.add_argument("--part", choices=list(VARIATIONS))
@@ -311,7 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     imp.add_argument("--variation", default=HOME, help="the variation the clip is (default home)")
     imp.add_argument("--into", help="add or replace the variation in this loop file")
     imp.add_argument(
-        "--progression", choices=chords, default="minor-two", help="the chords of the clip"
+        "--progression", choices=chords, default=DEFAULT, help="the chords of the clip"
     )
     imp.add_argument("--start-bar", type=int, default=0, help="the song bar the clip starts on")
     imp.add_argument("--bars", type=int, choices=BARS, help="default: from the clip's length")
@@ -324,7 +324,7 @@ def build_parser() -> argparse.ArgumentParser:
     exp.add_argument("loop", help="a loop name or a loop file (.json)")
     exp.add_argument("out", help="the MIDI file to write")
     exp.add_argument("--variation", default=HOME)
-    exp.add_argument("--progression", choices=chords, default="minor-two")
+    exp.add_argument("--progression", choices=chords, default=DEFAULT)
     exp.add_argument("--start-bar", type=int, default=0)
     exp.add_argument("--data", default=DEFAULT_DATA, help="the data folder with user loops")
     chk = commands.add_parser("check", help="validate a loop file")

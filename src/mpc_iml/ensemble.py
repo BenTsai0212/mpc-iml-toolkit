@@ -2,8 +2,9 @@
 
 No model: each pad has a role (`kick`, `snare`, `hat`, `other`; `DEFAULT_ROLES` is a
 boom-bap layout, any bank) and only `kick` drives the bass. The bass is monophonic,
-on the `mpc-iml` port, channel 2 by default, over a fixed progression
-(`PROGRESSIONS`), in one of three modes (`bass`):
+on the `mpc-iml` port, channel 2 by default, over a fixed progression (a progression
+file, #236: `minor-two` by default, see `mpc_iml.progressions`), in one of three
+modes (`bass`):
 
 - `loop` (default, #148, needs `--clock`): a bass loop of chord tones (`bass`) that
   keeps playing; at each bar line the kicks of the bar that ended set the next bar
@@ -204,7 +205,7 @@ import contextlib
 import random
 import sys
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
@@ -261,6 +262,7 @@ from mpc_iml.melody import (
     surprise,
 )
 from mpc_iml.presets import ControlHandler, Preset
+from mpc_iml.progressions import DEFAULT, Chord, Progression, load_progressions
 from mpc_iml.rhythm import (
     MIN_HITS,
     Memory,
@@ -285,7 +287,6 @@ __all__ = [
     "MELODY_SETTINGS",
     "NO_CLOCK",
     "NOTE_SECONDS",
-    "PROGRESSIONS",
     "ROLES",
     "STATUS_PREFIX",
     "STILL_BRIGHTNESS",
@@ -301,7 +302,7 @@ __all__ = [
 ROLES = ("kick", "snare", "hat", "other")
 
 CONTENT = Content(preset="ensemble", root="mpc_iml")
-"""The built-in loop files for `ensemble` (ADR 0010)."""
+"""The built-in loop and progression files for `ensemble` (ADR 0010, ADR 0011)."""
 
 BASS_MODES = ("loop", "rule", "off")
 """The bass modes, in the order the layer pad cycles them; `loop` is the default."""
@@ -356,46 +357,6 @@ LEARN_CC_SWEEP = (0, 32, 64, 96, 127)
 engine's `/mpciml/midi/learn`, ADR 0005)."""
 
 
-@dataclass(frozen=True)
-class Chord:
-    """`root` in semitones above the progression's tonic; `quality` (`m7`, `maj7` or
-    `7`) for the melody's chord tones."""
-
-    root: int
-    quality: str
-
-
-@dataclass(frozen=True)
-class Progression:
-    """A fixed chord progression: `tonic` is a pitch class (0 is C)."""
-
-    name: str
-    tonic: int
-    chords: tuple[Chord, ...]
-    bars_per_chord: int
-
-    def chord(self, bar: int) -> Chord:
-        """The chord of `bar` (0-based from song start); bar 0 for a negative bar."""
-        return self.chords[(max(bar, 0) // self.bars_per_chord) % len(self.chords)]
-
-    def root_note(self, bar: int, octave: int) -> int:
-        """The MIDI note of the chord root of `bar` in `octave` (A1 is 33)."""
-        return 12 * (octave + 1) + (self.tonic + self.chord(bar).root) % 12
-
-
-PROGRESSIONS = {
-    p.name: p
-    for p in (
-        Progression("minor-two", 9, (Chord(0, "m7"), Chord(8, "maj7")), 2),
-        Progression(
-            "minor-four", 2, (Chord(0, "m7"), Chord(5, "m7"), Chord(8, "maj7"), Chord(7, "7")), 1
-        ),
-    )
-}
-"""`minor-two` (default): Am7 and Fmaj7, 2 bars each. `minor-four`: Dm7, Gm7,
-Bbmaj7, A7, one bar each."""
-
-
 def for_musician(line: str) -> bool:
     """Whether `line` of the ensemble's log is for the musician while playing (#230):
     a status line or an ignored press."""
@@ -440,8 +401,11 @@ class Ensemble:
         timer: TimerFactory = threading.Timer,
         seed: int | None = None,
         library: LoopLibrary | None = None,
+        progressions: Mapping[str, Progression] | None = None,
     ) -> None:
         self._library = load_loops() if library is None else library
+        self.progressions = dict(load_progressions() if progressions is None else progressions)
+        """The progressions by name, built-in first (#236, ADR 0011)."""
         self._folder: Path | None = None
         self.loop_errors = 0
         """How many user loop files were skipped at the last read (#173)."""
@@ -456,7 +420,7 @@ class Ensemble:
         self._bass_notes: list[Scheduled] = []
         self.immediate = True
         self.bar = True
-        self.progression = PROGRESSIONS["minor-two"]
+        self.progression = self.progressions[DEFAULT]
         self.octave = 1
         self.length = 2
         self.channel = 2
@@ -1576,10 +1540,10 @@ class Ensemble:
             change()
 
     def _set_progression(self, args: Sequence[float | int | str]) -> None:
-        if len(args) != 1 or args[0] not in PROGRESSIONS:
-            raise ValueError(f"expected one of {', '.join(PROGRESSIONS)}, got {list(args)}")
+        if len(args) != 1 or args[0] not in self.progressions:
+            raise ValueError(f"expected one of {', '.join(self.progressions)}, got {list(args)}")
         with self._lock:
-            self.progression = PROGRESSIONS[str(args[0])]
+            self.progression = self.progressions[str(args[0])]
 
     def _set_bass_control(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in BASS_MODES:
@@ -1640,7 +1604,7 @@ class Ensemble:
                 ("progression", [self.progression.name]),
                 ("bass-loops", list(self.bass_loops)),
                 ("loops", list(self.loops)),
-                ("progressions", list(PROGRESSIONS)),
+                ("progressions", list(self.progressions)),
                 ("octave", [self.octave]),
                 ("melody-octave", [self.melody_octave]),
                 ("channel", [self.channel]),

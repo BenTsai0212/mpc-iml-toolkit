@@ -10,9 +10,11 @@ from typing import Any
 import pytest
 
 from mpc_iml.content import ContentError, UnknownContentError
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.loops import HOME, PARTS, VARIATIONS, LoopFile, load_loops, parse_loop
 from mpc_iml.melody import ORNAMENTS, Loop, LoopNote, loop_pitch
+from mpc_iml.progressions import load_progressions
+
+PROGRESSIONS = load_progressions()
 
 DATA = Path(__file__).parent / "data"
 
@@ -132,7 +134,7 @@ def test_the_built_in_loop_files_play_the_notes_of_158() -> None:
             assert library.get(name, part).origin.endswith(f"mpc_iml/loops/ensemble/{name}.json")
             if name not in ("boom", "walk", "keys", "pluck"):
                 continue
-            for progression in PROGRESSIONS:
+            for progression in ("minor-two", "minor-four"):
                 found[f"{name} {progression} thin"] = played(loop, progression, part, 1)
                 for variation in loop.variations:
                     for level in (1, ORNAMENTS):
