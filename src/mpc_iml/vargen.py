@@ -52,7 +52,6 @@ from pathlib import Path
 from typing import Any
 
 from mpc_iml.content import ContentError
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.launch import DEFAULT_DATA
 from mpc_iml.loop_midi import TICKS, dump, to_midi
 from mpc_iml.loops import (
@@ -66,6 +65,7 @@ from mpc_iml.loops import (
     parse_loop,
 )
 from mpc_iml.melody import LoopNote
+from mpc_iml.progressions import DEFAULT, load_progressions
 
 __all__ = [
     "CORPORA",
@@ -599,7 +599,7 @@ def _generate(args: argparse.Namespace) -> None:
     if args.midi is not None:
         folder = Path(args.midi or Path(args.data) / "vargen")
         folder.mkdir(parents=True, exist_ok=True)
-        progression = PROGRESSIONS[args.progression]
+        progression = load_progressions()[args.progression]
         clips = [(f"{source.name}-{args.variation}", source, args.variation)]
         clips += [
             (f"{source.name}-{args.variation}-{c.seed}", c.as_loop(source.name), HOME)
@@ -641,7 +641,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.add_argument(
             "--midi", nargs="?", const="", help="write clips (default <data>/vargen/)"
         )
-        parser.add_argument("--progression", choices=list(PROGRESSIONS), default="minor-two")
+        parser.add_argument("--progression", choices=list(load_progressions()), default=DEFAULT)
     args = parser.parse_args(argv)
     try:
         if showing:

@@ -22,7 +22,6 @@ from mpc_iml.ensemble import (
     DEFAULT_ROLES,
     NO_CLOCK,
     NOTE_SECONDS,
-    PROGRESSIONS,
     Ensemble,
     bass_velocity,
     make_preset,
@@ -30,6 +29,9 @@ from mpc_iml.ensemble import (
 from mpc_iml.events import MidiEvent
 from mpc_iml.loops import LoopLibrary
 from mpc_iml.presets import available_presets
+from mpc_iml.progressions import load_progressions
+
+PROGRESSIONS = load_progressions()
 
 receivers = test_engine.receivers
 start = test_engine.start

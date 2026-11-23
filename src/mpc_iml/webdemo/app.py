@@ -36,7 +36,7 @@ import numpy as np
 import numpy.typing as npt
 
 from mpc_iml.clock import tag_recording
-from mpc_iml.ensemble import LEARN_MODES, MELODY_SETTINGS, PROGRESSIONS
+from mpc_iml.ensemble import LEARN_MODES, MELODY_SETTINGS
 from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.launch import DEFAULT_DATA
 from mpc_iml.loops import VARIATIONS, load_loops
@@ -53,6 +53,7 @@ from mpc_iml.webdemo.sim import (
     Grid,
     Settings,
     Song,
+    progressions,
     replay,
     simulate,
 )
@@ -292,7 +293,7 @@ def build() -> "gr.Blocks":
             bars = gr.Slider(*BARS, value=BARS[1], step=1, label="bars")
             tempo = gr.Slider(*TEMPO_RANGE, value=default.tempo, step=1, label="tempo")
             progression = gr.Dropdown(
-                list(PROGRESSIONS), value=default.progression, label="progression"
+                list(progressions()), value=default.progression, label="progression"
             )
             bass_loop = gr.Dropdown(
                 library.names("bass"), value=default.bass_loop, label="bass loop"

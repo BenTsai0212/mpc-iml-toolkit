@@ -9,10 +9,12 @@ import pytest
 
 from mpc_iml import smf
 from mpc_iml.content import ContentError
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.loop_midi import dump, from_midi, main, to_midi
 from mpc_iml.loops import LoopFile, load_loops, parse_loop
 from mpc_iml.melody import LoopNote, loop_pitch
+from mpc_iml.progressions import load_progressions
+
+PROGRESSIONS = load_progressions()
 
 TWO = PROGRESSIONS["minor-two"]
 Q = 120

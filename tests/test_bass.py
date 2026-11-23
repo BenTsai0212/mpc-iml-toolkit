@@ -11,7 +11,6 @@ from mpc_iml.bass import (
     bass_ornaments,
     bass_variation,
 )
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.loops import load_loops
 from mpc_iml.melody import (
     ORNAMENTS,
@@ -19,6 +18,9 @@ from mpc_iml.melody import (
     chord_note,
     loop_pitch,
 )
+from mpc_iml.progressions import load_progressions
+
+PROGRESSIONS = load_progressions()
 
 BASS_LOOPS = load_loops().played("bass")
 LOOPS = load_loops().played("melody")

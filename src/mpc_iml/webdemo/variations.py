@@ -21,7 +21,6 @@ from pathlib import Path
 
 from mpc_iml.clock import SIXTEENTHS
 from mpc_iml.content import ContentError
-from mpc_iml.ensemble import PROGRESSIONS
 from mpc_iml.loop_midi import OCTAVES
 from mpc_iml.loops import STEPS, LoopFile
 from mpc_iml.melody import loop_pitch
@@ -35,7 +34,7 @@ from mpc_iml.vargen import (
     find_loop,
     generate,
 )
-from mpc_iml.webdemo.sim import DRUM_NOTES, TEMPO_RANGE, Note, Settings, Song
+from mpc_iml.webdemo.sim import DRUM_NOTES, TEMPO_RANGE, Note, Settings, Song, progressions
 
 __all__ = [
     "DRUM_PATTERN",
@@ -92,7 +91,7 @@ def clip_song(
     """`loop`'s `variation` repeated over `bars` (at least `MIN_BARS` and the loop
     twice) on `settings.progression`, with `DRUM_PATTERN` under it when `drums`."""
     bars = max(bars, MIN_BARS, 2 * loop.bars)
-    progression = PROGRESSIONS[settings.progression]
+    progression = progressions()[settings.progression]
 
     def chord(bar: int) -> tuple[int, str]:
         c = progression.chord(bar)
@@ -140,7 +139,7 @@ def listen(
     """
     if not 1 <= count <= MAX_COUNT:
         raise ValueError(f"count must be 1-{MAX_COUNT}, got {count}")
-    if progression not in PROGRESSIONS:
+    if progression not in progressions():
         raise ValueError(f"unknown progression {progression!r}")
     low, high = TEMPO_RANGE
     if not low <= tempo <= high:
