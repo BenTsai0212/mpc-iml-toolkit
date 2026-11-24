@@ -197,3 +197,14 @@ def test_reset_forgets_every_nod() -> None:
     assert memory.nods == ()
     assert memory.variation(1) is None
     assert memory.match(2, B, B) is None
+
+
+def test_the_grooves_of_a_nod_and_the_nodded_grooves() -> None:
+    memory = NodMemory()
+    stored = memory.add(Nod(C, features(C), "drive"))
+    assert memory.groove_of(stored) is None
+    a = keep(memory, 3, A, "push")
+    memory.match(1, C, C)
+    assert memory.groove_of(a) == 3
+    assert memory.groove_of(stored) == 1
+    assert memory.bound_grooves() == ((1, stored), (3, a))

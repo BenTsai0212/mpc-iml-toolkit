@@ -226,11 +226,31 @@ the bar before sets the bar that starts:
   fill bar is answered by the per-bar rules instead, with no fill;
 - after a free bar, before the first groove and without drums, the per-bar rules.
 
-The replies `follow-by` and `answer-after` follow `progression-errors`, and the learn
-log's header has both settings.
+With `learn nod` (#250, ADR 0009 "The nod") pad 16 is the **nod** instead of cycling
+the bass mode, as is the control `nod`. A nod refers to the bar `learn.liked_bar`
+gives; at the bar line after that bar, when the tracker's decision on it is known,
+`grooves.nods.nod_groove` gives the groove it counts for, and the bass variation
+played in the bar it names is kept for that groove (`grooves.nods.NodMemory`; `ensemble:
+nod bar 16 -> groove 2 (bar 8), bass push`, or why nothing was learned). From then on,
+in a groove bar (the bar after one the tracker gave to a groove, not a fill; with
+`follow-by groove` also the bar that answers a fill, which keeps its fill figure) that
+follows the kicks the bass plays, in this order: the groove's nod (`chose` `nod`);
+with `learn-group 1` (default 0, a setting) the nod of the nearest nodded groove
+within `GROUP_DISTANCE`, drawn once per section with `GROUP_SHARE` (`group`); with
+`new-groove invite` (default `rules`, a setting) a variation other than the rules'
+one for the groove's prototype, drawn once per groove (`invite`); else the rules.
+When the tracker confirms a groove with a nod, `ensemble: groove 2 back, bass push
+(nod)` is logged. These lines are not `for_musician`. With `learn nod` the replies
+`likes` and `learned` count the nods that kept a variation and list `bass:groove
+<id>><variation>`, and the profile is not saved at phrase starts. Only the bass
+learns.
+
+The replies `follow-by`, `learn-group`, `new-groove` and `answer-after` follow
+`progression-errors`, and the learn log's header has these settings.
 """
 
 import contextlib
+import datetime
 import random
 import sys
 import threading
@@ -241,6 +261,7 @@ from typing import Protocol
 
 from mpc_iml import __version__
 from mpc_iml.bass import (
+    BASS_VARIATIONS,
     bass_fill,
     bass_note_velocity,
     bass_ornaments,
@@ -258,8 +279,9 @@ from mpc_iml.clock import (
 from mpc_iml.content import Content
 from mpc_iml.frames import PADS
 from mpc_iml.grooves import Decision as GrooveDecision
-from mpc_iml.grooves import Pattern, Tracker
+from mpc_iml.grooves import Groove, Pattern, Tracker
 from mpc_iml.grooves import pattern as groove_pattern
+from mpc_iml.grooves.nods import Nod, NodMemory, nod_groove
 from mpc_iml.learn import (
     CONTEXTS,
     PARTS,
@@ -326,6 +348,7 @@ __all__ = [
     "LEARN_MODES",
     "MELODY_MODES",
     "MELODY_SETTINGS",
+    "NEW_GROOVE",
     "NO_CLOCK",
     "NOTE_SECONDS",
     "ROLES",
@@ -362,7 +385,15 @@ STILL_BRIGHTNESS = round(sum(BRIGHTNESS) / 2)
 """The brightness CC value `melody-mode still` sends at each bar line (#233): the middle
 of `BRIGHTNESS`, so the melody keeps one colour."""
 
-LEARN_MODES = ("off", "likes", "demo")
+LEARN_MODES = ("off", "likes", "demo", "nod")
+"""The learning modes (#196, #250); `off`, the rules, is the default."""
+
+NEW_GROOVE = ("rules", "invite")
+"""What the bass plays in a groove with no nod (`new-groove`, #250): the rules, or a
+different variation drawn once per groove to invite a nod."""
+
+KEPT_BARS = 4
+"""How many bars of decisions, patterns and bass variations `learn nod` keeps (#250)."""
 
 FOLLOW_BY = ("bar", "groove")
 """What the loops' variations follow (`follow-by`, #250): each bar, or the groove."""
@@ -370,7 +401,6 @@ FOLLOW_BY = ("bar", "groove")
 ANSWER_AFTER = (1, 2)
 """After how many bars of a different pattern the bass answers it (`answer-after`,
 #250): 2 waits for the tracker (a fill, or a new groove at its second bar)."""
-"""The learning modes (#196); `off`, the rules, is the default."""
 
 LEARNED_REPLY = 4
 """At most this many contexts in the reply `learned`."""
@@ -555,6 +585,28 @@ class Ensemble:
         """Whether the variations follow each bar or the groove (`follow-by`, #250)."""
         self.answer_after = 2
         """`answer-after` (#250): with 1 a fill bar is answered by the per-bar rules."""
+        self.learn_group = False
+        """`learn-group` (#250): a groove with no nod may play the nod of its group."""
+        self.new_groove = "rules"
+        """`new-groove` (#250): what a groove with no nod plays with `learn nod`."""
+        self._nods = NodMemory(seed=seed)
+        """The nods kept (`learn nod`, #250)."""
+        self._invite_random = random.Random(None if seed is None else f"invite {seed}")
+        self._invites: dict[int, str] = {}
+        """Groove id -> the variation drawn to invite a nod (`new-groove invite`)."""
+        self._sections: dict[tuple[int, int], Nod | None] = {}
+        """(groove id, section start) -> the group's nod drawn for that section, or
+        `None` when the draw gave nothing (`learn-group 1`)."""
+        self._decisions: dict[int, GrooveDecision] = {}
+        """Bar -> the tracker's decision on it, the last `KEPT_BARS` bars."""
+        self._patterns: dict[int, Pattern] = {}
+        """Bar -> its groove pattern, the last `KEPT_BARS` bars."""
+        self._bass_played: dict[int, str] = {}
+        """Bar -> the bass variation played in it (`-`: none), the last `KEPT_BARS`."""
+        self._nodded: set[int] = set()
+        """Nodded bars whose decision is not known yet."""
+        self._bar_line = -1
+        """The bar that started at the last bar line."""
         self.learn = "off"
         self.likes = 0
         """Likes that credited a choice, in this build (#196)."""
@@ -664,6 +716,8 @@ class Ensemble:
                 return f"next {arms[(arms.index(want) + 1) % len(arms)]}"
             if part == "bass" and self.learn == "likes":
                 return "like"
+            if part == "bass" and self.learn == "nod":
+                return "nod"
             if not self.mode_pads:
                 return "-"
             if part == "bass":
@@ -697,6 +751,9 @@ class Ensemble:
                 if self.learn == "likes":
                     grid = hit.grid
                     self._like(None if grid is None else (grid.bar, grid.step))
+                elif self.learn == "nod":
+                    grid = hit.grid
+                    self._nod(None if grid is None else (grid.bar, grid.step))
                 elif self.learn == "demo":
                     self._pad_want("bass", hit.grid)
                 elif self.mode_pads:
@@ -776,6 +833,9 @@ class Ensemble:
             kicks = [h for h in drums if self.roles[h.pad] == "kick"]
             hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
             self._track_groove(start, drums)
+            if self.learn == "nod":
+                self._resolve_nods(start.bar)
+                self._groove_back()
             answer = self._groove_answer()
             if answer is None:
                 bass_choice = (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks)))
@@ -786,6 +846,10 @@ class Ensemble:
             plays = self._follows(drums, bool(kicks))
             ended = self._end_wants(start.bar)
             chose, source = self._choose(start.bar, drums, plays)
+            learned = self._groove_learned(answer, plays)
+            if learned is not None:
+                bass_choice = (learned[0], bass_choice[1])
+                source = {**source, "bass": learned[1]}
             if "bass" in chose:
                 bass_choice = (chose["bass"], bass_choice[1])
             if "melody" in chose:
@@ -819,6 +883,8 @@ class Ensemble:
                 source = {**source, "bass": "fill"}
             melody = self._plan_melody(start, melody_plan, heard, extra)
             self._variations = (bass, melody)
+            self._bar_line = start.bar
+            self._bass_played[start.bar] = bass
             self._loop_names = (
                 "-" if bass == "-" else self._playing_loop("bass").name,
                 "-" if melody == "-" else self._playing_loop("melody").name,
@@ -854,15 +920,26 @@ class Ensemble:
             self._bar_wants = dict(self.wants)
             if self._bar_log is not None:
                 self._log_bar(start, drums, rules)
-            if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
+            if self.learn in ("likes", "demo") and start.bar > 0 and start.bar % PHRASE == 0:
                 self._autosave_profile()
 
     def _track_groove(self, start: BarStart, drums: Sequence[GridHit]) -> None:
         """The groove of the bar before (#245), before the choices (#250; it draws no
         random numbers): a complete bar goes to the tracker; an incomplete one
         (Start, lost) ends the groove."""
+
+        # Keep the last bars; after a Stop and Start the bars may count from 0 again.
+        def kept(b: int) -> bool:
+            return start.bar - KEPT_BARS < b < start.bar
+
+        self._decisions = {b: d for b, d in self._decisions.items() if kept(b)}
+        self._patterns = {b: p for b, p in self._patterns.items() if kept(b)}
+        self._bass_played = {b: v for b, v in self._bass_played.items() if kept(b)}
         if start.complete and start.bar >= 1:
-            self._groove = self._grooves.observe(start.bar - 1, groove_pattern(drums, self.roles))
+            p = groove_pattern(drums, self.roles)
+            self._groove = self._grooves.observe(start.bar - 1, p)
+            self._decisions[start.bar - 1] = self._groove
+            self._patterns[start.bar - 1] = p
         else:
             self._grooves.stop()
             self._groove = None
@@ -883,7 +960,132 @@ class Ensemble:
         """The prototype of the groove of the last decision (#245)."""
         decision = self._groove
         assert decision is not None and decision.groove is not None
-        return next(g.prototype for g in self._grooves.grooves if g.id == decision.groove)
+        return self._groove_of(decision.groove).prototype
+
+    def _groove_of(self, groove: int) -> Groove:
+        """The tracker's groove `groove` now (#245)."""
+        return next(g for g in self._grooves.grooves if g.id == groove)
+
+    def _nod(self, at: tuple[int, int] | None) -> None:
+        """A nod at (bar, step) of the clock (`None`: not running), `learn nod` (#250):
+        it refers to the bar `learn.liked_bar` gives, and is resolved at once when the
+        tracker's decision on that bar is known, else at the bar line after it."""
+        if at is None:
+            self._log(f"ensemble: pad {self.layer_pad}{IGNORED}")
+            return
+        bar = liked_bar(*at)
+        if bar < self._bar_line:
+            self._resolve_nod(bar)
+        else:
+            self._nodded.add(bar)
+
+    def _resolve_nods(self, bar: int) -> None:
+        """At the bar line `bar`: resolve the nods on the bars before it."""
+        for nodded in sorted(b for b in self._nodded if b < bar):
+            self._nodded.discard(nodded)
+            self._resolve_nod(nodded)
+
+    def _resolve_nod(self, bar: int) -> None:
+        """The nod on `bar`: the groove it counts for (`nods.nod_groove`) keeps the
+        bass variation played in the bar learned, and plays it from the next bar line
+        in its groove bars."""
+        target = nod_groove(bar, self._decisions.get(bar), self._decisions.get(bar - 1))
+        if target.groove is None or target.learn_bar is None:
+            self._log(f"ensemble: nod bar {bar}, no groove to count for")
+            return
+        variation = self._bass_played.get(target.learn_bar, "-")
+        if variation == "-":
+            self._log(f"ensemble: nod bar {bar}, no bass to keep")
+            return
+        groove = self._groove_of(target.groove)
+        self._nods.nod(
+            target.groove,
+            groove.prototype,
+            groove.features,
+            variation,
+            self._playing_loop("bass").name,
+            datetime.date.today().isoformat(),
+        )
+        self.likes += 1
+        if target.from_ == "bar":
+            decision = self._decisions[bar]
+            where = f"bar {bar} -> groove {target.groove} (bar {decision.position})"
+        else:
+            where = f"bar {bar} (fill) -> groove {target.groove} (ended bar {target.ended})"
+        self._log(f"ensemble: nod {where}, bass {variation}")
+
+    def _groove_back(self) -> None:
+        """When the tracker confirms a groove that has a nod (in this session, or a
+        stored one its two starting bars match), log that the bass plays it."""
+        decision = self._groove
+        if decision is None or not decision.new or decision.groove is None:
+            return
+        assert decision.start is not None
+        first = self._patterns.get(decision.start)
+        second = self._patterns.get(decision.bar)
+        had = self._nods.bound(decision.groove) is not None
+        if had or first is None or second is None:
+            nod = self._nods.bound(decision.groove)
+        else:
+            nod = self._nods.match(decision.groove, first, second)
+        if nod is not None:
+            how = "nod" if had else "nod from profile"
+            self._log(f"ensemble: groove {decision.groove} back, bass {nod.variation} ({how})")
+
+    def _groove_learned(self, answer: str | None, plays: set[str]) -> tuple[str, str] | None:
+        """The bass variation and its source in a groove bar with `learn nod` (#250),
+        in this order: the groove's `nod`, its `group`'s nod (`learn-group 1`), an
+        `invite` (`new-groove invite`); `None` for the rules. A groove bar is the bar
+        after one the tracker gave to a groove; with `follow-by groove` also the bar
+        after a fill bar it answers with a fill (`answer`)."""
+        decision = self._groove
+        if self.learn != "nod" or "bass" not in plays or decision is None:
+            return None
+        if decision.groove is None or (decision.fill and answer != "fill"):
+            return None
+        groove = decision.groove
+        variation = self._nods.variation(groove)
+        if variation is not None:
+            return variation, "nod"
+        if self.learn_group:
+            assert decision.start is not None
+            nod = self._group_nod(groove, decision.start)
+            if nod is not None:
+                return nod.variation, "group"
+        if self.new_groove == "invite":
+            return self._invite(groove), "invite"
+        return None
+
+    def _group_nod(self, groove: int, start: int) -> Nod | None:
+        """The nod of the group of `groove` this section plays, drawn once per section
+        (`nods.NodMemory.group`, `GROUP_SHARE`)."""
+        key = (groove, start)
+        if key not in self._sections:
+            self._sections = {k: v for k, v in self._sections.items() if k[0] != groove}
+            nod = self._nods.group(groove, self._groove_of(groove).prototype)
+            drawn = nod if nod is not None and self._nods.draw(nod) else None
+            self._sections[key] = drawn
+            if nod is not None:
+                of = self._nods.groove_of(nod)
+                name = "a stored nod" if of is None else str(of)
+                if drawn is not None:
+                    self._log(
+                        f"ensemble: groove {groove} group of {name}, bass {nod.variation} (group)"
+                    )
+                else:
+                    fallback = "invite" if self.new_groove == "invite" else "rules"
+                    self._log(f"ensemble: groove {groove} group of {name}, {fallback} (group draw)")
+        return self._sections[key]
+
+    def _invite(self, groove: int) -> str:
+        """The variation that invites a nod in `groove`: drawn once per groove among the
+        bass variations other than the rules' for its prototype (`new-groove invite`)."""
+        if groove not in self._invites:
+            (rule, _), _ = groove_choices(self._groove_of(groove).prototype)
+            others = [v for v in BASS_VARIATIONS if v != rule]
+            self._invites[groove] = self._invite_random.choice(others)
+            self._log(f"ensemble: groove {groove} new, bass {self._invites[groove]} (invite)")
+        return self._invites[groove]
 
     def _log_bar(self, start: BarStart, drums: Sequence[GridHit], rules: dict[str, str]) -> None:
         """Add the bar that starts now to the per-bar log (`learn_log`)."""
@@ -1091,6 +1293,9 @@ class Ensemble:
     def _learned(self) -> list[str]:
         """The reply `learned`: up to `LEARNED_REPLY` contexts that differ from the
         rules, bass first."""
+        if self.learn == "nod":
+            nodded = [f"bass:groove {g}>{n.variation}" for g, n in self._nods.bound_grooves()]
+            return nodded[:LEARNED_REPLY]
         learned = [c for p in PARTS for c in self._learners[p].learned()]
         return learned[:LEARNED_REPLY]
 
@@ -1505,6 +1710,9 @@ class Ensemble:
             "mode-pads": lambda a: self._set(lambda: setattr(self, "mode_pads", _flag(a))),
             "status": lambda a: self._set(lambda: setattr(self, "status", _flag(a))),
             "follow-by": self._set_follow_by,
+            "nod": self._nod_control,
+            "learn-group": lambda a: self._set(lambda: setattr(self, "learn_group", _flag(a))),
+            "new-groove": self._set_new_groove,
             "answer-after": lambda a: self._set(
                 lambda: setattr(self, "answer_after", _whole(a, *ANSWER_AFTER))
             ),
@@ -1534,6 +1742,8 @@ class Ensemble:
                 "surprise": str(self.surprise),
                 "rhythm": str(self.rhythm),
                 "follow-by": self.follow_by,
+                "learn-group": str(int(self.learn_group)),
+                "new-groove": self.new_groove,
                 "answer-after": str(self.answer_after),
             }
             profile = PROFILE.as_posix() if self._profile.exists() else None
@@ -1625,6 +1835,10 @@ class Ensemble:
             self._chosen = {p: None for p in PARTS}
             self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
             self._heard = {}
+            self._nods.reset()
+            self._invites.clear()
+            self._sections.clear()
+            self._nodded.clear()
             self.likes = 0
             self._log("ensemble: reset learning to the rules")
         self._report()
@@ -1660,6 +1874,26 @@ class Ensemble:
             self.wants[str(args[0])] = str(args[1])
             self._want_ends[str(args[0])] = None
         self._report()
+
+    def _nod_control(self, args: Sequence[float | int | str]) -> None:
+        """The control `nod`: as pad 16 with `learn nod`, at the clock's position."""
+        if args:
+            raise ValueError(f"expected no arguments, got {list(args)}")
+        with self._lock:
+            if self.learn != "nod":
+                raise ValueError("learn is not nod; send learn nod first")
+            if not self._running():
+                raise ValueError("the clock is not running")
+            assert self._access is not None
+            clock = self._access.state()
+            self._nod((clock.bar, clock.step))
+        self._report()
+
+    def _set_new_groove(self, args: Sequence[float | int | str]) -> None:
+        if len(args) != 1 or args[0] not in NEW_GROOVE:
+            raise ValueError(f"expected one of {', '.join(NEW_GROOVE)}, got {list(args)}")
+        with self._lock:
+            self.new_groove = str(args[0])
 
     def _set_follow_by(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in FOLLOW_BY:
@@ -1804,6 +2038,8 @@ class Ensemble:
                 ("status", [int(self.status)]),
                 ("progression-errors", [self.progression_errors]),
                 ("follow-by", [self.follow_by]),
+                ("learn-group", [int(self.learn_group)]),
+                ("new-groove", [self.new_groove]),
                 ("answer-after", [self.answer_after]),
             ]
 

@@ -146,6 +146,14 @@ class NodMemory:
         """The nod that belongs to `groove` in this session."""
         return self._bound.get(groove)
 
+    def groove_of(self, nod: Nod) -> int | None:
+        """The tracker's id `nod` belongs to in this session (the lowest), if any."""
+        return min((g for g, n in self._bound.items() if n is nod), default=None)
+
+    def bound_grooves(self) -> tuple[tuple[int, Nod], ...]:
+        """The grooves of this session that have a nod, by id."""
+        return tuple(sorted(self._bound.items(), key=lambda item: item[0]))
+
     def add(self, nod: Nod) -> Nod:
         """Keep a stored nod (from the profile), as the most recent, unbound."""
         self._order += 1
