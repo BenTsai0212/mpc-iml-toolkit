@@ -18,6 +18,9 @@ source loop (`webdemo.variations.listen`), each with its audio and piano roll, o
 a plain boom-bap pattern that can be turned off, and a provenance table; in blind
 mode the clips are shuffled under letters until **Reveal**. It only reads loop files.
 
+The `grooves` tab (`webdemo.groovetab`, #249) sorts the musician's own grooves into
+named groups and saves them in the data folder; it is left out under `--share`.
+
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`, `upload`) work, and are tested, without the `demo` extra.
 
@@ -44,7 +47,7 @@ from mpc_iml.melody import NO_DRUMS, ORNAMENTS, BarPlan
 from mpc_iml.recording import read_recording
 from mpc_iml.rhythm import Taken
 from mpc_iml.vargen import CORPORA, DEFAULT_CORPUS, DEFAULT_NOVELTY
-from mpc_iml.webdemo import midifile, roll, variations
+from mpc_iml.webdemo import groovetab, midifile, roll, variations
 from mpc_iml.webdemo.sim import (
     DRUMS,
     STEPS,
@@ -274,9 +277,11 @@ def play_variations(
     ]
 
 
-def build() -> "gr.Blocks":
+def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
     """The demo page. Needs the `demo` extra (`uv sync --extra demo`). Turns
-    Gradio's analytics off unless the environment sets them (`analytics_default_off`)."""
+    Gradio's analytics off unless the environment sets them (`analytics_default_off`).
+    The grooves tab (`groovetab`, #249) saves in `data`, and is left out when `share`
+    makes a public link."""
     analytics = analytics_default_off()
     import gradio as gr
 
@@ -381,6 +386,8 @@ def build() -> "gr.Blocks":
                 headers=variations.PROVENANCE_HEADERS, type="array", interactive=False
             )
             listed = gr.State(None)
+        if not share:
+            groovetab.tab(gr, data)
         audio = gr.Audio(label="the band", type="numpy", interactive=False)
         table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
         image = gr.Image(label="piano roll", type="numpy", interactive=False)

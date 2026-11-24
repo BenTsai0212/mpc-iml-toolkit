@@ -773,6 +773,29 @@ the table shows `?` until you press **Reveal**. The same loop and settings alway
 give the same candidates; `uv run python -m mpc_iml.vargen <loop> --midi` writes them
 as clips for Live. The tab only reads loop files and writes nothing.
 
+The **grooves** tab (#249) lets you sort the grooves you played into your own
+groups. Start the demo with your data folder, for example
+`uv run python -m mpc_iml.webdemo --data mpc-iml-data`, then enter a folder (such as
+a trial session's folder) or recordings made with `record --clock`, one per line,
+relative to the data folder, and press **Load**. The tracker of
+`python -m mpc_iml.grooves` runs over them in date order; a groove played again in
+another recording keeps its number. Each groove gets a card: its 16-step grid of kick,
+snare and hat, its bars and sections, its features in plain words, the bars of up to
+two of its sections as you played them (your timing and velocity) and a loop of its
+pattern on the grid. Type group names in the **groups** table (a row with no id is a
+new group; delete a row to delete the group, and press **Apply groups**, twice when
+grooves would move to *not sure*), then pick each card's group and write a note.
+Change anything at any time. **Save** writes
+`<data folder>/grooves/groups-<time>.json` (ADR 0012); **Save as new** keeps the old
+file. **Export text** writes the groups and notes as plain text next to it, for an
+interview transcript. Open a saved file again by its path to keep editing: when its
+recordings are still there and unchanged, the cards play them again; otherwise they
+play the pattern only, and the page says which recordings are missing or changed.
+Tick **blind** before loading to shuffle the cards with the seed and show them as
+`card A`, `card B`, … with no groove numbers or bar counts. The tab only reads your
+recordings and writes in the data folder; without `--data` it cannot save. It is not
+on the page under `--share`.
+
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
 instead: the band answers it exactly as the engine would have, at the recording's
 tempo, from the clock's Start to the next Stop, at most 64 bars. Pads 1 and 5 are
