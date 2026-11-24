@@ -6,15 +6,35 @@ bars of each groove with its fills, free bars, gaps with no drums), then each gr
 with its prototype as a 16-step grid per role and its mean features. `--json` prints
 the `mpc-iml-grooves` document instead. The thresholds can be tried here only; live
 they are fixed (RFC 0005 allows at most two controls to adjust while playing).
+
+`--group-distance` (#250) adds each groove's rhythm descriptors with the other grooves
+within that distance of it (`GROUP_DISTANCE` when given no value), which a nod on it
+would reach with `learn-group`, or its nearest other groove when none is, and the
+spread of each descriptor over the grooves, so the fixed scale and threshold can be
+checked against recorded sessions.
 """
 
 import argparse
 import json
+import statistics
 import sys
 from collections.abc import Sequence
 
-from mpc_iml.grooves import FREE_BARS, PART_ROLES, RETURN, SIMILAR, STEPS, Groove, Tracker
-from mpc_iml.grooves.offline import Bar, Result, Section, document, track
+from mpc_iml.grooves import (
+    FREE_BARS,
+    GROUP_DISTANCE,
+    GROUP_SCALE,
+    PART_ROLES,
+    RETURN,
+    SIMILAR,
+    STEPS,
+    Descriptors,
+    Groove,
+    Tracker,
+    descriptor_distance,
+    rhythm_descriptors,
+)
+from mpc_iml.grooves.offline import Bar, Result, Section, descriptor_reach, document, track
 from mpc_iml.recording import RecordingFormatError, read_recording
 
 LABELS = {
@@ -50,6 +70,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=FREE_BARS,
         help=f"fills in a row after which the bars are free (default: {FREE_BARS})",
+    )
+    parser.add_argument(
+        "--group-distance",
+        type=float,
+        nargs="?",
+        const=GROUP_DISTANCE,
+        help=f"also list the grooves a nod reaches at this distance (default: {GROUP_DISTANCE})",
     )
     parser.add_argument(
         "--beats-per-bar", type=int, default=4, help="quarter notes per bar (only 4)"
@@ -91,6 +118,35 @@ def format_result(result: Result) -> list[str]:
     return lines
 
 
+def values(d: Descriptors | dict[str, float]) -> str:
+    items = d.as_dict() if isinstance(d, Descriptors) else d
+    return "  ".join(f"{k} {v:.2f}" for k, v in items.items())
+
+
+def format_reach(grooves: Sequence[Groove], distance: float) -> list[str]:
+    """Each groove's descriptors and the grooves within `distance` of it, which a nod
+    on it would reach (with the nearest other groove when none is), then the spread
+    (population standard deviation) of each descriptor over the grooves."""
+    lines = [f"reach at distance {distance:.2f}  (scale: {values(GROUP_SCALE)})"]
+    reach = descriptor_reach(grooves, distance)
+    found = {g.id: rhythm_descriptors(g.prototype) for g in grooves}
+    for i, d in sorted(found.items()):
+        lines.append(f"groove {i}  {values(d)}")
+        near = ", ".join(f"groove {j} ({x:.2f})" for j, x in reach[i])
+        others = [(descriptor_distance(d, e), j) for j, e in found.items() if j != i]
+        if not near and others:
+            x, j = min(others)
+            near = f"none (nearest: groove {j}, {x:.2f})"
+        lines.append(f"  reaches: {near or 'none'}")
+    if len(found) > 1:
+        spread = {
+            name: statistics.pstdev(d.as_dict()[name] for d in found.values())
+            for name in GROUP_SCALE.as_dict()
+        }
+        lines.append(f"spread: {values(spread)}")
+    return lines
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.beats_per_bar != 4:
@@ -98,6 +154,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if args.free_bars < 1:
         print("error: --free-bars must be at least 1", file=sys.stderr)
+        return 2
+    if args.group_distance is not None and (args.json or args.group_distance < 0):
+        print("error: --group-distance is at least 0 and not with --json", file=sys.stderr)
         return 2
     try:
         recording = read_recording(args.path)
@@ -108,7 +167,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.json:
         print(json.dumps(document(result, str(args.path)), indent=2))
     else:
-        print("\n".join(format_result(result)))
+        lines = format_result(result)
+        if args.group_distance is not None:
+            lines += ["", *format_reach(result.grooves, args.group_distance)]
+        print("\n".join(lines))
     return 0
 
 
