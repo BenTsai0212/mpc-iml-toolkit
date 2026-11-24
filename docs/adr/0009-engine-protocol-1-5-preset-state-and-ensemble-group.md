@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-20
 - Related: ADR 0004, ADR 0005, ADR 0006, ADR 0007, ADR 0008, RFC 0005 (proposed),
-  #138, #144, #148, #153, #158, #159, #113 (Epic)
+  #138, #144, #148, #153, #158, #159, #250, #113 (Epic)
 - Accepted: 2026-11-22, implemented in #158 and #159 and the later amendments, and played on `main` (#211)
 
 ## Context
@@ -275,6 +275,8 @@ and hats.
 
 ## Amendment: learning from likes (#196)
 
+Replaced by "Amendment: learning by groove (#250)"; kept as history.
+
 The `## Decision` on #196 (2026-11-22) accepts this amendment (RFC 0005 step 8,
 PR 2 of #196). Each loop can learn which variation the musician wants for a kind
 of drumming, starting from the rules of #158.
@@ -313,6 +315,8 @@ of drumming, starting from the rules of #158.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
 
 ### Learning from demonstrations (#196, PR 3)
+
+Replaced by "Amendment: learning by groove (#250)"; kept as history.
 
 The same `## Decision` covers this part (point 4, B).
 
@@ -359,6 +363,8 @@ The same `## Decision` covers this part (point 7).
   controls. Group 8 and the Max for Live device do not change.
 
 ### Learning the loops (#196, PR 5)
+
+Replaced by "Amendment: learning by groove (#250)"; kept as history.
 
 The same `## Decision` covers this part (point 2).
 
@@ -420,6 +426,8 @@ compare what it said it compared.
   code or protocol version changes; the protocol stays 1.5.
 
 ## Amendment: choosing while drumming (#215)
+
+Replaced by "Amendment: learning by groove (#250)"; kept as history.
 
 Issue #215 asks for this amendment (its `## Decision`). In the manual check of #196
 the musician held one `want` to the end: cycling from `auto` always started at the
@@ -548,6 +556,148 @@ Chord progressions are progression files, and the package ships seven.
   number (#236 PR 4): `ensemble: bar <N>  <chord>  bass …`, for example
   `ensemble: bar 5  Bm7b5  bass push (rule) …`.
 - No core message, error code or protocol version changes; the protocol stays 1.5.
+
+## Amendment: learning by groove (#250)
+
+The `## Decision` on #250 (2026-11-24) accepts this amendment, with RFC 0005
+principles 13 and 14. In the learning trials of 2026-11-23 learning by likes and
+demonstrations was not audible, and about 60% of the drummer's pattern changes fell
+in the same bass context. The band now follows the drummer's grooves (#245), and
+learns from one gesture, the nod. This replaces the sections "Learning from likes",
+"Learning from demonstrations", "Learning the loops" and "Choosing while drumming";
+the pull requests of #250 build it in steps, and the last one removes the old modes.
+
+### What replaces contexts
+
+- New control `follow-by bar|groove` (default `bar`, preset version), a setting. With
+  `bar` each loop's variation follows the bar that ended, as before. With `groove`
+  the groove tracker (`grooves.Tracker`) moves before the choices at each bar line
+  (it draws no random numbers, so `bar` plays exactly as before), and:
+  - in a **groove bar** (the tracker's decision on the bar before is a groove), the
+    rules (`bass.bass_variation`, `melody.melody_variation`, unchanged) read the
+    groove's prototype instead of the bar's own hits, so the variation holds while
+    the groove holds. Velocities and the rhythm transformation still come from the
+    bar played. The melody reads the prototype too.
+  - a **groove change** is answered from the bar after the tracker confirms the new
+    groove (the end of its second bar). Its first bar is a fill for the tracker.
+  - after a **fill bar** the bass keeps the groove's variation and plays its fill
+    figure (`bass.bass_fill`, the same as a `surprise`), source `fill`, and that bar
+    draws no surprise. When the groove continues, the groove's variation plays
+    again.
+  - in a **free** bar, before the first groove, and with no drums, the per-bar rules
+    apply, as with `bar`.
+- New control `answer-after 2|1` (default 2), a setting for a later trial. With `1`
+  a different bar is answered from the next bar with the per-bar rules (source
+  `rule`), and the bass goes back to the groove's variation a bar later when that
+  bar was a fill.
+
+### The nod
+
+- `learn` takes `off|nod`. With `nod`, pad 16 is the nod (pads 15 and 16 stay the
+  two controls changed while playing). New control `nod` (no arguments) does the
+  same for tests, the web demo and scripts. It is refused with `bad_arguments` with
+  `learn off` and with arguments; a press while the clock is not running logs
+  `ensemble: pad 16 ignored, the clock is not running`, as before.
+- A nod refers to the bar given by `learn.liked_bar` (in the first beat, the bar
+  before). It is resolved at the bar line after that bar, when the tracker's
+  decision on it is known:
+  - a groove bar of groove `g` counts for `g`;
+  - a fill, a free bar or a bar with no drums counts for the last groove whose last
+    groove bar is that bar or the bar before;
+  - otherwise nothing is learned, and the log says why.
+- **What is learned**: the bass variation played in the nodded bar when it was a
+  bar of that groove (not a fill answer), otherwise the variation of the groove's
+  last groove bar. Bass only: the melody is not learned.
+- In every later groove bar of a nodded groove the bass plays the nodded variation,
+  source `nod`. A later nod in the same groove replaces it. A nod holds until
+  another nod in that groove or `reset-learning`.
+- New control `learn-group 0|1` (default 0), a setting. With 1, when a groove with no
+  nod of its own is confirmed and a nodded groove of its group exists (the nearest
+  one), a draw from the nod's own seeded generator plays that nod's variation for
+  the whole section with probability `GROUP_SHARE` (0.5), source `group`. A nod in
+  that groove overrides it.
+  - Two grooves are in a group when the distance between their **rhythm
+    descriptors**, each divided by a fixed scale, is at most `GROUP_DISTANCE`. The
+    five descriptors (Gómez-Marín, Jordà and Herrera 2020, "Drum rhythm spaces:
+    from polyphonic similarity to generative maps", JNMR 49(5); computed on the
+    16-step prototype as in their `rhythmtoolbox`, MIT, with low = kick, mid =
+    snare, high = hat) are `lowsync` (the kick's syncopation), `midD` (the snare's
+    density), `hiD` (the hat's density), `hiness` (the hat's share of all hits) and
+    `hisyness` (the hat's syncopation divided by its density). Syncopation is
+    Longuet-Higgins and Lee style, with metrical weights for 16 steps
+    (`grooves.rhythm_descriptors`).
+  - The scales and `GROUP_DISTANCE` are proposed with `grooves.rhythm_descriptors`
+    and checked by the decision maker against recorded sessions with `python -m
+    mpc_iml.grooves --group-distance`, which prints the groups it finds.
+  - Once the grouping file of #249 exists, its groups replace this test.
+- New control `new-groove rules|invite` (default `rules`), a setting. With `invite`
+  a groove with no nod plays, once drawn per groove and session, a bass variation
+  other than the one the rules give for its prototype, source `invite`, until a
+  nod, to invite one.
+- Order in a groove bar: `nod`, then `group`, then `invite`, then the rules.
+
+### The profile
+
+- The profile (`<data folder>/learn/ensemble.json`, `mpc-iml-ensemble-profile`)
+  moves to **format version 2**. It keeps the settings, and a list `nods`; each nod
+  has the groove's `prototype` (kick, snare and hat steps), its #245 `features`, the
+  `part` (`bass`), the `variation`, the count of `nods`, the `loop` it was heard in
+  (a record only: all bass loops share their variation names) and the date of the
+  `last` nod. At most `NODS_MAX` (64) nods are kept, and the one nodded least
+  recently goes first. Two nods whose prototypes come to match merge into the newer
+  one.
+- Within a session a nod belongs to a tracker id (a returning groove keeps its id).
+  Across sessions, when the tracker confirms a groove, its two starting bars are
+  compared with each stored prototype by step similarity (`grooves.similarity`),
+  with the tracker's own return test (mean similarity at least `RETURN`, 0.8); the
+  best match then belongs to that tracker id for the session. The tracker's ids stay
+  session-local.
+- The profile stores no groups. A group comes from the descriptors, or later from
+  the grouping file of #249, by matching that file's grooves to stored prototypes
+  in the same way, so `learn-group` can use the file without a new profile format.
+- Reading a version 1 profile (from `likes` and `demo`) renames it once to
+  `learn/ensemble-v1.json`, logs it, and starts with no nods, so nothing learned is
+  overwritten. `save-profile`, `load-profile` and `reset-learning` keep their
+  meaning. `python -m mpc_iml.learn show` lists the nods, each prototype as a
+  16-step grid per role.
+
+### Status line, logs and replies
+
+- The status line shows the sources `nod`, `group`, `invite` and `fill`, and pad
+  16's action `nod`, for example `ensemble: bar 17  Am7  groove 2 (bar 8)  bass push
+  (nod)  melody home (still)  16: nod  15: -`.
+- Nod lines go to `engine.log` only, not to `for_musician`, so a blind trial stays
+  blind: `ensemble: nod bar <N> -> groove <g> (bar <k>), bass <variation>`,
+  `ensemble: nod bar <N> (fill) -> groove <g> (ended bar <M>), bass <variation>`,
+  `ensemble: nod bar <N>, no groove to count for`, `ensemble: groove <g> back, bass
+  <variation> (nod)` (or `(nod from profile)`), and `ensemble: groove <g> group of
+  <h>, bass <variation> (group)` or `… rules (group draw)`.
+- The learn log (`mpc-iml-ensemble-log`) adds fields without a version change: `learn`
+  can be `nod`; `source` gains `nod`, `group`, `invite` and `fill`; a new `nod` field
+  (`{"bar", "groove", "variation", "from": "bar"|"fill"|"none"}` on the line of the
+  nodded bar, else `null`); `follow-by` joins the header settings. `python -m
+  mpc_iml.learn summary` adds a `nods:` line and, per groove change, whether the
+  bass variation changed.
+- Replies: `learn` gives `nod`; `likes` counts resolved nods; `chose` gives the new
+  sources; `learned` lists up to 4 `bass:groove <id>><variation>` for the nodded
+  grooves of the session; `want` stays `auto` and `examples` 0. New replies after
+  `progression-errors`, in this order: `follow-by` (`s`), `learn-group` (`i`),
+  `new-groove` (`s`), `answer-after` (`i`). They change only with their controls,
+  so the bar line reports are as before.
+
+### What is removed, and what stays
+
+- `learn likes`, `learn demo`, `like`, `want` and `learn-loops` are removed with
+  their code (`Learner`, `LoopLearner`, `Demonstrations` and the decision tree in
+  `ensemble`), `tests/data/ensemble-learn-likes.json` and
+  `examples/trial/learn.json`. They are then refused with `bad_arguments`, and the
+  error names `learn nod`.
+- `learn off` with `follow-by bar` plays exactly as before:
+  `tests/data/ensemble-learn-off.json` and `tests/data/ensemble-rhythm-0.json` do
+  not change. A new golden file, `tests/data/ensemble-follow-groove.json`, holds
+  `learn off` with `follow-by groove`.
+- Group 8 and the Max for Live device do not change. No core message, error code or
+  protocol version changes; the protocol stays 1.5.
 
 ## Consequences
 
