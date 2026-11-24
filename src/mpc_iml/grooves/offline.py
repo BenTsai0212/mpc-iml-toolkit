@@ -20,6 +20,10 @@ Steps in it count from 0, as in `Pattern`; bars and takes from 1.
 again in a later recording takes its earlier id by the tracker's `RETURN` rule, as
 across takes. Recordings go in the order of their file's modification time, then
 path: the recording header has no date.
+
+`descriptor_reach` (#250) lists, for each groove, the grooves within a
+`grooves.descriptor_distance` of it, which a nod on it would reach, for `python -m
+mpc_iml.grooves --group-distance`.
 """
 
 from collections.abc import Iterable, Sequence
@@ -31,7 +35,17 @@ from typing import Any
 from mpc_iml.clock import BarStart, ClockAccess, GridHit, MidiClock
 from mpc_iml.ensemble import DEFAULT_ROLES
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
-from mpc_iml.grooves import PART_ROLES, Decision, Groove, Pattern, Tracker, pattern
+from mpc_iml.grooves import (
+    GROUP_DISTANCE,
+    PART_ROLES,
+    Decision,
+    Groove,
+    Pattern,
+    Tracker,
+    descriptor_distance,
+    pattern,
+    rhythm_descriptors,
+)
 from mpc_iml.recording import RecordingFormatError, read_recording
 
 FORMAT = "mpc-iml-grooves"
@@ -306,3 +320,18 @@ def track_many(
         modified = datetime.fromtimestamp(mtime, UTC).isoformat(timespec="seconds")
         sources.append(Source(path, modified, result))
     return Many(tuple(sources), tracker.grooves, sources[-1].result.settings)
+
+
+def descriptor_reach(
+    grooves: Sequence[Groove], distance: float = GROUP_DISTANCE
+) -> dict[int, list[tuple[int, float]]]:
+    """For each groove id (in order), the other grooves whose prototypes are at most
+    `distance` from its own (`grooves.descriptor_distance`), as `(id, distance)`,
+    nearest first. These are the grooves a nod on it would reach; grooves linked only
+    through others are not. A groove near no other has an empty list."""
+    found = {g.id: rhythm_descriptors(g.prototype) for g in grooves}
+    reach: dict[int, list[tuple[int, float]]] = {}
+    for i in sorted(found):
+        near = [(descriptor_distance(found[i], d), j) for j, d in found.items() if j != i]
+        reach[i] = [(j, d) for d, j in sorted(near) if d <= distance]
+    return reach

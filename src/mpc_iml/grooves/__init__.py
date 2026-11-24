@@ -32,6 +32,15 @@ The prototype is a vote per role and step: each bar of the groove multiplies the
 votes by `DECAY` and adds 1 to its own steps, and the prototype is the steps with at
 least half of the (decayed) bar count. Fills do not vote. With a decay of 0.8 the
 vote keeps about the last five bars, so a groove that drifts slowly keeps its id.
+
+`rhythm_descriptors` (#250) describes a pattern with the five descriptors of
+Gómez-Marín, Jordà and Herrera (2020, "Drum rhythm spaces: from polyphonic
+similarity to generative maps", JNMR 49(5)), which predict how alike people hear two
+polyphonic drum patterns. They are computed as in the authors' `rhythmtoolbox` (MIT),
+with low = kick, mid = snare and high = hat. Two grooves are in a **group** when
+`descriptor_distance` between their prototypes is at most `GROUP_DISTANCE`: a nod on
+a groove reaches the grooves within that distance of it, not the grooves linked
+through others.
 """
 
 from collections.abc import Iterable, Sequence
@@ -43,21 +52,28 @@ __all__ = [
     "CONTROL_PADS",
     "DECAY",
     "FREE_BARS",
+    "GROUP_DISTANCE",
+    "GROUP_SCALE",
     "PART_ROLES",
     "RETURN",
+    "SALIENCE",
     "SILENT_BARS",
     "SIMILAR",
     "STEPS",
     "Decision",
+    "Descriptors",
     "Features",
     "Groove",
     "Pattern",
     "Tracker",
+    "descriptor_distance",
     "features",
     "matched",
     "mean_features",
     "pattern",
+    "rhythm_descriptors",
     "similarity",
+    "syncopation",
 ]
 
 STEPS = 16
@@ -186,6 +202,82 @@ def mean_features(bars: Sequence[Features]) -> Features:
         return Features()
     names = [f.name for f in fields(Features)]
     return Features(**{n: sum(getattr(b, n) for b in bars) / len(bars) for n in names})
+
+
+SALIENCE = (5, 1, 2, 1, 3, 1, 2, 1, 4, 1, 2, 1, 3, 1, 2, 1)
+"""The metrical weight of each step, Longuet-Higgins and Lee style (as in
+`rhythmtoolbox`): the downbeat 5, beat 3 4, beats 2 and 4 3, the other 8ths 2, 16ths 1."""
+
+
+def syncopation(steps: Iterable[int]) -> int:
+    """The syncopation of one role's steps: each hit followed by a step without a hit
+    (the bar wraps, so step 15 is followed by step 0) adds the weight of that next step
+    minus its own (`SALIENCE`). A hit on a strong step before a rest counts below 0, a
+    hit before a stronger rest above 0. As `rhythmtoolbox.descriptors.syncopation16`."""
+    hits = set(steps)
+    return sum(SALIENCE[(s + 1) % STEPS] - SALIENCE[s] for s in hits if (s + 1) % STEPS not in hits)
+
+
+@dataclass(frozen=True)
+class Descriptors:
+    """A pattern's rhythm descriptors (module docstring), named as in the paper.
+
+    `lowsync`: the kick's `syncopation`. `midD`: snare steps. `hiD`: hat steps.
+    `hiness`: hat steps divided by the steps with any kick, snare or hat (0 with no
+    drums). `hisyness`: the hat's syncopation divided by its steps (0 with no hat).
+    """
+
+    lowsync: float = 0.0
+    midD: float = 0.0
+    hiD: float = 0.0
+    hiness: float = 0.0
+    hisyness: float = 0.0
+
+    def as_dict(self) -> dict[str, float]:
+        return {f.name: getattr(self, f.name) for f in fields(self)}
+
+
+def rhythm_descriptors(p: Pattern) -> Descriptors:
+    """The rhythm descriptors of one pattern (a bar or a groove's prototype)."""
+    onsets = len(p.kick | p.snare | p.hat)
+    return Descriptors(
+        lowsync=syncopation(p.kick),
+        midD=len(p.snare),
+        hiD=len(p.hat),
+        hiness=len(p.hat) / onsets if onsets else 0.0,
+        hisyness=syncopation(p.hat) / len(p.hat) if p.hat else 0.0,
+    )
+
+
+GROUP_SCALE = Descriptors(lowsync=4.0, midD=2.0, hiD=4.0, hiness=0.25, hisyness=1.0)
+"""The fixed scale of each descriptor in `descriptor_distance`: about the spread of
+each over common 16-step grooves, so a difference of one scale is a clear change
+(4 for kick syncopation, 2 snare hits, 4 hat hits, a quarter of the hits, 1 for the
+hat's syncopation per hit, the difference between hats on the 8ths and on the 16ths
+is about 1.9). Proposed in #250 and checked with `python -m mpc_iml.grooves
+--group-distance` against recorded sessions."""
+
+GROUP_DISTANCE = 1.0
+"""The largest `descriptor_distance` at which two grooves are in a group (#250,
+`learn-group 1`), so a nod on one reaches the other. Checked by the decision maker
+against eleven grooves from his sessions and three recorded sessions (#253): at 1.0, 3
+of 9 same-group pairs (near variants of one groove) and 1 of 46 different-group pairs
+are within it; at the first proposal, 2.0, 7 of 9 and 10 of 46, so a nod would reach
+more wrong grooves than right ones."""
+
+
+def descriptor_distance(
+    a: Descriptors | Pattern, b: Descriptors | Pattern, scale: Descriptors = GROUP_SCALE
+) -> float:
+    """The Euclidean distance between two descriptor vectors (of patterns, or computed
+    already), each descriptor divided by its `scale`."""
+    x = a if isinstance(a, Descriptors) else rhythm_descriptors(a)
+    y = b if isinstance(b, Descriptors) else rhythm_descriptors(b)
+    total = 0.0
+    for f in fields(Descriptors):
+        unit: float = getattr(scale, f.name)
+        total += ((getattr(x, f.name) - getattr(y, f.name)) / unit) ** 2
+    return float(total**0.5)
 
 
 @dataclass

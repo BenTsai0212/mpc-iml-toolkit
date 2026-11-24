@@ -21,7 +21,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 - 型別檢查：`uv run mypy`（strict，檢查 `src/`）
 - 測試：`uv run pytest`（預設略過 `@pytest.mark.hardware`）
 - 盲測比較：`uv run python -m mpc_iml.trial run <trial 檔> <資料夾>`（由人接上 MPC 與 Live 後執行；agent 與 CI 不執行）、`uv run python -m mpc_iml.trial report <session>…`；見 `docs/trials.md`
-- groove 離線檢視：`uv run python -m mpc_iml.grooves <錄音>`（`--json` 輸出 `mpc-iml-grooves` 文件；`--similar`、`--return`、`--free-bars` 試其他門檻；#245）
+- groove 離線檢視：`uv run python -m mpc_iml.grooves <錄音>`（`--json` 輸出 `mpc-iml-grooves` 文件；`--similar`、`--return`、`--free-bars` 試其他門檻；#245；`--group-distance [距離]` 另列出每個 groove 依節奏描述子距離在內、點頭會到達的 groove，#250）
 - 網頁 demo：`uv sync --extra demo` 後 `uv run python -m mpc_iml.webdemo`（只開在 `127.0.0.1`；`--data <資料夾>` 讓 grooves 分頁讀錄音並存檔（#249）；`--share` 產生 Gradio 的暫時公開連結，此時沒有 grooves 分頁，只由人執行，agent 與 CI 不執行）
 - 硬體測試：`uv run pytest -m hardware`（由人接上 MPC 後執行；agent 與 CI 不執行，對應 Issue 的 `needs-human` 待辦）
 - Max for Live 裝置：`uv run python tools/m4l/build_device.py` 重新產生 `src/mpc_iml/patches/mpc-iml.maxpat`（不要手改該檔；`tests/test_m4l.py` 比對兩者）
