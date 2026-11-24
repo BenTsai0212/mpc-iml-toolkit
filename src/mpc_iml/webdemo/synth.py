@@ -9,16 +9,20 @@ brightness CC the melody sent, so the hats are heard in the keys.
 The noise comes from a seeded generator, so the same song always gives the same
 samples. The result is mono `int16` at `RATE`, ready for `gr.Audio` as
 `(RATE, samples)`.
+
+`render_hits` plays drum hits at times in seconds, not at MIDI ticks, so a recording's
+timing is kept to the sample (#249): the clock's 24 ticks per beat would round it.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 
-from mpc_iml.webdemo.sim import Note, Song
+from mpc_iml.webdemo.sim import DRUMS, Note, Song
 
-__all__ = ["RATE", "TAIL", "render"]
+__all__ = ["DRUMS", "RATE", "TAIL", "Hit", "render", "render_hits"]
 
 RATE = 22_050
 TAIL = 0.5
@@ -31,6 +35,16 @@ _RELEASE = 0.05
 _DEFAULT_BRIGHTNESS = 64
 
 
+@dataclass(frozen=True)
+class Hit:
+    """A drum hit `t` seconds from the start: `part` is one of `DRUMS`, `velocity`
+    1-127."""
+
+    t: float
+    part: str
+    velocity: int
+
+
 def render(song: Song, seed: int = 0) -> npt.NDArray[np.int16]:
     """The samples of `song`: its length plus `TAIL`, at most full scale."""
     rng = np.random.default_rng(seed)
@@ -39,9 +53,32 @@ def render(song: Song, seed: int = 0) -> npt.NDArray[np.int16]:
     for note in song.notes:
         voice = _voice(note, note.ticks * spt, _brightness(song, note.tick), rng)
         voice *= _GAIN[note.part] * note.velocity / 127
-        start = int(round(note.tick * spt * RATE))
-        end = min(start + len(voice), len(out))
+        _add(out, voice, int(round(note.tick * spt * RATE)))
+    return _int16(out)
+
+
+def render_hits(hits: Iterable[Hit], seconds: float, seed: int = 0) -> npt.NDArray[np.int16]:
+    """The samples of drum `hits`: `seconds` plus `TAIL`, at most full scale. Each hit
+    starts at the sample nearest its time; the part of a hit before 0 is cut."""
+    rng = np.random.default_rng(seed)
+    out = np.zeros(int(round((seconds + TAIL) * RATE)))
+    for hit in hits:
+        if hit.part not in DRUMS:
+            raise ValueError(f"not a drum part: {hit.part!r}")
+        voice = _drum(hit.part, rng) * _GAIN[hit.part] * hit.velocity / 127
+        _add(out, voice, int(round(hit.t * RATE)))
+    return _int16(out)
+
+
+def _add(out: Samples, voice: Samples, start: int) -> None:
+    if start < 0:
+        voice, start = voice[-start:], 0
+    end = min(start + len(voice), len(out))
+    if end > start:
         out[start:end] += voice[: end - start]
+
+
+def _int16(out: Samples) -> npt.NDArray[np.int16]:
     peak = float(np.max(np.abs(out), initial=0.0))
     if peak > 1.0:
         out /= peak
@@ -58,19 +95,23 @@ def _brightness(song: Song, tick: int) -> int:
     return value
 
 
-def _voice(note: Note, seconds: float, brightness: int, rng: np.random.Generator) -> Samples:
-    if note.part == "kick":
+def _drum(part: str, rng: np.random.Generator) -> Samples:
+    if part == "kick":
         t = _time(0.35)
         sweep = 45 + 75 * np.exp(-t / 0.04)
         return np.sin(2 * np.pi * np.cumsum(sweep) / RATE) * np.exp(-t / 0.12)
-    if note.part == "snare":
+    if part == "snare":
         t = _time(0.2)
         noise = rng.uniform(-1, 1, len(t)) * np.exp(-t / 0.06)
         return 0.6 * noise + 0.4 * np.sin(2 * np.pi * 190 * t) * np.exp(-t / 0.05)
-    if note.part == "hat":
-        t = _time(0.06)
-        noise = np.diff(rng.uniform(-1, 1, len(t) + 1)) / 2
-        return noise * np.exp(-t / 0.02)
+    t = _time(0.06)
+    noise = np.diff(rng.uniform(-1, 1, len(t) + 1)) / 2
+    return noise * np.exp(-t / 0.02)
+
+
+def _voice(note: Note, seconds: float, brightness: int, rng: np.random.Generator) -> Samples:
+    if note.part in DRUMS:
+        return _drum(note.part, rng)
     freq = 440.0 * 2 ** ((note.pitch - 69) / 12)
     t = _time(seconds + _RELEASE)
     if note.part == "bass":
