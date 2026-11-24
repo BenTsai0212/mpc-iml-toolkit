@@ -1,13 +1,16 @@
 """Run the web demo: `uv run python -m mpc_iml.webdemo` (#166).
 
 Opens on `127.0.0.1` only. `--share` asks Gradio for a temporary public link
-through its share servers; only a person runs it, never an agent or CI.
+through its share servers; only a person runs it, never an agent or CI. The grooves
+tab (#249) saves in `--data <folder>`, and is left out under `--share`, so a
+musician's playing never reaches a public link.
 """
 
 import argparse
 import importlib.util
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 INSTALL_HINT = (
     "the web demo needs the demo extra: run `uv sync --extra demo`, "
@@ -34,13 +37,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--share", action="store_true", help="also make a temporary public link (Gradio)"
     )
+    parser.add_argument(
+        "--data",
+        type=Path,
+        help="data folder: the grooves tab reads recordings and saves groups here",
+    )
     args = parser.parse_args(argv)
     if not gradio_installed():
         print(INSTALL_HINT, file=sys.stderr)
         return 2
     from mpc_iml.webdemo.app import build
 
-    build().launch(server_name="127.0.0.1", server_port=args.port, share=args.share)
+    build(args.data, args.share).launch(
+        server_name="127.0.0.1", server_port=args.port, share=args.share
+    )
     return 0
 
 
