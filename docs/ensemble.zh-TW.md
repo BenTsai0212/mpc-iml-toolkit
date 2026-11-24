@@ -356,10 +356,10 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/learn` | `off`、`likes`、`demo` 或 `nod` | `off` | `nod`：pad 16 是**點頭**，記住那個 groove 中 bass 的變奏，該 groove 再出現時 bass 演奏它（#250）；`likes`：每個 loop 的變奏來自你的「喜歡」教給它的選擇，從規則開始，pad 16 改為**喜歡**而不切換 bass 模式（bass 模式在演奏前設定）；`demo`：pad 16 與 15 選擇你要的 bass 與旋律變奏，該 loop 演奏它，每個這樣打鼓的小節成為一個範例，`auto` 演奏範例教給的選擇（決策樹；少於 4 個範例或只有一種變奏時用規則）；`off`：規則（#196） |
 | `/mpciml/preset/ensemble/like` | 無 | - | 與 `learn likes` 時的 pad 16 相同：喜歡樂團在這個小節演奏的內容（第一拍內是上一小節）；`learn off` 或 clock 未執行時拒絕 |
 | `/mpciml/preset/ensemble/want` | `bass` 或 `melody`，接 `auto` 或它的一個變奏 | `auto` | 與 `learn demo` 時的 pad 16、15 相同：你要該 loop 演奏並學習的變奏；不是 `learn demo` 時拒絕 |
-| `/mpciml/preset/ensemble/save-profile` | 無 | - | 立即把學到的內容存到資料夾的 `learn/ensemble.json`（profile）；`learn likes` 或 `demo` 時每個 4 小節樂句開頭也會儲存 |
+| `/mpciml/preset/ensemble/save-profile` | 無 | - | 立即把學到的內容存到資料夾的 `learn/ensemble.json`（profile，第 2 版含點頭，#250）；`learn` 不是 `off` 時每個 4 小節樂句開頭也會儲存；讀到 #250 之前的第 1 版 profile 時改名為 `learn/ensemble-v1.json` 保留，從沒有點頭開始 |
 | `/mpciml/preset/ensemble/load-profile` | 無 | - | 重新讀取 profile（載入 `ensemble` 時也會讀取）；檔案不存在或無法讀取時拒絕 |
-| `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile |
-| `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數 |
+| `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記點頭、喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile（每個點頭的 groove 以 16 step 方格列出） |
+| `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數；`learn nod` 時點頭的小節有 `nod` 欄位，summary 加上 `nods:` 一行與每次 groove 改變時 bass 變奏是否改變 |
 | `/mpciml/preset/ensemble/mode-pads` | 0 或 1 | 1 | 1：pad 15、16 切換旋律與 bass 的模式；0：不切換模式（`learn likes` 時仍是喜歡、`learn demo` 時仍是想要的變奏），盲測比較時送出（[盲測比較](trials.md)） |
 | `/mpciml/preset/ensemble/follow-by` | `bar` 或 `groove` | `bar` | `groove`：變奏跟隨你的 groove（由 groove 的節奏型選擇，fill 小節的下一小節 bass 保持 groove 的變奏並在第 4 拍奏過門）；`bar`：跟隨每一小節（#250） |
 | `/mpciml/preset/ensemble/nod` | 無 | - | 同 `learn nod` 時的 pad 16：在這一小節點頭（第一拍內為前一小節）；`learn` 不是 `nod` 或時鐘未執行時拒絕 |

@@ -242,8 +242,12 @@ one for the groove's prototype, drawn once per groove (`invite`); else the rules
 When the tracker confirms a groove with a nod, `ensemble: groove 2 back, bass push
 (nod)` is logged. These lines are not `for_musician`. With `learn nod` the replies
 `likes` and `learned` count the nods that kept a variation and list `bass:groove
-<id>><variation>`, and the profile is not saved at phrase starts. Only the bass
-learns.
+<id>><variation>`. Only the bass learns. The nods are kept in the profile (format
+version 2) and saved at each phrase start; a groove confirmed in a later session finds
+its stored nod by its two starting bars (`ensemble: groove 2 back, bass push (nod from
+profile)`). A version 1 profile (from `likes` and `demo`) is renamed once to
+`learn/ensemble-v1.json` and the band starts with no nods. The learn log's line of a
+nodded bar has its `nod` (`{"bar", "groove", "variation", "from"}`).
 
 The replies `follow-by`, `learn-group`, `new-groove` and `answer-after` follow
 `progression-errors`, and the learn log's header has these settings.
@@ -296,7 +300,15 @@ from mpc_iml.learn import (
 )
 from mpc_iml.learn import context as learn_context
 from mpc_iml.learn_log import BarLog, log_path
-from mpc_iml.learn_profile import PROFILE, apply_profile, read_profile, write_profile
+from mpc_iml.learn_profile import (
+    OLD_PROFILE,
+    PROFILE,
+    OldProfile,
+    Profile,
+    apply_profile,
+    read_profile,
+    write_profile,
+)
 from mpc_iml.loops import USER_FOLDER, LoopLibrary, load_loops, load_user_loops
 from mpc_iml.melody import (
     BRIGHTNESS,
@@ -920,7 +932,7 @@ class Ensemble:
             self._bar_wants = dict(self.wants)
             if self._bar_log is not None:
                 self._log_bar(start, drums, rules)
-            if self.learn in ("likes", "demo") and start.bar > 0 and start.bar % PHRASE == 0:
+            if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
                 self._autosave_profile()
 
     def _track_groove(self, start: BarStart, drums: Sequence[GridHit]) -> None:
@@ -990,10 +1002,15 @@ class Ensemble:
         bass variation played in the bar learned, and plays it from the next bar line
         in its groove bars."""
         target = nod_groove(bar, self._decisions.get(bar), self._decisions.get(bar - 1))
-        if target.groove is None or target.learn_bar is None:
+        variation = None
+        if target.learn_bar is not None:
+            variation = self._bass_played.get(target.learn_bar, "-")
+        if self._bar_log is not None:
+            kept = None if variation == "-" else variation
+            self._bar_log.nod(bar, target.groove, kept, target.from_)
+        if target.groove is None or variation is None:
             self._log(f"ensemble: nod bar {bar}, no groove to count for")
             return
-        variation = self._bass_played.get(target.learn_bar, "-")
         if variation == "-":
             self._log(f"ensemble: nod bar {bar}, no bass to keep")
             return
@@ -1787,9 +1804,17 @@ class Ensemble:
             "bass-loop": self.bass_loop.name,
             "loop": self.loop.name,
             "learn-loops": str(int(self.learn_loops)),
+            "follow-by": self.follow_by,
         }
         try:
-            write_profile(self._profile, self._learners, self._demos, settings, self._loop_learners)
+            write_profile(
+                self._profile,
+                self._learners,
+                self._demos,
+                settings,
+                self._loop_learners,
+                self._nods,
+            )
         except OSError as error:
             raise ValueError(f"cannot write the profile {self._profile}: {error}") from error
         self._autosave = True
@@ -1806,22 +1831,51 @@ class Ensemble:
 
     def _load_profile(self) -> None:
         """Read the profile and learn it; a bad one is kept from autosave, logged,
-        counted in `profile-errors` and raises `ValueError`, the learning unchanged."""
+        counted in `profile-errors` and raises `ValueError`, the learning unchanged. A
+        version 1 profile is renamed to `OLD_PROFILE` and learning starts empty (#250)."""
         assert self._profile is not None
         try:
             profile = read_profile(self._profile)
+        except OldProfile:
+            self._keep_old_profile()
+            return
         except ValueError as error:
             self.profile_errors, self._autosave = 1, False
             self._log(f"ensemble: skipped the profile: {error}")
             raise
-        apply_profile(profile, self._learners, self._demos, self._loop_learners)
+        apply_profile(profile, self._learners, self._demos, self._loop_learners, self._nods)
+        self._invites.clear()
+        self._sections.clear()
         self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
         self.profile_errors, self._autosave = 0, True
         examples = sum(len(d.examples) for d in self._demos.values())
         learned = len(self._learned())
         self._log(
-            f"ensemble: loaded the profile {self._profile}: {learned} learned, {examples} examples"
+            f"ensemble: loaded the profile {self._profile}: {learned} learned, "
+            f"{examples} examples, {len(profile.nods)} nods"
         )
+
+    def _keep_old_profile(self) -> None:
+        """Rename a version 1 profile to `OLD_PROFILE` once and start with no nods;
+        when that file exists already, the profile is skipped as a bad one (nothing
+        learned is overwritten). `ValueError` when it cannot be renamed."""
+        assert self._profile is not None and self._data is not None
+        old = self._data / OLD_PROFILE
+        try:
+            if old.exists():
+                raise OSError(f"{OLD_PROFILE.as_posix()} exists")
+            self._profile.rename(old)
+        except OSError as error:
+            self.profile_errors, self._autosave = 1, False
+            self._log(
+                f"ensemble: skipped the profile: version 1 (likes/demo), not renamed: {error}"
+            )
+            raise ValueError(f"cannot keep the version 1 profile: {error}") from error
+        empty = Profile({p: {} for p in PARTS}, (), {})
+        apply_profile(empty, self._learners, self._demos, self._loop_learners, self._nods)
+        self._tops = {p: {c: self._learners[p].top(c) for c in CONTEXTS[p]} for p in PARTS}
+        self.profile_errors, self._autosave = 0, True
+        self._log(f"ensemble: profile version 1 (likes/demo) kept as {OLD_PROFILE.as_posix()}")
 
     def _reset_learning(self, args: Sequence[float | int | str]) -> None:
         """`reset-learning`: back to the rules in memory; the file changes on a save."""

@@ -45,7 +45,7 @@ def test_a_profile_round_trips_and_trains_the_trees(tmp_path: Path) -> None:
     data = json.loads(path.read_text())
     assert (data["format"], data["format_version"], data["settings"]) == (
         PROFILE_FORMAT,
-        1,
+        2,
         SETTINGS,
     )
     assert not list(tmp_path.glob("learn/.*")), "no partial file is left"
@@ -132,7 +132,7 @@ def test_a_phrase_start_saves_the_profile_while_learning(tmp_path: Path) -> None
         bar_of(rig, bar, press=8)
     rig.until(4 * BAR + 1)
     profile = read_profile(tmp_path / PROFILE)
-    assert profile.settings == {**SETTINGS, "learn-loops": "0"}
+    assert profile.settings == {**SETTINGS, "learn-loops": "0", "follow-by": "bar"}
     assert f"ensemble: saved the profile {tmp_path / PROFILE}" in rig.log
 
 

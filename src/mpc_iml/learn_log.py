@@ -16,7 +16,8 @@ per bar in bar order. It works with every `learn` mode, so a trial compares `off
      "rule": {"bass": "push", "melody": "home"},
      "like": false, "want": {"bass": "auto", "melody": "auto"},
      "example": {"bass": null, "melody": null},
-     "groove": {"id": 2, "position": 5, "fill": false, "free": false}}
+     "groove": {"id": 2, "position": 5, "fill": false, "free": false},
+     "nod": null}
 
 `bar` counts from song start, as the bars of a `record --clock` recording, so a
 trial joins the two files by bar; `t` is the time of the bar line's clock tick on
@@ -31,6 +32,12 @@ bar before (`grooves.Tracker`, as the status line shows it): the groove's `id` a
 the bar's `position` in it (`null` outside a groove), `fill` and `free`. The field
 was added to version 1 without a version bump: a log without it is still a
 version 1 log, and `summary` adds its `grooves:` line only when the field is there.
+`nod` (#250, `learn nod`) is the nod on the bar, once resolved: `{"bar", "groove",
+"variation", "from"}` with the groove it counted for and the bass variation kept
+(`null` when nothing was learned), and `from` `bar`, `fill` or `none`
+(`grooves.nods.nod_groove`); `null` when no nod referred to the bar. It too was added
+without a version bump; `summary` adds its `nods:` line and the groove changes when
+the log has `nod` or `groove` fields.
 A bar's line is written two bar lines later, once no like can
 refer to it, and the lines still waiting when the log stops (`learn-log 0`); when
 the engine quits, the last two bars are not written. The file is created at the
@@ -116,6 +123,7 @@ class BarLog:
         bar = int(record["bar"])
         record.setdefault("like", False)
         record.setdefault("example", {p: None for p in PARTS})
+        record.setdefault("nod", None)
         if any(b >= bar for b in self._pending):
             self._flush(None)
         self._pending[bar] = record
@@ -130,6 +138,17 @@ class BarLog:
         """The bar `bar` added an example of `part` labelled `label`."""
         if bar in self._pending:
             self._pending[bar]["example"][part] = label
+
+    def nod(self, bar: int, groove: int | None, variation: str | None, from_: str) -> None:
+        """The nod on `bar` was resolved: it counted for `groove` and kept `variation`
+        (`None`: nothing), from a groove bar, a fill or nothing (`from_`)."""
+        if bar in self._pending:
+            self._pending[bar]["nod"] = {
+                "bar": bar,
+                "groove": groove,
+                "variation": variation,
+                "from": from_,
+            }
 
     def close(self) -> None:
         """Write the lines still waiting and close the file (none without a bar)."""
@@ -202,4 +221,44 @@ def summary(header: Mapping[str, Any], bars: list[dict[str, Any]]) -> str:
         fills = sum(1 for g in tracked if g.get("fill"))
         free = sum(1 for g in tracked if g.get("free"))
         lines.append(f"grooves: {len(ids)}, fill bars: {fills}, free bars: {free}")
+    nods = [b["nod"] for b in bars if isinstance(b.get("nod"), dict)]
+    if nods:
+        kept = [n for n in nods if n.get("variation") is not None]
+        nodded = {n["groove"] for n in kept}
+        sources = Counter(str((b.get("source") or {}).get("bass")) for b in bars)
+        lines.append(
+            f"nods: {len(nods)}, {len(kept)} kept a variation, grooves nodded: {len(nodded)}; "
+            f"bass bars from a nod {sources['nod']}, a group {sources['group']}, "
+            f"an invite {sources['invite']}"
+        )
+    if tracked:
+        lines.extend(_changes(bars))
     return "\n".join(lines)
+
+
+def _bass(line: Mapping[str, Any]) -> str:
+    choice = (line.get("choice") or {}).get("bass")
+    return str(choice["variation"]) if choice else "-"
+
+
+def _changes(bars: list[dict[str, Any]]) -> list[str]:
+    """Per groove change, whether the bass variation changed (#250): a change is the
+    first line whose `groove.id` differs from the last id seen, compared with the bass
+    of the last line of the groove before it."""
+    lines: list[str] = []
+    last: tuple[int, str] | None = None
+    changed = 0
+    for line in bars:
+        groove = line.get("groove")
+        if not isinstance(groove, dict) or groove.get("id") is None:
+            continue
+        now = (int(groove["id"]), _bass(line))
+        if last is not None and now[0] != last[0]:
+            moved = now[1] != last[1]
+            changed += moved
+            lines.append(
+                f"  bar {line['bar']}: groove {last[0]} -> {now[0]}, bass {last[1]} -> {now[1]}"
+                + ("" if moved else " (same)")
+            )
+        last = now
+    return [f"groove changes: {len(lines)}, the bass changed in {changed}", *lines]
