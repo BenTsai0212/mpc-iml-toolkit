@@ -9,9 +9,10 @@ rules, `synth.render` makes the audio, `roll.draw` the piano roll and
 
 The `learn` setting (#196) shows learning over a scripted session: with `likes` the
 bars whose answer is liked, with `demo` the wanted variations and the presses of
-pads 16 and 15 (`parse_likes`, `parse_wants`, `parse_presses`, #215); the table
-gains the contexts and where each choice came from, and the page shows the learning
-log and what was learned.
+pads 16 and 15 (`parse_likes`, `parse_wants`, `parse_presses`, #215), with `nod`
+the bars nodded to (`parse_nods`, #250); the table gains the contexts and where each
+choice came from, and the page shows the learning log and what was learned. The
+`follow-by` setting (#250) makes the band follow each bar or the groove.
 
 The `variations` tab (#221) plays the variation generator's candidates next to their
 source loop (`webdemo.variations.listen`), each with its audio and piano roll, over
@@ -39,7 +40,7 @@ import numpy as np
 import numpy.typing as npt
 
 from mpc_iml.clock import tag_recording
-from mpc_iml.ensemble import LEARN_MODES, MELODY_SETTINGS
+from mpc_iml.ensemble import FOLLOW_BY, LEARN_MODES, MELODY_SETTINGS
 from mpc_iml.grid import COLUMNS, format_hit
 from mpc_iml.launch import DEFAULT_DATA
 from mpc_iml.loops import VARIATIONS, load_loops
@@ -77,6 +78,7 @@ __all__ = [
     "analytics_default_off",
     "build",
     "parse_likes",
+    "parse_nods",
     "parse_presses",
     "parse_wants",
     "play",
@@ -206,10 +208,20 @@ def learning(song: Song) -> str:
 def parse_likes(text: str) -> tuple[int, ...]:
     """`"2 3 7"`: the grid bars (from 1) whose answer is liked, as `Settings.likes`
     (from 0). Raises `ValueError` for anything but whole numbers from 1."""
+    return _parse_bars(text, "likes")
+
+
+def parse_nods(text: str) -> tuple[int, ...]:
+    """`"8 16"`: the grid bars (from 1) nodded to, as `Settings.nods` (from 0), #250.
+    Raises `ValueError` for anything but whole numbers from 1."""
+    return _parse_bars(text, "nods")
+
+
+def _parse_bars(text: str, name: str) -> tuple[int, ...]:
     bars: list[int] = []
     for word in text.replace(",", " ").split():
         if not word.isdigit() or int(word) < 1:
-            raise ValueError(f"likes: {word!r} is not a bar number from 1")
+            raise ValueError(f"{name}: {word!r} is not a bar number from 1")
         bars.append(int(word) - 1)
     return tuple(sorted(set(bars)))
 
@@ -320,6 +332,9 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
             likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
             wants = gr.Textbox(label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto")
             presses = gr.Textbox(label="presses (learn demo): pads 16 and 15, 3 bass, 9 melody")
+        with gr.Row():
+            follow_by = gr.Radio(list(FOLLOW_BY), value=default.follow_by, label="follow-by")
+            nods = gr.Textbox(label="nods (learn nod): bars nodded to, 8 16")
         with gr.Tab("step grid"):
             grid = gr.Dataframe(
                 to_table(EXAMPLES["sparse"]),
@@ -407,11 +422,13 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
             likes,
             wants,
             presses,
+            follow_by,
+            nods,
         ]
 
         def settings_of(tempo: float, *values: object) -> Settings:
             progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values[:9]
-            learn, likes, wants, presses = (str(v or "") for v in values[9:])
+            learn, likes, wants, presses, follow_by, nods = (str(v or "") for v in values[9:])
             return Settings(
                 tempo,
                 str(progression),
@@ -427,6 +444,8 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
                 parse_likes(likes) if learn == "likes" else (),
                 parse_wants(wants) if learn == "demo" else (),
                 presses=parse_presses(presses) if learn == "demo" else (),
+                follow_by=follow_by or default.follow_by,
+                nods=parse_nods(nods) if learn == "nod" else (),
             )
 
         def outputs(shown: Shown) -> tuple[object, ...]:

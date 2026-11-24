@@ -108,6 +108,17 @@ def test_replay_settings_from_a_trial() -> None:
     assert replay_settings(learn.messages(demo)) == Settings(
         surprise=1, learn="demo", mode_pads=0, melody_mode="still"
     )
+    nod, _ = load_trial(EXAMPLE.with_name("nod.json"))
+    learn_nod = next(c for c in nod.conditions if c.name == "learn-nod")
+    assert replay_settings(nod.messages(learn_nod)) == Settings(
+        surprise=1, learn="nod", mode_pads=0, melody_mode="still", follow_by="groove"
+    )
+    groove, _ = load_trial(EXAMPLE.with_name("groove.json"))
+    for condition in groove.conditions:
+        follow = condition.name.removeprefix("follow-")
+        assert replay_settings(groove.messages(condition)) == Settings(
+            surprise=1, mode_pads=0, melody_mode="still", follow_by=follow
+        )
     for bad in [("bass", ["rule"]), ("learn-loops", [1]), ("learn-log", [2]), ("rhythm", [])]:
         with pytest.raises(ValueError, match="the replay cannot play"):
             replay_settings([bad])

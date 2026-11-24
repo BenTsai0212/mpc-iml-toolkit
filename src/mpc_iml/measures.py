@@ -70,6 +70,10 @@ _FIELDS = {
     "rhythm": "rhythm",
     "learn": "learn",
     "mode-pads": "mode_pads",
+    "follow-by": "follow_by",
+    "answer-after": "answer_after",
+    "learn-group": "learn_group",
+    "new-groove": "new_groove",
 }
 """`ensemble` controls the replay takes, and their `Settings` fields."""
 _SAME = {
@@ -238,7 +242,8 @@ def replay_settings(controls: Iterable[tuple[str, Sequence[Any]]]) -> Settings:
     """The replay `Settings` for `ensemble` controls in order (a trial's `messages`).
     Raises `ValueError` for a control the replay cannot play: `bass` other than
     `loop`, or a control it does not know. With `learn likes` or `demo` the replay
-    plays the recorded pads 15 and 16 as likes and wanted variations."""
+    plays the recorded pads 15 and 16 as likes and wanted variations; with `learn nod`
+    (#250) it plays the recorded pad 16 as the nod."""
     values: dict[str, Any] = {}
     for control, args in controls:
         if control == "bass" and list(args) == ["loop"]:

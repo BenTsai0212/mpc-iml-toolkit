@@ -196,7 +196,7 @@ def test_rhythm_trial_guide_has_no_pads_to_press() -> None:
     assert any("sparse to busy" in line for line in trial.guide.condition)
 
 
-@pytest.mark.parametrize("name", ["rhythm.json", "learn.json"])
+@pytest.mark.parametrize("name", ["rhythm.json", "learn.json", "groove.json", "nod.json"])
 def test_example_trials_keep_the_modes_from_the_pads(name: str) -> None:
     trial, _ = load_trial(EXAMPLE.with_name(name))
     assert trial.base["mode-pads"] == (0,)
@@ -372,3 +372,42 @@ def test_git_commit_in_the_repository() -> None:
     commit, dirty = git_commit(Path(__file__).parent)
     assert commit == "-" or len(commit) == 40
     assert dirty in (True, False, None)
+
+
+def test_groove_trial_compares_following_each_bar_and_the_groove() -> None:
+    """#250 trial 1: rules only, `follow-by` is the one difference."""
+    trial, _ = load_trial(EXAMPLE.with_name("groove.json"))
+    assert [c.name for c in trial.conditions] == ["follow-bar", "follow-groove"]
+    assert trial.bars == 160 and trial.min_bars == 64
+    assert "followed-change" in [q.id for q in trial.questions]
+    ensemble = Ensemble()
+    controls = ensemble.controls()
+    for condition in trial.conditions:
+        for control, args in trial.messages(condition):
+            if control != "learn-log":
+                controls[control](list(args))
+        state = dict(ensemble.state())
+        assert state["follow-by"] == [condition.name.removeprefix("follow-")]
+        assert state["learn"] == ["off"] and state["new-groove"] == ["rules"]
+        assert state["melody-mode"][0] == "still"
+    assert not any("pad 1" in line for line in trial.guide.start + trial.guide.condition)
+
+
+def test_nod_trial_compares_learning_off_and_nods_while_following_the_groove() -> None:
+    """#250 trial 2: `follow-by groove` in both, `learn` is the one difference, and
+    each condition starts from the rules."""
+    trial, _ = load_trial(EXAMPLE.with_name("nod.json"))
+    assert [c.name for c in trial.conditions] == ["learn-off", "learn-nod"]
+    assert trial.bars == 240 and trial.min_bars == 100
+    assert trial.base["reset-learning"] == () and trial.base["learn-log"] == (0,)
+    ensemble = Ensemble()
+    controls = ensemble.controls()
+    for condition in trial.conditions:
+        for control, args in trial.messages(condition):
+            if control != "learn-log":
+                controls[control](list(args))
+        state = dict(ensemble.state())
+        assert state["learn"] == [condition.name.removeprefix("learn-")]
+        assert state["follow-by"] == ["groove"] and state["learn-group"] == [0]
+        assert state["new-groove"] == ["rules"] and state["melody-mode"][0] == "still"
+    assert any("pad 16" in line for line in trial.guide.start)
