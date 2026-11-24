@@ -15,16 +15,24 @@ to free bars are free; and bars with no drums at the end of a groove are gaps.
 
 `document` is the `mpc-iml-grooves` JSON document (version 1) for the grouping page.
 Steps in it count from 0, as in `Pattern`; bars and takes from 1.
+
+`track_many` runs one tracker over several recordings (#249), so a groove played
+again in a later recording takes its earlier id by the tracker's `RETURN` rule, as
+across takes. Recordings go in the order of their file's modification time, then
+path: the recording header has no date.
 """
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
-from mpc_iml.clock import BarStart, ClockAccess, MidiClock
+from mpc_iml.clock import BarStart, ClockAccess, GridHit, MidiClock
 from mpc_iml.ensemble import DEFAULT_ROLES
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.grooves import PART_ROLES, Decision, Groove, Pattern, Tracker, pattern
+from mpc_iml.recording import RecordingFormatError, read_recording
 
 FORMAT = "mpc-iml-grooves"
 VERSION = 1
@@ -40,7 +48,10 @@ class Bar:
     """A complete bar of the recording: `take` and `bar` (both from 1), its `pattern`,
     the live `decision` (its `bar` and `start` are indexes into the list of bars), and
     after the fact its `kind` (`KINDS`), `groove` and the index of its section's
-    `start` (`None` outside a groove)."""
+    `start` (`None` outside a groove). `hits` are the bar's pad hits as played (with
+    their recorded time and velocity, pads 15 and 16 and `other` pads included), and
+    `line` and `end` the times of its bar line and of the next one, in the
+    recording's time base. None of these three is in the `mpc-iml-grooves` document."""
 
     take: int
     bar: int
@@ -49,6 +60,9 @@ class Bar:
     kind: str = "none"
     groove: int | None = None
     start: int | None = None
+    hits: tuple[GridHit, ...] = ()
+    line: float = 0.0
+    end: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -85,13 +99,24 @@ def track(
     tracker = tracker or Tracker()
     clock = MidiClock()
     access = ClockAccess(clock)
-    live: list[tuple[int, int, Pattern, Decision]] = []
+    live: list[_Live] = []
     take = 0
+    previous: tuple[int, int, float] | None = None
+    """The take, bar and time of the last bar line."""
 
     def on_bar(start: BarStart) -> None:
+        nonlocal previous
+        end = start.state.t_tick if start.state.t_tick is not None else 0.0
         if start.complete and start.bar >= 1:
+            if previous is not None and previous[:2] == (take, start.bar - 1):
+                line = previous[2]
+            else:
+                bpm = start.state.bpm or 120.0
+                line = end - start.state.beats_per_bar * 60.0 / bpm
             p = pattern(start.hits, roles)
-            live.append((take, start.bar, p, tracker.observe(len(live), p)))
+            decision = tracker.observe(len(live), p)
+            live.append(_Live(take, start.bar, p, decision, start.hits, line, end))
+        previous = (take, start.bar, end)
 
     access.on_bar(on_bar)
     running = False
@@ -123,25 +148,37 @@ def track(
     return Result(tuple(bars), tuple(sections(bars)), tracker.grooves, settings)
 
 
-def _after_the_fact(live: Sequence[tuple[int, int, Pattern, Decision]]) -> list[Bar]:
+@dataclass(frozen=True)
+class _Live:
+    take: int
+    bar: int
+    pattern: Pattern
+    decision: Decision
+    hits: tuple[GridHit, ...]
+    line: float
+    end: float
+
+
+def _after_the_fact(live: Sequence[_Live]) -> list[Bar]:
     labels: list[tuple[str, int | None, int | None]] = []
-    for _, _, p, d in live:
+    for row in live:
+        p, d = row.pattern, row.decision
         if d.groove is None:
             labels.append(("silent" if p.empty else "free" if d.free else "none", None, None))
         else:
             labels.append(("fill" if d.fill else "groove", d.groove, d.start))
-    for d in (row[3] for row in live):
+    for d in (row.decision for row in live):
         if d.new and d.start is not None:
             labels[d.start] = ("groove", d.groove, d.start)
     for i in range(len(labels) - 1, 0, -1):
-        after, empty = labels[i][0], live[i - 1][2].empty
+        after, empty = labels[i][0], live[i - 1].pattern.empty
         if labels[i - 1][0] != "fill" or after not in ("free", "silent"):
             continue
         if after == "free" or empty:
             labels[i - 1] = ("silent" if empty else "free", None, None)
     return [
-        Bar(take, number, p, d, *label)
-        for (take, number, p, d), label in zip(live, labels, strict=True)
+        Bar(r.take, r.bar, r.pattern, r.decision, *label, r.hits, r.line, r.end)
+        for r, label in zip(live, labels, strict=True)
     ]
 
 
@@ -217,3 +254,55 @@ def document(result: Result, recording: str) -> dict[str, Any]:
             for g in result.grooves
         ],
     }
+
+
+@dataclass(frozen=True)
+class Source:
+    """One recording of `track_many`: its `path` as given, its file's modification
+    time (`modified`, ISO 8601 in UTC) and its `result`. The result's `grooves` are
+    the tracker's after this recording, so they include earlier recordings'."""
+
+    path: str
+    modified: str
+    result: Result
+
+
+@dataclass(frozen=True)
+class Many:
+    """The recordings of `track_many` in the order tracked, the grooves of all of
+    them, and the tracker's settings."""
+
+    sources: tuple[Source, ...]
+    grooves: tuple[Groove, ...]
+    settings: dict[str, float]
+
+
+def track_many(
+    paths: Iterable[Path | str],
+    tracker: Tracker | None = None,
+    roles: Sequence[str] = DEFAULT_ROLES,
+) -> Many:
+    """The grooves of several recordings with one tracker (module docstring). The
+    groove ends between recordings (`Tracker.stop`). Raises `ValueError` (a
+    `RecordingFormatError` for a file that is not a recording) naming the file, and
+    `OSError` for a file that cannot be read; `ValueError` for no paths."""
+    tracker = tracker or Tracker()
+    found: list[tuple[float, str]] = []
+    for path in paths:
+        found.append((Path(path).stat().st_mtime, str(path)))
+    if not found:
+        raise ValueError("no recordings to track")
+    sources: list[Source] = []
+    for mtime, path in sorted(found):
+        try:
+            recording = read_recording(path)
+        except RecordingFormatError as error:
+            raise RecordingFormatError(f"{path}: {error}") from error
+        try:
+            result = track(recording.events, tracker, roles)
+        except ValueError as error:
+            raise ValueError(f"{path}: {error}") from error
+        tracker.stop()
+        modified = datetime.fromtimestamp(mtime, UTC).isoformat(timespec="seconds")
+        sources.append(Source(path, modified, result))
+    return Many(tuple(sources), tracker.grooves, sources[-1].result.settings)
