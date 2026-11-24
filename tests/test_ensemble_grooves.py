@@ -144,7 +144,12 @@ def test_the_learn_log_records_the_live_decision_and_the_summary_counts_it(
     assert by_bar[5] == {"id": 1, "position": 5, "fill": True, "free": False}
     assert by_bar[6] == {"id": 2, "position": 2, "fill": False, "free": False}
     assert by_bar[11] == {"id": None, "position": None, "fill": False, "free": True}
-    assert summary(header, bars).splitlines()[-1] == "grooves: 2, fill bars: 6, free bars: 1"
+    text = summary(header, bars).splitlines()
+    assert text[-3:] == [
+        "grooves: 2, fill bars: 6, free bars: 1",
+        "groove changes: 1, the bass changed in 0",
+        "  bar 6: groove 1 -> 2, bass push -> push (same)",
+    ]
 
 
 def test_a_log_without_the_groove_field_has_no_groove_line(tmp_path: Path) -> None:

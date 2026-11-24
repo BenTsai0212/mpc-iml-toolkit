@@ -39,7 +39,12 @@ def test_a_bar_is_written_two_bar_lines_later_with_its_like(tmp_path: Path) -> N
     header, first = lines(log.path)
     assert header["format"] == LOG_FORMAT and header["seed"] == 3
     assert header["settings"] == {"learn": "likes"}
-    assert first == {**record(0), "like": True, "example": {"bass": None, "melody": None}}
+    assert first == {
+        **record(0),
+        "like": True,
+        "example": {"bass": None, "melody": None},
+        "nod": None,
+    }
     log.close()
     written = lines(log.path)[1:]
     assert [b["bar"] for b in written] == [0, 1, 2]

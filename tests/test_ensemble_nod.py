@@ -250,12 +250,12 @@ def test_a_silent_bar_after_the_groove_still_counts_the_nod() -> None:
     ]
 
 
-def test_learn_nod_writes_no_profile_at_a_phrase_start(tmp_path: Any) -> None:
+def test_learn_nod_saves_the_profile_and_logs_its_settings(tmp_path: Any) -> None:
     played = rig("bar")
     played.ensemble.data_folder(tmp_path)
     played.ensemble.controls()["learn-log"]([1])
     session(played, [A, A, A_PUSHED, A, A, A, A, A, A], {3: 8})
-    assert not (tmp_path / "learn" / "ensemble.json").exists()
+    assert (tmp_path / "learn" / "ensemble.json").exists()
     played.ensemble.controls()["learn-log"]([0])
     (log,) = (tmp_path / "learn").glob("log-*.jsonl")
     header, *bars = [json.loads(line) for line in log.read_text().splitlines()]

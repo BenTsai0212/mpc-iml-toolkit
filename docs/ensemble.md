@@ -399,23 +399,34 @@ The nod works with `follow-by bar` too: then only the bars after a bar of the gr
 nothing) and when a nodded groove comes back (`ensemble: groove 2 back, bass push
 (nod)`); the terminal of a trial does not show them.
 
+The nods are kept in your profile ([Keep what the band learned](#keep-what-the-band-learned)),
+with each groove's pattern. In a later session, when you come back to a nodded
+groove, its first two bars find the stored nod (`ensemble: groove 1 back, bass push
+(nod from profile)`), and the bass plays it from the next bar.
+
 ### Keep what the band learned
 
-What the band learned, the likes' weights and your examples, is your profile ("my
-band", #196): one file, `mpc-iml-data/learn/ensemble.json`, in the engine's data
-folder. `ensemble` reads it when it is loaded, and while `learn` is `likes` or
-`demo` it saves it at the start of each 4-bar phrase (`ensemble: saved the profile
+What the band learned, your nods (#250) and, while they exist, the likes' weights
+and your examples, is your profile ("my band", #196): one file,
+`mpc-iml-data/learn/ensemble.json`, in the engine's data folder. `ensemble` reads it
+when it is loaded, and while `learn` is not `off` it saves it at the start of each
+4-bar phrase (`ensemble: saved the profile
 …`), so you lose at most a phrase. `save-profile` saves it now, `load-profile`
 reads it again, and `reset-learning` goes back to the rules (the file changes at
 the next save). A file that cannot be read is skipped with a log line, the reply
 `profile-errors` is 1, the rules play, and it is not overwritten until you send
-`save-profile`. See what was learned without the engine:
+`save-profile`. A profile from before #250 (version 1, from `likes` and `demo`) is
+renamed once to `learn/ensemble-v1.json`, so nothing is lost, and the band starts
+with no nods (`ensemble: profile version 1 (likes/demo) kept as
+learn/ensemble-v1.json`). See what was learned without the engine:
 
 ```bash
 uv run python -m mpc_iml.learn show
 ```
 
-It prints, for each way of drumming, the rules' choice and the learned weights,
+It prints each nod first: its groove's kick, snare and hat as a 16-step grid, the
+bass variation, how many times you nodded and the date of the last nod. Then, for
+each way of drumming, the rules' choice and the learned weights,
 with `*` where the band learned something else, and the decision tree your
 examples trained, as rules. Give it a path to show another profile. The profile
 stays on your computer: the toolkit never uploads it, and `mpc-iml-data/` is in the
@@ -435,7 +446,13 @@ uv run python -m mpc_iml.learn summary mpc-iml-data/learn/log-20261122-140509.js
 ```
 
 It prints, for each `learn` mode, the bars, how many you liked, how often each
-loop's variation differed from the rules, and your examples per variation.
+loop's variation differed from the rules, and your examples per variation. With
+`learn nod` the line of a nodded bar has its `nod` (the groove it counted for and
+the bass variation kept, or `null` when nothing was learned), and the summary adds a
+`nods:` line: the nods, how many kept a variation, the grooves nodded, and the bass
+bars played from a nod, a group or an invite. For each groove change it prints
+whether the bass variation changed (`bar 9: groove 1 -> 2, bass push -> home`, or
+`(same)`), which is what the trial of following each bar or the groove asks.
 
 The trial file [`examples/trial/learn.json`](../examples/trial/learn.json) plays
 `learn off`, `likes` and `demo` as three conditions of a blind trial (#197), each
