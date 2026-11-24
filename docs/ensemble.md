@@ -332,7 +332,8 @@ ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15
 - the bar (counted from 0 at Start) and its chord in the progression playing (#236);
 - the bass and melody variation playing in it and where each choice came from:
   `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`), `still` for the
-  melody in `melody-mode still` (#233); `-` when that loop is silent;
+  melody in `melody-mode still` (#233), `fill` for the bass's answer to a fill with
+  `follow-by groove` (#250); `-` when that loop is silent;
 - what pad 16 and pad 15 do if you press them now: `keep <variation>` and
   `next <variation>` with `learn demo`, `like` with `learn likes`, the mode they
   switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the pad
@@ -344,6 +345,28 @@ A press of pad 16 or 15 that does nothing because the clock is not running (Live
 is stopped, or the count-in) is shown as `ensemble: pad 16 ignored, the clock is not
 running`, also with `status 0`. The status line only shows: it changes nothing that
 plays. `status 0` turns it off; trials send it ([Blind comparison trials](trials.md)).
+
+### Follow the groove
+
+With `follow-by groove` (#250, a setting; the default `bar` follows each bar as
+above) the band listens for your groove: a pattern of kick, snare and hat you hold
+over bars, with fills in between (the `groove` field of the status line). While a
+groove holds, the bass and the melody choose their variation from the groove's
+pattern, not from each bar, so a bar with one extra kick does not change the line.
+The loudness and the rhythm still follow each bar you play.
+
+- **A fill:** the bar after a bar that differs from the groove keeps the groove's
+  variation and the bass plays its fill on beat 4 (the same figure as the surprise
+  fill; the status line shows `bass home (fill)`). That bar has no other surprise.
+  When you go back to the groove, so does the bass.
+- **A new groove:** the band knows it at the end of its second bar, and answers it
+  from the next bar. Its first bar is answered as a fill.
+- **Before the first groove, in free playing and without drums,** each bar is
+  followed as with `bar`; bars without kicks follow `no-drums`.
+
+`answer-after 1` (default 2, a setting to try later) answers a bar that differs from
+the groove at once, with the rules for that bar and no fill, and goes back to the
+groove's variation a bar later if the groove goes on.
 
 ### Keep what the band learned
 
@@ -551,6 +574,8 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
 | `/mpciml/preset/ensemble/learn-log` | 0 or 1 | 0 | 1: writes a line per bar to a new `learn/log-<time>.jsonl` in the data folder, to compare the learning modes; 0: finishes it ([Keep what the band learned](#keep-what-the-band-learned)) |
 | `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (still like in `learn likes` and want in `learn demo`), as trials send ([Blind comparison trials](trials.md)) |
+| `/mpciml/preset/ensemble/follow-by` | `bar` or `groove` | `bar` | `groove`: the variations follow your groove, with an answer to fills ([Follow the groove](#follow-the-groove)); `bar`: each bar (#250) |
+| `/mpciml/preset/ensemble/answer-after` | 1 or 2 | 2 | With `follow-by groove`: 1 answers a bar that differs from the groove at once, with the rules for that bar; 2 waits for the groove tracker (a fill, or a new groove at its second bar) |
 | `/mpciml/preset/ensemble/status` | 0 or 1 | 1 | 1: a status line in the terminal at each bar line, with the variations playing, their source and what pads 16 and 15 do now ([See what the band plays and what the pads do](#see-what-the-band-plays-and-what-the-pads-do)); 0: none, as trials send. Presses ignored without a running clock are shown either way |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
@@ -580,7 +605,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learn` | the learning mode (`off`, `likes`, `demo`) |
 | `likes` | the likes that credited a choice since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules (`-` for none) |
 | `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
@@ -589,6 +614,8 @@ melody mode, a playing variation or a playing transformation changes:
 | `mode-pads` | 1 while pads 15 and 16 switch the modes, else 0 |
 | `status` | 1 while the status line is shown, else 0 |
 | `progression-errors` | how many of your progression files were skipped at the last read |
+| `follow-by` | the value (`bar`, `groove`) |
+| `answer-after` | the value (1 or 2) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
