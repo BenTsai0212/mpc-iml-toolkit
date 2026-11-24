@@ -361,6 +361,8 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile |
 | `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數 |
 | `/mpciml/preset/ensemble/mode-pads` | 0 或 1 | 1 | 1：pad 15、16 切換旋律與 bass 的模式；0：不切換模式（`learn likes` 時仍是喜歡、`learn demo` 時仍是想要的變奏），盲測比較時送出（[盲測比較](trials.md)） |
+| `/mpciml/preset/ensemble/follow-by` | `bar` 或 `groove` | `bar` | `groove`：變奏跟隨你的 groove（由 groove 的節奏型選擇，fill 小節的下一小節 bass 保持 groove 的變奏並在第 4 拍奏過門）；`bar`：跟隨每一小節（#250） |
+| `/mpciml/preset/ensemble/answer-after` | 1 或 2 | 2 | `follow-by groove` 時：1 對與 groove 不同的小節立即以該小節的規則回應；2 等 groove tracker 判斷（fill，或新 groove 的第二小節） |
 | `/mpciml/preset/ensemble/status` | 0 或 1 | 1 | 1：clock 執行時，每個小節線與每次按 pad 16、15 後在終端機印出一行狀態（見下文）；0：不印，盲測比較時送出（[盲測比較](trials.md)）。clock 未執行時被忽略的按壓兩種設定都會印出 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
@@ -388,7 +390,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `transform` | 正在演奏的 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learn` | 學習模式（`off`、`likes`、`demo`） |
 | `likes` | 載入 `ensemble` 之後計入選擇的「喜歡」次數 |
-| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`，`follow-by groove` 時 bass 回應 fill 為 `fill`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learned` | 最多 4 個 `<部分>:<情境>><變奏>`，學到的最高選擇與規則不同的情境（沒有時為 `-`） |
 | `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
 | `examples` | 以 `learn demo` 示範的 bass 與旋律範例數（含 profile 中的範例） |
@@ -397,6 +399,8 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `mode-pads` | pad 15、16 切換模式時為 1，否則為 0 |
 | `status` | 印出狀態行時為 1，否則為 0 |
 | `progression-errors` | 上次讀取時略過的和弦進行檔案數 |
+| `follow-by` | 設定值（`bar`、`groove`） |
+| `answer-after` | 設定值（1 或 2） |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
 

@@ -208,8 +208,26 @@ At each bar line, after every choice, the bar before goes to a `grooves.Tracker`
 (#245) when it is complete; an incomplete bar (after Start, or a lost clock) ends
 the groove, and the grooves seen stay as long as the preset is loaded. The status
 line shows the live decision after the chord (`groove_text`: `groove 2 (bar 5)`,
-`fill`, `groove free`, or `groove -`), and so does the learn log. The tracker uses
-no random generator and nothing that plays reads it.
+`fill`, `groove free`, or `groove -`), and so does the learn log.
+
+The tracker runs before the choices (#250); it uses no random generator, so with
+`follow-by bar` (the default, a setting) nothing that plays reads it. With
+`follow-by groove` (#250, ADR 0009 "Amendment: learning by groove") the decision on
+the bar before sets the bar that starts:
+
+- after a **groove bar** the rules choose both loops' variation and level from the
+  groove's prototype (`groove_choices`), so the variation holds while the groove
+  holds; velocities, the brightness CC, `no-drums` and the rhythm transformation
+  still come from the bar played;
+- after a **fill bar** (also the first bar of a new groove, which is answered from
+  the bar after its confirmation) the loops keep the groove's choice and the bass
+  plays `bass.bass_fill` where it may carry a surprise (`BarPlan.surprise`), `chose`
+  `fill`; that bar draws no surprise. With `answer-after 1` (default 2, a setting) a
+  fill bar is answered by the per-bar rules instead, with no fill;
+- after a free bar, before the first groove and without drums, the per-bar rules.
+
+The replies `follow-by` and `answer-after` follow `progression-errors`, and the learn
+log's header has both settings.
 """
 
 import contextlib
@@ -240,7 +258,7 @@ from mpc_iml.clock import (
 from mpc_iml.content import Content
 from mpc_iml.frames import PADS
 from mpc_iml.grooves import Decision as GrooveDecision
-from mpc_iml.grooves import Tracker
+from mpc_iml.grooves import Pattern, Tracker
 from mpc_iml.grooves import pattern as groove_pattern
 from mpc_iml.learn import (
     CONTEXTS,
@@ -299,9 +317,11 @@ from mpc_iml.rhythm import (
 )
 
 __all__ = [
+    "ANSWER_AFTER",
     "BASS_MODES",
     "CONTENT",
     "DEFAULT_ROLES",
+    "FOLLOW_BY",
     "LEARN_CC_SWEEP",
     "LEARN_MODES",
     "MELODY_MODES",
@@ -317,6 +337,7 @@ __all__ = [
     "Progression",
     "bass_velocity",
     "for_musician",
+    "groove_choices",
     "groove_record",
     "groove_text",
     "make_preset",
@@ -342,6 +363,13 @@ STILL_BRIGHTNESS = round(sum(BRIGHTNESS) / 2)
 of `BRIGHTNESS`, so the melody keeps one colour."""
 
 LEARN_MODES = ("off", "likes", "demo")
+
+FOLLOW_BY = ("bar", "groove")
+"""What the loops' variations follow (`follow-by`, #250): each bar, or the groove."""
+
+ANSWER_AFTER = (1, 2)
+"""After how many bars of a different pattern the bass answers it (`answer-after`,
+#250): 2 waits for the tracker (a fill, or a new groove at its second bar)."""
 """The learning modes (#196); `off`, the rules, is the default."""
 
 LEARNED_REPLY = 4
@@ -414,6 +442,18 @@ def groove_record(decision: GrooveDecision | None) -> dict[str, object]:
         "fill": decision.fill,
         "free": decision.free,
     }
+
+
+def groove_choices(p: Pattern) -> tuple[tuple[str, int], tuple[str, int]]:
+    """The rules' bass and melody choices (variation, level) for a groove's prototype
+    `p` (#250): the same rules as for a bar, reading the prototype's kicks, its kick,
+    snare and hat hits, and its hats."""
+    kicks = sorted(p.kick)
+    hits = len(p.kick) + len(p.snare) + len(p.hat)
+    return (
+        (bass_variation(kicks), bass_ornaments(len(kicks))),
+        (melody_variation(hits, sorted(p.hat)), melody_ornaments(hits)),
+    )
 
 
 def bass_velocity(velocity: int) -> int:
@@ -511,6 +551,10 @@ class Ensemble:
         """Follows the drummer's grooves (#245); it changes nothing that plays."""
         self._groove: GrooveDecision | None = None
         """The tracker's decision on the bar before the last bar line, if any."""
+        self.follow_by = "bar"
+        """Whether the variations follow each bar or the groove (`follow-by`, #250)."""
+        self.answer_after = 2
+        """`answer-after` (#250): with 1 a fill bar is answered by the per-bar rules."""
         self.learn = "off"
         self.likes = 0
         """Likes that credited a choice, in this build (#196)."""
@@ -731,8 +775,13 @@ class Ensemble:
             drums = [h for h in start.hits if h.pad not in skip]
             kicks = [h for h in drums if self.roles[h.pad] == "kick"]
             hats = [h.step for h in drums if self.roles[h.pad] == "hat"]
-            bass_choice = (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks)))
-            melody_choice = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
+            self._track_groove(start, drums)
+            answer = self._groove_answer()
+            if answer is None:
+                bass_choice = (bass_variation([h.step for h in kicks]), bass_ornaments(len(kicks)))
+                melody_choice = (melody_variation(len(drums), hats), melody_ornaments(len(drums)))
+            else:
+                bass_choice, melody_choice = groove_choices(self._prototype())
             rules = {"bass": bass_choice[0], "melody": melody_choice[0]}
             plays = self._follows(drums, bool(kicks))
             ended = self._end_wants(start.bar)
@@ -761,9 +810,13 @@ class Ensemble:
             )
             if self._still():
                 melody_plan = replace(melody_plan, cc=STILL_BRIGHTNESS)
-            extra = self._surprise(start.bar, bass_plan, melody_plan)
+            fill = answer == "fill" and bass_plan.surprise and "bass" not in chose
+            # A fill answer is the bar's change: it draws no surprise (#250).
+            extra = None if answer == "fill" else self._surprise(start.bar, bass_plan, melody_plan)
             heard = motif(drums, self.roles)
-            bass = self._plan_bass(start, bass_plan, kicks, heard, extra == "fill")
+            bass = self._plan_bass(start, bass_plan, kicks, heard, fill or extra == "fill")
+            if fill and bass != "-":
+                source = {**source, "bass": "fill"}
             melody = self._plan_melody(start, melody_plan, heard, extra)
             self._variations = (bass, melody)
             self._loop_names = (
@@ -799,20 +852,38 @@ class Ensemble:
                     ),
                 }
             self._bar_wants = dict(self.wants)
-            self._track_groove(start, drums)
             if self._bar_log is not None:
                 self._log_bar(start, drums, rules)
             if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
                 self._autosave_profile()
 
     def _track_groove(self, start: BarStart, drums: Sequence[GridHit]) -> None:
-        """The groove of the bar before (#245), after every choice: a complete bar
-        goes to the tracker; an incomplete one (Start, lost) ends the groove."""
+        """The groove of the bar before (#245), before the choices (#250; it draws no
+        random numbers): a complete bar goes to the tracker; an incomplete one
+        (Start, lost) ends the groove."""
         if start.complete and start.bar >= 1:
             self._groove = self._grooves.observe(start.bar - 1, groove_pattern(drums, self.roles))
         else:
             self._grooves.stop()
             self._groove = None
+
+    def _groove_answer(self) -> str | None:
+        """How the bar that starts now answers the groove with `follow-by groove`
+        (#250): `groove` after a groove bar, `fill` after a fill bar (`answer-after
+        2`), `None` for the per-bar rules (`follow-by bar`, free, no groove yet, no
+        drums, or a fill bar with `answer-after 1`)."""
+        decision = self._groove
+        if self.follow_by != "groove" or decision is None or decision.groove is None:
+            return None
+        if not decision.fill:
+            return "groove"
+        return "fill" if self.answer_after == 2 else None
+
+    def _prototype(self) -> Pattern:
+        """The prototype of the groove of the last decision (#245)."""
+        decision = self._groove
+        assert decision is not None and decision.groove is not None
+        return next(g.prototype for g in self._grooves.grooves if g.id == decision.groove)
 
     def _log_bar(self, start: BarStart, drums: Sequence[GridHit], rules: dict[str, str]) -> None:
         """Add the bar that starts now to the per-bar log (`learn_log`)."""
@@ -1433,6 +1504,10 @@ class Ensemble:
             "learn-log": self._set_learn_log,
             "mode-pads": lambda a: self._set(lambda: setattr(self, "mode_pads", _flag(a))),
             "status": lambda a: self._set(lambda: setattr(self, "status", _flag(a))),
+            "follow-by": self._set_follow_by,
+            "answer-after": lambda a: self._set(
+                lambda: setattr(self, "answer_after", _whole(a, *ANSWER_AFTER))
+            ),
         }
 
     def _set_learn_log(self, args: Sequence[float | int | str]) -> None:
@@ -1458,6 +1533,8 @@ class Ensemble:
                 "fade-bars": str(self.fade_bars),
                 "surprise": str(self.surprise),
                 "rhythm": str(self.rhythm),
+                "follow-by": self.follow_by,
+                "answer-after": str(self.answer_after),
             }
             profile = PROFILE.as_posix() if self._profile.exists() else None
             path = log_path(self._data)
@@ -1583,6 +1660,12 @@ class Ensemble:
             self.wants[str(args[0])] = str(args[1])
             self._want_ends[str(args[0])] = None
         self._report()
+
+    def _set_follow_by(self, args: Sequence[float | int | str]) -> None:
+        if len(args) != 1 or args[0] not in FOLLOW_BY:
+            raise ValueError(f"expected one of {', '.join(FOLLOW_BY)}, got {list(args)}")
+        with self._lock:
+            self.follow_by = str(args[0])
 
     def _set_no_drums(self, args: Sequence[float | int | str]) -> None:
         if len(args) != 1 or args[0] not in NO_DRUMS:
@@ -1720,6 +1803,8 @@ class Ensemble:
                 ("mode-pads", [int(self.mode_pads)]),
                 ("status", [int(self.status)]),
                 ("progression-errors", [self.progression_errors]),
+                ("follow-by", [self.follow_by]),
+                ("answer-after", [self.answer_after]),
             ]
 
     def data_folder(self, folder: Path) -> None:
