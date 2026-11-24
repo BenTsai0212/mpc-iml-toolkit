@@ -136,7 +136,12 @@ def test_after_a_fill_bar_the_bass_keeps_the_groove_and_plays_its_fill() -> None
     assert shown[5] == shown[6] == "bass home (rule)"
     assert bass_steps(played, 4)[-4:] == [12, 13, 14, 15]
     assert bass_steps(played, 5)[-4:] != [12, 13, 14, 15]
-    assert played.ensemble.state()[-2:] == [("follow-by", ["groove"]), ("answer-after", [2])]
+    assert played.ensemble.state()[-4:] == [
+        ("follow-by", ["groove"]),
+        ("learn-group", [0]),
+        ("new-groove", ["rules"]),
+        ("answer-after", [2]),
+    ]
     assert dict(played.ensemble.state())["chose"] == ["rule", "rule"]
 
 

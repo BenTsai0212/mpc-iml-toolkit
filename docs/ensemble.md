@@ -368,6 +368,37 @@ The loudness and the rhythm still follow each bar you play.
 the groove at once, with the rules for that bar and no fill, and goes back to the
 groove's variation a bar later if the groove goes on.
 
+### Nod to what you like
+
+With `learn nod` (#250, a setting), pad 16 is the **nod**: tap it at the end of a
+groove, for example on the last note of an 8-bar phrase, to say "keep this". Pad 16
+then no longer cycles the bass mode; set it before playing. The control `nod` does
+the same from a script.
+
+- **What the nod counts for:** the groove you were playing in the bar of the nod (in
+  the first beat, the bar before). A nod in a fill, a free bar or a silent bar
+  counts for the groove that ended the bar before; later than that, it counts for
+  nothing.
+- **What the band keeps:** the bass variation it played in that bar (for a nod in a
+  fill, in the groove's last bar). Only the bass learns.
+- **What you hear:** from the next bar line, each bar of that groove plays the
+  nodded bass variation (the status line shows `bass push (nod)`), also when you
+  come back to the groove later in the session. A fill answer still plays its fill.
+  A later nod in the same groove replaces it; `reset-learning` forgets every nod.
+- **Groups** (`learn-group 1`, default 0, a setting): a groove with no nod of its own
+  that is close to a nodded groove (by the kick's syncopation, the snare's and the
+  hat's density, and the hat's share and syncopation) plays that nod's variation
+  for the whole section half of the time (`(group)`). A nod in that groove wins.
+- **Inviting a nod** (`new-groove invite`, default `rules`, a setting): a groove with
+  no nod plays a bass variation other than the rules' one, drawn once per groove,
+  to invite a nod (`(invite)`).
+
+The nod works with `follow-by bar` too: then only the bars after a bar of the groove
+(not after a fill) play the nodded variation. `engine.log` has a line for each nod
+(`ensemble: nod bar 16 -> groove 2 (bar 8), bass push`, or why it counted for
+nothing) and when a nodded groove comes back (`ensemble: groove 2 back, bass push
+(nod)`); the terminal of a trial does not show them.
+
 ### Keep what the band learned
 
 What the band learned, the likes' weights and your examples, is your profile ("my
@@ -566,7 +597,10 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 | `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
-| `/mpciml/preset/ensemble/learn` | `off`, `likes` or `demo` | `off` | `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `demo`: pads 16 and 15 choose the bass and melody variation you want, and `auto` plays what your examples taught ([Teach the band by showing it](#teach-the-band-by-showing-it)); `off`: the rules (#196) |
+| `/mpciml/preset/ensemble/learn` | `off`, `likes`, `demo` or `nod` | `off` | `nod`: pad 16 is the **nod**, and the bass plays what you nodded to when that groove comes back ([Nod to what you like](#nod-to-what-you-like), #250); `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `demo`: pads 16 and 15 choose the bass and melody variation you want, and `auto` plays what your examples taught ([Teach the band by showing it](#teach-the-band-by-showing-it)); `off`: the rules (#196) |
+| `/mpciml/preset/ensemble/nod` | none | - | As pad 16 with `learn nod`: a nod in this bar (in the first beat, the bar before); refused with another `learn` mode or while the clock is not running |
+| `/mpciml/preset/ensemble/learn-group` | 0 or 1 | 0 | With `learn nod`: 1 lets a groove with no nod play the nod of a close groove, half of the time per section |
+| `/mpciml/preset/ensemble/new-groove` | `rules` or `invite` | `rules` | With `learn nod`: what a groove with no nod plays; `invite` plays another bass variation than the rules', drawn once per groove |
 | `/mpciml/preset/ensemble/like` | none | - | As pad 16 with `learn likes`: likes what the band plays in this bar (in the first beat, the bar before); refused with `learn off` or while the clock is not running |
 | `/mpciml/preset/ensemble/want` | `bass` or `melody`, then `auto` or one of its variations | `auto` | With `learn demo`: the variation you want that loop to play and learn, until you send `auto` (unlike pads 16 and 15, it does not end at the phrase end, #215); refused unless `learn demo` |
 | `/mpciml/preset/ensemble/save-profile` | none | - | Saves what was learned to `learn/ensemble.json` in the data folder now ([Keep what the band learned](#keep-what-the-band-learned)) |
@@ -603,10 +637,10 @@ melody mode, a playing variation or a playing transformation changes:
 | `loop-errors` | how many of your loop files were skipped at the last read |
 | `rhythm` | the value (0, 1 or 2) |
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
-| `learn` | the learning mode (`off`, `likes`, `demo`) |
-| `likes` | the likes that credited a choice since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
-| `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules (`-` for none) |
+| `learn` | the learning mode (`off`, `likes`, `demo`, `nod`) |
+| `likes` | the likes that credited a choice, or with `learn nod` the nods that kept a variation, since `ensemble` was loaded |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`, `nod`, `group` or `invite` for the bass with `learn nod`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules, or with `learn nod` up to 4 `bass:groove <id>><variation>` for the nodded grooves of the session (`-` for none) |
 | `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
 | `profile-errors` | 1 when the profile could not be read at the last try, else 0 |
@@ -615,6 +649,8 @@ melody mode, a playing variation or a playing transformation changes:
 | `status` | 1 while the status line is shown, else 0 |
 | `progression-errors` | how many of your progression files were skipped at the last read |
 | `follow-by` | the value (`bar`, `groove`) |
+| `learn-group` | the value (0 or 1) |
+| `new-groove` | the value (`rules`, `invite`) |
 | `answer-after` | the value (1 or 2) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
