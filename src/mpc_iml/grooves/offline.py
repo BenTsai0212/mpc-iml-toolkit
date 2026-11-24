@@ -20,6 +20,9 @@ Steps in it count from 0, as in `Pattern`; bars and takes from 1.
 again in a later recording takes its earlier id by the tracker's `RETURN` rule, as
 across takes. Recordings go in the order of their file's modification time, then
 path: the recording header has no date.
+
+`descriptor_groups` (#250) lists the grooves that `grooves.descriptor_distance` puts
+in groups, for `python -m mpc_iml.grooves --group-distance`.
 """
 
 from collections.abc import Iterable, Sequence
@@ -31,7 +34,16 @@ from typing import Any
 from mpc_iml.clock import BarStart, ClockAccess, GridHit, MidiClock
 from mpc_iml.ensemble import DEFAULT_ROLES
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
-from mpc_iml.grooves import PART_ROLES, Decision, Groove, Pattern, Tracker, pattern
+from mpc_iml.grooves import (
+    GROUP_DISTANCE,
+    PART_ROLES,
+    Decision,
+    Groove,
+    Pattern,
+    Tracker,
+    descriptor_distance,
+    pattern,
+)
 from mpc_iml.recording import RecordingFormatError, read_recording
 
 FORMAT = "mpc-iml-grooves"
@@ -306,3 +318,28 @@ def track_many(
         modified = datetime.fromtimestamp(mtime, UTC).isoformat(timespec="seconds")
         sources.append(Source(path, modified, result))
     return Many(tuple(sources), tracker.grooves, sources[-1].result.settings)
+
+
+def descriptor_groups(
+    grooves: Sequence[Groove], distance: float = GROUP_DISTANCE
+) -> list[tuple[int, ...]]:
+    """The ids of `grooves` in groups: two grooves whose prototypes are at most
+    `distance` apart (`grooves.descriptor_distance`) are in one group, and so are the
+    grooves linked through others (single linkage). Groups are in the order of their
+    smallest id; a groove near no other is a group of its own."""
+    parent = {g.id: g.id for g in grooves}
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            i = parent[i]
+        return i
+
+    for n, a in enumerate(grooves):
+        for b in grooves[n + 1 :]:
+            if descriptor_distance(a.prototype, b.prototype) <= distance:
+                ra, rb = root(a.id), root(b.id)
+                parent[max(ra, rb)] = min(ra, rb)
+    groups: dict[int, list[int]] = {}
+    for g in sorted(grooves, key=lambda g: g.id):
+        groups.setdefault(root(g.id), []).append(g.id)
+    return [tuple(ids) for _, ids in sorted(groups.items())]
