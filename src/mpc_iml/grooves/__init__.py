@@ -38,7 +38,9 @@ Gómez-Marín, Jordà and Herrera (2020, "Drum rhythm spaces: from polyphonic
 similarity to generative maps", JNMR 49(5)), which predict how alike people hear two
 polyphonic drum patterns. They are computed as in the authors' `rhythmtoolbox` (MIT),
 with low = kick, mid = snare and high = hat. Two grooves are in a **group** when
-`descriptor_distance` between their prototypes is at most `GROUP_DISTANCE`.
+`descriptor_distance` between their prototypes is at most `GROUP_DISTANCE`: a nod on
+a groove reaches the grooves within that distance of it, not the grooves linked
+through others.
 """
 
 from collections.abc import Iterable, Sequence
@@ -255,9 +257,13 @@ hat's syncopation per hit, the difference between hats on the 8ths and on the 16
 is about 1.9). Proposed in #250 and checked with `python -m mpc_iml.grooves
 --group-distance` against recorded sessions."""
 
-GROUP_DISTANCE = 2.0
+GROUP_DISTANCE = 1.0
 """The largest `descriptor_distance` at which two grooves are in a group (#250,
-`learn-group 1`). Proposed with `GROUP_SCALE`, checked the same way."""
+`learn-group 1`), so a nod on one reaches the other. Checked by the decision maker
+against eleven grooves from his sessions and three recorded sessions (#253): at 1.0, 3
+of 9 same-group pairs (near variants of one groove) and 1 of 46 different-group pairs
+are within it; at the first proposal, 2.0, 7 of 9 and 10 of 46, so a nod would reach
+more wrong grooves than right ones."""
 
 
 def descriptor_distance(

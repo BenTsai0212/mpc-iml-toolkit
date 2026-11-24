@@ -1,4 +1,4 @@
-"""Rhythm descriptors and groups by descriptor distance (#250, PR 2)."""
+"""Rhythm descriptors and the grooves a nod reaches by descriptor distance (#250, PR 2)."""
 
 import math
 from pathlib import Path
@@ -19,7 +19,7 @@ from mpc_iml.grooves import (
     syncopation,
 )
 from mpc_iml.grooves.__main__ import main
-from mpc_iml.grooves.offline import descriptor_groups
+from mpc_iml.grooves.offline import descriptor_reach
 
 UNIT = Descriptors(1.0, 1.0, 1.0, 1.0, 1.0)
 
@@ -92,39 +92,53 @@ def groove(i: int, p: Pattern) -> Groove:
 A2 = bar("....x.......x.x.", "....x.......x...", "x.x.x.x.x.x.x.x.")
 
 
-def test_groups_are_linked_grooves() -> None:
+def test_group_distance() -> None:
+    # #253: checked against recorded sessions, 1.0 rather than the proposed 2.0.
+    assert GROUP_DISTANCE == 1.0
     assert descriptor_distance(A, A2) < GROUP_DISTANCE < descriptor_distance(A, C)
+
+
+def test_reach_is_the_grooves_within_the_distance() -> None:
     grooves = [groove(3, C), groove(1, A), groove(2, A2)]
-    assert descriptor_groups(grooves) == [(1, 2), (3,)]
-    assert descriptor_groups(grooves, 0.0) == [(1,), (2,), (3,)]
-    assert descriptor_groups([]) == []
+    assert descriptor_reach(grooves) == {1: [(2, 0.75)], 2: [(1, 0.75)], 3: []}
+    assert descriptor_reach(grooves, 0.0) == {1: [], 2: [], 3: []}
+    assert descriptor_reach([]) == {}
 
 
-def test_groups_link_through_a_groove_between() -> None:
+def test_reach_is_not_linked_through_a_groove_between() -> None:
     # Kicks on even steps only, so only lowsync changes: -8, -11 and -14. A to a2 is
-    # 0.75, a2 to a3 0.75 more, A to a3 1.5: at 1 they are linked through a2.
+    # 0.75, a2 to a3 0.75 more, A to a3 1.5: at 1 a nod on a2 reaches both, a nod on
+    # A does not reach a3 through a2. Nearest first.
     a2 = bar("x.x.x...x.x.....", "....x.......x...", "x.x.x.x.x.x.x.x.")
     a3 = bar("x.x.x.x.x.x.x...", "....x.......x...", "x.x.x.x.x.x.x.x.")
     assert math.isclose(descriptor_distance(A, a2), 0.75)
     assert math.isclose(descriptor_distance(A, a3), 1.5)
     grooves = [groove(1, A), groove(2, a2), groove(3, a3)]
-    assert descriptor_groups(grooves, 1.0) == [(1, 2, 3)]
-    assert descriptor_groups(grooves, 0.5) == [(1,), (2,), (3,)]
+    assert descriptor_reach(grooves) == {1: [(2, 0.75)], 2: [(1, 0.75), (3, 0.75)], 3: [(2, 0.75)]}
+    assert descriptor_reach(grooves, 2.0) == {
+        1: [(2, 0.75), (3, 1.5)],
+        2: [(1, 0.75), (3, 0.75)],
+        3: [(2, 0.75), (1, 1.5)],
+    }
+    assert descriptor_reach(grooves, 0.5) == {1: [], 2: [], 3: []}
 
 
 def test_cli_group_distance(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = write(tmp_path, recording([A, A, A, A2, A2, A2, C, C, C]))
     assert main([str(path), "--group-distance"]) == 0
     out = capsys.readouterr().out.splitlines()
-    start = out.index(next(line for line in out if line.startswith("groups at distance 2.00")))
-    assert out[start + 1 : start + 3] == ["  group 1: grooves 1, 2", "  group 2: groove 3"]
-    assert out[start + 3] == (
-        "groove 1  lowsync -8.00  midD 2.00  hiD 8.00  hiness 1.00  hisyness -1.88"
-        "  nearest: groove 2 (0.75)"
-    )
+    start = out.index(next(line for line in out if line.startswith("reach at distance 1.00")))
+    assert out[start + 1 : start + 3] == [
+        "groove 1  lowsync -8.00  midD 2.00  hiD 8.00  hiness 1.00  hisyness -1.88",
+        "  reaches: groove 2 (0.75)",
+    ]
+    assert out[start + 6].startswith("  reaches: none (nearest: groove ")
     assert out[-1].startswith("spread: lowsync ")
     assert main([str(path), "--group-distance", "0.5"]) == 0
-    assert "  group 2: groove 2" in capsys.readouterr().out.splitlines()
+    out = capsys.readouterr().out.splitlines()
+    assert out[
+        out.index("groove 1  lowsync -8.00  midD 2.00  hiD 8.00  hiness 1.00  hisyness -1.88") + 1
+    ] == ("  reaches: none (nearest: groove 2, 0.75)")
 
 
 def test_cli_group_distance_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
