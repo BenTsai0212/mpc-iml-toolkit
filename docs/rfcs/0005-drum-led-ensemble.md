@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-19
 - Related: RFC 0001, RFC 0002, RFC 0003, RFC 0004, ADR 0002, ADR 0004, #113, #130
-- Amended: 2026-11-21 (#174)
+- Amended: 2026-11-21 (#174), 2026-11-24 (#250)
 - Accepted: 2026-11-22, steps 1-6 and 8 are built and have been played (#138 to #196); steps 7 and 9 stay as planned (#211)
 
 > **Amendment (2026-11-21, #174).** Steps 1–4 are built and have been played
@@ -18,6 +18,30 @@
 > - adds two questions on reflexive content and on a preview of the next bar;
 > - updates the gate in "Phases and gates" and the step-5 open question to the new
 >   steps.
+
+> **Amendment (2026-11-24, #250).** In the learning trials of 2026-11-23 learning
+> by likes and demonstrations was not audible, and the band did not hear about 60%
+> of the drummer's pattern changes. The drummer plays in grooves (#245) and nods
+> with pad 16 at the end of a phrase. This amendment:
+>
+> - adds principle 13: **The band follows grooves.** It listens for the groove (a
+>   pattern held over bars, #245) rather than each bar alone. A new groove is
+>   answered from the bar after it is recognised (its second bar). A fill is
+>   answered in the next bar with a short figure, and the band goes back to the
+>   groove's line when the groove continues.
+> - adds principle 14: **One nod.** The musician teaches the band with one gesture
+>   that is part of the playing: pad 16 at the end of a groove means "keep this". A
+>   nod counts for the groove before it, and the band plays what was nodded when
+>   that groove comes back, in this session and later ones. Optionally, it leans the
+>   same way in similar grooves; a nod in a groove overrides that.
+> - updates step 8: "Learning, smallest first" is replaced by "Learning by groove:
+>   the nod (#250). Likes per context and demonstrations (#196) were built and
+>   tried, and are replaced. Rules learned from songs are a later topic." The step-8
+>   open question is answered for now (method: a nodded variation per groove,
+>   matched by similarity; no model).
+> - adds to "Questions": does a band that follows grooves feel more "like listening
+>   to me" than one that follows each bar? Does a nod that is remembered across
+>   sessions make it feel "mine"?
 
 ## Summary
 
@@ -130,6 +154,16 @@ style — and its freedom has to sit inside that framework.
     which existing one it replaces.
 12. **Intent can be seen.** Where a front end exists, it can show what the band
     will do in the next bar.
+13. **The band follows grooves.** It listens for the groove (a pattern held over
+    bars, #245) rather than each bar alone. A new groove is answered from the bar
+    after it is recognised (its second bar). A fill is answered in the next bar
+    with a short figure, and the band goes back to the groove's line when the
+    groove continues (#250).
+14. **One nod.** The musician teaches the band with one gesture that is part of
+    the playing: pad 16 at the end of a groove means "keep this". A nod counts for
+    the groove before it, and the band plays what was nodded when that groove
+    comes back, in this session and later ones. Optionally, it leans the same way
+    in similar grooves; a nod in a groove overrides that (#250).
 
 ### What to build, in order
 
@@ -142,7 +176,7 @@ style — and its freedom has to sit inside that framework.
 | 5 | Loops as editable data, with import from a DAW MIDI file (#173), meeting the representation principle (principle 9) | Reflexive content and every later step need content the musician can write and change | |
 | 6 | Rhythm transformation: the band's rhythm is a transformation (not a copy) of the musician's last bar or bars, with pitches from the chords and the musician's own lines, following 4- or 8-bar phrases | The first step where the band plays material derived from the musician (principle 8) | |
 | 7 | Listening layer: per-bar features beyond counts (change in density, accents, similarity to the previous phrase), and leading or following that moves with the musician's volume and density | Gives steps 6 and 8 richer input than hit counts | |
-| 8 | Learning, smallest first: preset weights, then explicit likes while playing, then learning from playing; shared weights can be saved as a profile | Tests whether learning adds to the rules, starting from what is easiest to understand | |
+| 8 | Learning by groove: the nod (#250). Likes per context and demonstrations (#196) were built and tried, and are replaced. Rules learned from songs are a later topic | Tests whether learning adds to the rules, starting from what is easiest to understand | |
 | 9 | Two-way leading: the melody also influences the drums | Last; depends on what steps 5–8 show | |
 
 Steps 5–9 are ordered by dependency, not by date.
@@ -189,6 +223,9 @@ study outside the toolkit (RFC 0001).
   transformed) make the band feel more "like listening to me" than content the
   system wrote?
 - Does a visible preview of the next bar change that feeling?
+- Does a band that follows grooves feel more "like listening to me" than one that
+  follows each bar?
+- Does a nod that is remembered across sessions make it feel "mine"?
 
 ## Non-goals
 
@@ -221,4 +258,5 @@ This RFC stays within **Phase 2.7** (Epic #113) and replaces experiment C there.
   new content type.
 - How pad roles relate to the existing pad selection and modules (ADR 0007).
 - For step 8: the learning method, its licence and size, and how the musician's
-  likes and playing shape it.
+  likes and playing shape it. Answered for now (#250): a nodded variation per
+  groove, matched by similarity; no model.
