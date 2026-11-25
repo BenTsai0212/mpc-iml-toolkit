@@ -8,11 +8,10 @@ from typing import Any
 
 import pytest
 from test_ensemble import BAR, KICK, SNARE, START, STEP, Rig
-from test_ensemble_learn import MELODY, STEADY, bar_of, reply
+from test_ensemble_learn import MELODY, bar_of, reply
 from test_melody import HAT
 
 from mpc_iml.ensemble import MELODY_MODES, STILL_BRIGHTNESS, for_musician
-from mpc_iml.learn import CONTEXTS
 
 SPARSE = [(0, KICK), (8, KICK), (4, SNARE), (12, SNARE)]
 """Kicks on the beat: the bass rule plays `home`."""
@@ -116,69 +115,23 @@ def test_pad_15_cycles_still_to_fixed_and_never_back_to_still() -> None:
     assert MELODY_MODES == ("follow", "fixed", "off")
 
 
-def demo() -> Rig:
+def test_learn_nod_still_a_nod_keeps_the_bass_and_never_the_melody() -> None:
     rig = Rig(melody=True, bass="loop", status=1)
     controls = rig.ensemble.controls()
-    controls["learn"](["demo"])
+    controls["learn"](["nod"])
     controls["melody-mode"](["still"])
     rig.send(START)
-    return rig
-
-
-def test_learn_demo_still_pad_16_keeps_the_bass_and_pad_15_does_nothing() -> None:
-    rig = demo()
-    bar_of(rig, 0, hits=SYNCOPATED)
-    bar_of(rig, 1, press=8)
-    assert reply(rig, "want") == ["push", "auto"]
-    assert reply(rig, "examples") == [1, 0]
-    rig.until(2 * BAR + 4 * STEP)
-    reports = len(rig.reports)
-    rig.hit(MELODY)
-    rig.hit(MELODY)
-    ignored = "ensemble: pad 15 ignored, the melody is still"
-    assert rig.log.count(ignored) == 2
-    assert for_musician(ignored)
-    assert reply(rig, "want") == ["push", "auto"]
-    assert len(rig.reports) == reports, "nothing changed, nothing reported"
-    assert rig.ensemble.pad_action(15) == "-"
-    for bar in range(2, 6):
+    for bar in range(3):
+        bar_of(rig, bar, hits=SYNCOPATED)
+    bar_of(rig, 3, press=8, hits=SYNCOPATED)
+    for bar in range(4, 6):
         bar_of(rig, bar, hits=SYNCOPATED)
     rig.until(6 * BAR + STEP)
-    assert reply(rig, "examples")[1] == 0
-    assert reply(rig, "variation")[1] == "home"
-    assert reply(rig, "chose")[1] == "still"
-    with pytest.raises(ValueError, match="still"):
-        rig.ensemble.controls()["want"](["melody", "open"])
-    rig.ensemble.controls()["want"](["bass", "drive"])
-    assert reply(rig, "want") == ["drive", "auto"]
-
-
-def test_learn_likes_still_a_like_changes_the_bass_and_never_the_melody() -> None:
-    rig = Rig(melody=True, bass="loop", seed=1)
-    controls = rig.ensemble.controls()
-    controls["learn"](["likes"])
-    controls["melody-mode"](["still"])
-    rig.send(START)
-    melody = rig.ensemble._learners["melody"]
-    before = {c: melody.top(c) for c in CONTEXTS["melody"]}
-    liked = None
-    for bar in range(12):
-        bar_of(rig, bar, hits=STEADY)
-        rig.until((bar + 1) * BAR - STEP)
-        variation, tune = reply(rig, "variation")
-        assert tune == "home"
-        if bar:
-            assert reply(rig, "chose") == ["bandit", "still"]
-        if bar and liked is None and variation != "home":
-            liked = variation
-            for _ in range(4):
-                controls["like"]([])
-    assert liked is not None
-    assert reply(rig, "learned") == [f"bass:grid/beat>{liked}"]
-    likes = [line for line in rig.log if line.startswith("ensemble: like bar")]
-    assert likes and all(" melody " not in line for line in likes)
-    assert {c: melody.top(c) for c in before} == before
-    assert not melody.learned()
+    assert reply(rig, "chose") == ["nod", "still"]
+    assert reply(rig, "variation") == ["push", "home"]
+    nods = [line for line in rig.log if line.startswith("ensemble: nod bar")]
+    assert nods and all(" melody " not in line for line in nods)
+    assert not any(for_musician(line) for line in nods)
 
 
 def test_still_does_not_move_the_melody_with_rhythm_2() -> None:

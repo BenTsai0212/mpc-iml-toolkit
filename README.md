@@ -585,7 +585,7 @@ The full guide is in [docs/ensemble.md](docs/ensemble.md):
 [Set up Live for the bass](docs/ensemble.md#set-up-live-for-the-bass),
 [the bass loop](docs/ensemble.md#the-bass-loop),
 [the melody loop](docs/ensemble.md#the-melody-loop),
-[teaching the band](docs/ensemble.md#teach-the-band-with-likes),
+[teaching the band](docs/ensemble.md#nod-to-what-you-like),
 [the Ensemble group in Pure Data](docs/ensemble.md#the-ensemble-group-in-pure-data),
 [the controls](docs/ensemble.md#ensemble-controls) and
 [Try it without hardware](docs/ensemble.md#try-it-without-hardware).

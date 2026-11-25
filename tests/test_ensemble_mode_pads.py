@@ -1,5 +1,5 @@
 """`mode-pads 0|1` in `ensemble` (#216): with 0, pads 15 and 16 keep the melody and
-bass modes, and still like (`learn likes`) and want (`learn demo`).
+bass modes, and pad 16 still nods (`learn nod`, #250).
 
 On the simulated DAW clock of `test_ensemble.py` (`Rig`). With the default 1 the
 golden tests (`test_ensemble_learn.py`) check that nothing changed.
@@ -38,7 +38,7 @@ def test_with_1_pads_15_and_16_still_switch_the_modes() -> None:
     assert len(rig.reports) == 2
 
 
-@pytest.mark.parametrize("learn", ["off", "likes"])
+@pytest.mark.parametrize("learn", ["off", "nod"])
 def test_with_0_pads_15_and_16_switch_no_mode_and_send_no_reply(learn: str) -> None:
     rig = running(learn, 0)
     before = len(rig.reports)
@@ -51,19 +51,10 @@ def test_with_0_pads_15_and_16_switch_no_mode_and_send_no_reply(learn: str) -> N
     assert not [line for line in rig.log if line.startswith(("ensemble: bass", "ensemble: melody"))]
 
 
-def test_with_0_pad_16_is_still_a_like_in_learn_likes() -> None:
-    rig = running("likes", 0)
+def test_with_0_pad_16_is_still_a_nod_in_learn_nod() -> None:
+    rig = running("nod", 0)
     bar_of(rig, 0)
     bar_of(rig, 1, press=8)
-    assert reply(rig, "likes") == [1]
+    bar_of(rig, 2)
+    assert any(line.startswith("ensemble: nod bar 1") for line in rig.log)
     assert reply(rig, "bass") == ["loop", "loop"]
-    assert rig.reports[-1]["likes"] == [1]
-
-
-def test_with_0_pads_15_and_16_still_set_want_in_learn_demo() -> None:
-    rig = running("demo", 0)
-    rig.hit(LAYER)
-    rig.hit(MELODY)
-    assert "auto" not in reply(rig, "want"), "a keep marks the rules' choice (#215)"
-    assert reply(rig, "bass") == ["loop", "loop"]
-    assert reply(rig, "melody-mode")[0] == "follow"

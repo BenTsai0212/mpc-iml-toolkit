@@ -14,18 +14,10 @@ answers each bar in the bar after it (RFC 0005). The bass plays the bass loop
 (#158) are drawn from `Settings.seed`, so the same grid and settings always give
 the same song.
 
-`Settings.learn` is the setting `learn` (#196). With `likes`, `Settings.likes`
-presses like (the control `like`) in the middle of the bar that answers each listed
-grid bar, so the like credits that answer; with `demo`, `Settings.wants` sends
-`want <part> <want>` at the bar line after each listed grid bar, so the band plays
-it in the answer to that bar, and each later bar with drums that wanted it all
-through becomes an example (`auto` plays the model's prediction); `Settings.presses`
-presses pad 16 (bass) or 15 (melody) at the same step as a like, so the first press
-keeps the variation answering that bar and a further one moves to the next variation,
-until the phrase ends (#215). Each row then shows the
+`Settings.learn` is the setting `learn` (`off` or `nod`, #250). Each row shows the
 contexts of its bar and where each choice came from (`chose`), and the song keeps
-the learning log lines and the final `learned` reply. With `nod` (#250),
-`Settings.nods` sends the control `nod` in the first beat of the bar after each listed
+the learning log lines and the final `learned` reply. With `nod`, `Settings.nods`
+sends the control `nod` in the first beat of the bar after each listed
 grid bar, so the nod counts for that bar, as pad 16 does live; a replayed recording's
 pad 16 is the nod itself. The groove settings `follow-by`, `answer-after`,
 `learn-group` and `new-groove` go through the controls of the same name. Nothing is
@@ -42,7 +34,7 @@ from mpc_iml.clock import SIXTEENTHS, TICKS_PER_BEAT, BarStart, ClockAccess, Mid
 from mpc_iml.ensemble import DEFAULT_ROLES, LEARN_MODES, Ensemble
 from mpc_iml.events import Event, MidiEvent, RawMidiEvent
 from mpc_iml.frames import bank_pad_to_note, note_to_bank_pad
-from mpc_iml.learn import PARTS, WANTS
+from mpc_iml.learn import PARTS
 from mpc_iml.learn import context as learn_context
 from mpc_iml.melody import BarPlan
 from mpc_iml.progressions import Progression, load_progressions
@@ -87,12 +79,9 @@ _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _MOTIF = re.compile(r"ensemble: rhythm motif (kick|snare)[\w ]*")
 """The line `ensemble` logs for the motif at a phrase start (#189): information."""
-_LEARNING = re.compile(r"ensemble: (like|learned|trained|want|nod|groove \d+) .*")
-"""The lines `ensemble` logs while learning (#196, the nods and the grooves they play
-in, #250): kept in `Song.learning`."""
-LIKE_STEP = 8
-"""The step of the answering bar where `Settings.likes` presses like: past the
-first beat, so the like credits the bar playing (`learn.liked_bar`)."""
+_LEARNING = re.compile(r"ensemble: (nod|groove \d+) .*")
+"""The lines `ensemble` logs while learning (the nods and the grooves they play in,
+#250): kept in `Song.learning`."""
 
 
 @functools.cache
@@ -124,21 +113,10 @@ class Settings:
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
     learn: str = "off"
-    """The setting `learn` (#196): `off` (the default, the rules), `likes`, `demo` or
-    `nod` (#250)."""
-    likes: tuple[int, ...] = ()
-    """With `learn likes`: the grid bars (from 0) whose answer, the bar after each,
-    the musician likes."""
-    wants: tuple[tuple[int, str, str], ...] = ()
-    """With `learn demo`: `(bar, part, want)`, the musician wants `want` (`auto` or a
-    variation of `part`) in the answer to grid bar `bar` (from 0) and after it."""
+    """The setting `learn`: `off` (the default, the rules) or `nod` (#250)."""
     mode_pads: int = 1
     """The setting `mode-pads` (#216): 1 (the default, as in the instrument) pads 15
     and 16 of a replayed recording switch the modes, 0 they do not."""
-    presses: tuple[tuple[int, str], ...] = ()
-    """With `learn demo`: `(bar, part)`, the musician presses pad 16 (`bass`) or 15
-    (`melody`) in the bar that answers grid bar `bar` (from 0), at `LIKE_STEP`
-    (#215): in `auto` it keeps the variation playing, else it moves to the next."""
     follow_by: str = "bar"
     """The setting `follow-by` (#250): `bar` (the default, as in the instrument) or
     `groove`."""
@@ -193,12 +171,8 @@ class BarRow:
     """The bass and melody contexts of the bar's drums (`learn.context`, #196)."""
     chose: tuple[str, str] = ("-", "-")
     """Where the bass and melody choice for the bar after it came from, as the reply
-    `chose`: `rule`, `bandit`, `model`, `want`, or `-` when the loop is silent."""
-    liked: bool = False
-    """The musician liked the bar after it (`Settings.likes`)."""
-    pressed: tuple[str, ...] = ()
-    """The parts whose pad the musician pressed in the bar after it
-    (`Settings.presses`, #215)."""
+    `chose`: `rule`, `still`, `nod`, `group`, `invite`, `fill`, or `-` when the loop
+    is silent."""
 
 
 @dataclass(frozen=True)
@@ -213,10 +187,10 @@ class Song:
     brightness: tuple[tuple[int, int], ...]
     rows: tuple[BarRow, ...]
     learning: tuple[str, ...] = ()
-    """The learning log lines (likes, wants, learned contexts, trained trees, nods)."""
+    """The learning log lines (the nods and the grooves they play in)."""
     learned: tuple[str, ...] = ()
-    """The reply `learned` at the end: up to 4 `<part>:<context>><arm>` that differ
-    from the rules (empty: none)."""
+    """The reply `learned` at the end: up to 4 `bass:groove <id>><variation>` for the
+    nodded grooves (empty: none)."""
 
     @property
     def seconds_per_tick(self) -> float:
@@ -250,9 +224,9 @@ def simulate(
 
     Raises `ValueError` for a grid of no bars or more than `MAX_BARS`, a drum or step
     count other than `DRUMS` and `STEPS`, a velocity outside 0-127, a tempo outside
-    `TEMPO_RANGE`, a like, a want, a press or a nod outside the grid or the `learn`
-    mode, or a setting the preset's controls refuse. `library` holds the progressions
-    `settings.progression` names (default `progressions()`).
+    `TEMPO_RANGE`, a nod outside the grid or the `learn` mode, or a setting the
+    preset's controls refuse. `library` holds the progressions `settings.progression`
+    names (default `progressions()`).
     """
     hits = _hits(grid)
     low, high = TEMPO_RANGE
@@ -289,7 +263,7 @@ def replay(
     song's tempo (`Settings.tempo`) is the clock's at the end of the take, and the
     audio renders at that tempo. Raises `ValueError` for a recording without a Start
     and 24 ticks, or of more than `MAX_BARS` bars, and as `simulate` for the learning
-    settings (a like, a want or a press after the take does nothing). `library` as for
+    settings (a nod after the take does nothing). `library` as for
     `simulate` (`measures --data` adds the musician's own progressions, #236).
     """
     _check_learning(settings, MAX_BARS)
@@ -324,33 +298,14 @@ def replay(
 
 
 def _check_learning(settings: Settings, bars: int) -> None:
-    """Refuse a `learn` mode, like, want or press `simulate` and `replay` cannot play."""
+    """Refuse a `learn` mode or nod `simulate` and `replay` cannot play."""
     if settings.learn not in LEARN_MODES:
         raise ValueError(f"learn must be one of {', '.join(LEARN_MODES)}, got {settings.learn!r}")
-    if settings.likes and settings.learn != "likes":
-        raise ValueError("likes need learn likes")
-    if settings.wants and settings.learn != "demo":
-        raise ValueError("wants need learn demo")
-    if settings.presses and settings.learn != "demo":
-        raise ValueError("presses need learn demo")
     if settings.nods and settings.learn != "nod":
         raise ValueError("nods need learn nod")
     for bar in settings.nods:
         if not 0 <= bar < bars:
             raise ValueError(f"a nod must be in bars 1-{bars}, got bar {bar + 1}")
-    for bar in settings.likes:
-        if not 0 <= bar < bars:
-            raise ValueError(f"a like must be in bars 1-{bars}, got bar {bar + 1}")
-    for bar, part, want in settings.wants:
-        if not 0 <= bar < bars:
-            raise ValueError(f"a want must be in bars 1-{bars}, got bar {bar + 1}")
-        if part not in WANTS or want not in WANTS[part]:
-            raise ValueError(f"a want is bass|melody and auto or a variation, got {part} {want}")
-    for bar, part in settings.presses:
-        if not 0 <= bar < bars:
-            raise ValueError(f"a press must be in bars 1-{bars}, got bar {bar + 1}")
-        if part not in WANTS:
-            raise ValueError(f"a press is bass or melody, got {part}")
 
 
 class _Run:
@@ -363,17 +318,8 @@ class _Run:
         self.learning: list[str] = []
         self.surprises: dict[int, str] = {}
         self.chose: dict[int, tuple[str, str]] = {}
-        self._likes = {bar + 1 for bar in settings.likes}
-        self._liked: set[int] = set()
         self._nods = {bar + 1 for bar in settings.nods}
         self._nodded: set[int] = set()
-        self._presses: dict[int, list[str]] = {}
-        for bar, part in settings.presses:
-            self._presses.setdefault(bar + 1, []).append(part)
-        self.pressed: dict[int, tuple[str, ...]] = {}
-        wants: dict[int, list[tuple[str, str]]] = {}
-        for bar, part, want in settings.wants:
-            wants.setdefault(bar + 1, []).append((part, want))
         self.clock = MidiClock(BEATS_PER_BAR)
         self.sent: list[tuple[int, bytes]] = []
         self.drums: list[Note] = []
@@ -399,14 +345,8 @@ class _Run:
         controls["learn-group"]([settings.learn_group])
         controls["new-groove"]([settings.new_groove])
         controls["status"]([0])  # the page shows the bars in its table (#230)
-        self.ensemble, self._like, self._nod = ensemble, controls["like"], controls["nod"]
+        self.ensemble, self._nod = ensemble, controls["nod"]
         self.chords = ensemble.progression
-
-        def send_wants(start: BarStart) -> None:
-            for part, value in wants.get(start.bar, ()):
-                controls["want"]([part, value])
-
-        self.access.on_bar(send_wants)
         ensemble.attach(self.access)
         self.bars: dict[int, tuple[BarStart, dict[str, BarPlan | None]]] = {}
         self.access.on_bar(self._bar)
@@ -428,7 +368,7 @@ class _Run:
             self.log.append(line)
 
     def feed(self, data: bytes, t: float) -> None:
-        """One clock message at `t`, then the bar lines, a like or nod due and the notes
+        """One clock message at `t`, then the bar lines, a nod due and the notes
         now due."""
         self.clock.feed(data, t)
         self.access.bar_line()
@@ -436,29 +376,7 @@ class _Run:
         if state.status == "running" and state.bar in self._nods - self._nodded:
             self._nodded.add(state.bar)
             self._nod([])
-        if (
-            state.status == "running"
-            and state.step >= LIKE_STEP
-            and state.bar in self._likes - self._liked
-        ):
-            self._liked.add(state.bar)
-            self._like([])
-        if (
-            state.status == "running"
-            and state.step >= LIKE_STEP
-            and state.bar in self._presses
-            and state.bar not in self.pressed
-        ):
-            parts = tuple(self._presses[state.bar])
-            self.pressed[state.bar] = parts
-            for part in parts:
-                self._press(part, t)
         self.scheduler.update(t)
-
-    def _press(self, part: str, t: float) -> None:
-        """Pad 16 (`bass`) or 15 (`melody`) of bank A, as the musician presses it."""
-        pad = self.ensemble.layer_pad if part == "bass" else self.ensemble.melody_pad
-        self.access.deliver(MidiEvent(t, "note_on", 1, 100, bank_pad_to_note(0, pad - 1)))
 
     def hit(self, event: MidiEvent) -> None:
         """A pad Note On; a drum while the clock runs is also a note of the song."""
@@ -487,8 +405,6 @@ class _Run:
             replace(
                 _row(b, *self.bars[b + 1], settings, self.surprises.get(b + 1), self.chords),
                 chose=self.chose[b + 1],
-                liked=b + 1 in self._liked,
-                pressed=self.pressed.get(b + 1, ()),
             )
             for b in range(grid_bars)
         )

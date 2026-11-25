@@ -1,5 +1,6 @@
-"""Learning in `ensemble` (#196, RFC 0005 step 8): `learn off|likes`, pad 16 as like,
-the control `like` and the replies `learn`, `likes`, `chose` and `learned`.
+"""Learning in `ensemble` (#196, #250, RFC 0005 step 8): `learn off` plays as before,
+`learn likes`, `learn demo` and their controls are refused naming the nod (#250),
+and the replies they had keep their values.
 
 On the simulated DAW clock of `test_ensemble.py` (`Rig`). `learn off` must play
 exactly what `main` played before the wiring: `tests/data/ensemble-learn-off.json`
@@ -92,13 +93,6 @@ STEADY = [(0, KICK), (4, SNARE), (8, KICK), (12, SNARE), (2, HAT), (6, HAT), (10
 """A bar in the bass context `grid/beat` (rule `home`) and melody `mid/8ths` (`home`)."""
 
 
-def likes(seed: int = 0) -> Rig:
-    rig = Rig(melody=True, bass="loop", seed=seed)
-    rig.ensemble.controls()["learn"](["likes"])
-    rig.send(START)
-    return rig
-
-
 def bar_of(rig: Rig, bar: int, press: int | None = None, hits: Any = STEADY) -> None:
     """Play `hits` in `bar`, pressing pad 16 at step `press`."""
     pressed = [] if press is None else [(press, LAYER)]
@@ -112,69 +106,43 @@ def reply(rig: Rig, name: str) -> list[Any]:
     return dict(rig.ensemble.state())[name]
 
 
-def test_pad_16_likes_the_bar_playing_and_keeps_the_bass_mode() -> None:
-    rig = likes()
-    bar_of(rig, 0)
-    bar_of(rig, 1, press=8)
-    assert reply(rig, "bass") == ["loop", "loop"]
-    assert reply(rig, "likes") == [1]
-    (line,) = [line for line in rig.log if line.startswith("ensemble: like")]
-    assert line.startswith("ensemble: like bar 1 bass grid/beat>")
-    assert " melody mid/8ths>" in line
-    assert rig.reports[-1]["likes"] == [1]
+PUSHED = [(0, KICK), (6, KICK), (4, SNARE), (12, SNARE), (2, HAT)]
+"""A bar in the bass context `push/beat` (rule `push`)."""
 
 
-def test_a_like_in_the_first_beat_credits_the_bar_before() -> None:
-    rig = likes()
-    bar_of(rig, 0)
-    bar_of(rig, 1)
-    bar_of(rig, 2, press=1)
-    assert any(line.startswith("ensemble: like bar 1 ") for line in rig.log)
-
-
-def test_a_bar_without_a_learned_choice_credits_nothing() -> None:
-    rig = likes()
-    bar_of(rig, 0, press=8)
-    assert reply(rig, "likes") == [0]
-    assert "ensemble: like bar 0, no learned choice to credit" in rig.log
-
-
-def test_likes_teach_a_choice_and_the_reply_shows_it() -> None:
-    rig = likes(seed=1)
-    liked = None
-    for bar in range(12):
-        bar_of(rig, bar)
-        rig.until((bar + 1) * BAR - STEP)
-        variation = reply(rig, "variation")[0]
-        if bar and liked is None and variation != "home":
-            liked = variation
-            for _ in range(4):
-                rig.ensemble.controls()["like"]([])
-    assert liked is not None
-    assert reply(rig, "learned")[0] == f"bass:grid/beat>{liked}"
-    assert f"ensemble: learned bass grid/beat>{liked} (rule home)" in rig.log
-
-
-def test_chose_tells_rules_from_the_learner() -> None:
-    off, on = Rig(melody=True, bass="loop"), likes()
-    off.send(START)
-    for rig in (off, on):
-        bar_of(rig, 0)
-        rig.until(BAR + STEP)
-    assert reply(off, "chose") == ["rule", "rule"]
-    assert reply(on, "chose") == ["bandit", "bandit"]
-    assert reply(on, "learn") == ["likes"] and reply(off, "learned") == ["-"]
-
-
-def test_the_like_control_needs_likes_and_a_running_clock() -> None:
+@pytest.mark.parametrize("mode", ["likes", "demo"])
+def test_learn_likes_and_demo_are_refused_naming_the_nod(mode: str) -> None:
     rig = Rig(melody=True, bass="loop")
-    with pytest.raises(ValueError, match="learn is not likes"):
-        rig.ensemble.controls()["like"]([])
-    rig.ensemble.controls()["learn"](["likes"])
-    with pytest.raises(ValueError, match="not running"):
-        rig.ensemble.controls()["like"]([])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=f"learn {mode} was removed .*learn nod"):
+        rig.ensemble.controls()["learn"]([mode])
+    assert reply(rig, "learn") == ["off"]
+    with pytest.raises(ValueError, match="expected one of off, nod"):
         rig.ensemble.controls()["learn"](["teach"])
+
+
+@pytest.mark.parametrize(
+    ("control", "args"), [("like", []), ("want", ["bass", "push"]), ("learn-loops", [1])]
+)
+def test_the_controls_of_likes_and_demo_are_refused_naming_the_nod(
+    control: str, args: list[Any]
+) -> None:
+    rig = Rig(melody=True, bass="loop")
+    with pytest.raises(ValueError, match=f"{control} was removed .*use learn nod"):
+        rig.ensemble.controls()[control](args)
+
+
+def test_the_replies_of_likes_and_demo_stay_in_the_list() -> None:
+    rig = Rig(melody=True, bass="loop")
+    rig.send(START)
+    bar_of(rig, 0)
+    rig.until(BAR + STEP)
+    names = [name for name, _ in rig.ensemble.state()]
+    assert names.index("learned") + 1 == names.index("want")
+    assert reply(rig, "want") == ["auto", "auto"]
+    assert reply(rig, "examples") == [0, 0]
+    assert reply(rig, "learn-loops") == [0]
+    assert reply(rig, "chose") == ["rule", "rule"]
+    assert reply(rig, "learned") == ["-"]
 
 
 if __name__ == "__main__":

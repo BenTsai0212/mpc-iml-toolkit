@@ -174,9 +174,8 @@ hip-hop 的 loop（`knock` 到 `bells`）也會奏和弦音以外的音：九度
 **still**（#233，控制項 `melody-mode still`，用於盲測與練習）讓旋律保持不變、bass 照常跟隨：
 不論鼓怎麼打、包括沒有鼓的小節，旋律 loop 每小節都以 velocity 100 奏出 `home` 變奏與裝飾音，
 並在每個小節線以同一個值（79）送出亮度 CC（不淡出也不停止；`no-drums` 與 `fade-bars` 只作用於
-bass）。bass 與 follow 時一樣跟隨 kick，規則、學習、`want` 與 pad 16 都照常。學習不選擇旋律的
-變奏：like 只計入 bass，`learn demo` 時 pad 15 與 `want melody` 不做任何事（終端機顯示
-`ensemble: pad 15 ignored, the melody is still`）。pad 15 不會切換到 still：從 still 按下會到
+bass）。bass 與 follow 時一樣跟隨 kick，規則、學習與 pad 16 都照常。學習不選擇旋律的
+變奏：點頭只記住 bass。pad 15 不會切換到 still：從 still 按下會到
 fixed，再到 off 與 follow。`chose` 與狀態行中旋律的來源為 `still`。
 
 要在 Live 聽到旋律，新增第二條 MIDI 軌並放上鍵盤樂器（例如電鋼琴，或 Drift 的 pluck preset）。
@@ -353,14 +352,12 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | loop 停止前的空小節數（最後兩個淡出）；0 不會停止 |
 | `/mpciml/preset/ensemble/surprise` | 0-2（0 關閉，1 只有 bass fill，2 再加上旋律的 surprise） | 1 | 每個 4 小節樂句結尾的 surprise（[一點驚喜](#一點驚喜)） |
 | `/mpciml/preset/ensemble/rhythm` | 0、1 或 2 | 0 | 1：bass 線條的音移向上一小節的 kick（每個 4 小節樂句的第一小節照原樣，之後移動，最後一小節再晚一個 16 分音符）；2：旋律的音也移向上一小節的 snare 與 hat（每個樂句的第一小節照原樣）；0：照寫好的線條。#194 之前預設為 1：人工檢查時，在 hip-hop 等穩定的風格中，移動的 bass 有時聽起來不在拍上 |
-| `/mpciml/preset/ensemble/learn` | `off`、`likes`、`demo` 或 `nod` | `off` | `nod`：pad 16 是**點頭**，記住那個 groove 中 bass 的變奏，該 groove 再出現時 bass 演奏它（#250）；`likes`：每個 loop 的變奏來自你的「喜歡」教給它的選擇，從規則開始，pad 16 改為**喜歡**而不切換 bass 模式（bass 模式在演奏前設定）；`demo`：pad 16 與 15 選擇你要的 bass 與旋律變奏，該 loop 演奏它，每個這樣打鼓的小節成為一個範例，`auto` 演奏範例教給的選擇（決策樹；少於 4 個範例或只有一種變奏時用規則）；`off`：規則（#196） |
-| `/mpciml/preset/ensemble/like` | 無 | - | 與 `learn likes` 時的 pad 16 相同：喜歡樂團在這個小節演奏的內容（第一拍內是上一小節）；`learn off` 或 clock 未執行時拒絕 |
-| `/mpciml/preset/ensemble/want` | `bass` 或 `melody`，接 `auto` 或它的一個變奏 | `auto` | 與 `learn demo` 時的 pad 16、15 相同：你要該 loop 演奏並學習的變奏；不是 `learn demo` 時拒絕 |
+| `/mpciml/preset/ensemble/learn` | `off` 或 `nod` | `off` | `nod`：pad 16 是**點頭**，記住那個 groove 中 bass 的變奏，該 groove 再出現時 bass 演奏它（#250）；`off`：規則（#196）。`likes` 與 `demo`（以及控制項 `like`、`want`、`learn-loops`）已由點頭取代並移除（#250），送出時拒絕並寫出 `learn nod` |
 | `/mpciml/preset/ensemble/save-profile` | 無 | - | 立即把學到的內容存到資料夾的 `learn/ensemble.json`（profile，第 2 版含點頭，#250）；`learn` 不是 `off` 時每個 4 小節樂句開頭也會儲存；讀到 #250 之前的第 1 版 profile 時改名為 `learn/ensemble-v1.json` 保留，從沒有點頭開始 |
 | `/mpciml/preset/ensemble/load-profile` | 無 | - | 重新讀取 profile（載入 `ensemble` 時也會讀取）；檔案不存在或無法讀取時拒絕 |
-| `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記點頭、喜歡的權重與範例（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile（每個點頭的 groove 以 16 step 方格列出） |
-| `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、喜歡、範例），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的喜歡比例、與規則不同的比例與範例數；`learn nod` 時點頭的小節有 `nod` 欄位，summary 加上 `nods:` 一行與每次 groove 改變時 bass 變奏是否改變 |
-| `/mpciml/preset/ensemble/mode-pads` | 0 或 1 | 1 | 1：pad 15、16 切換旋律與 bass 的模式；0：不切換模式（`learn likes` 時仍是喜歡、`learn demo` 時仍是想要的變奏），盲測比較時送出（[盲測比較](trials.md)） |
+| `/mpciml/preset/ensemble/reset-learning` | 無 | - | 回到規則：忘記點頭（檔案在下次儲存時才改變）；`uv run python -m mpc_iml.learn show` 不需要 engine 就能印出 profile（每個點頭的 groove 以 16 step 方格列出） |
+| `/mpciml/preset/ensemble/learn-log` | 0 或 1 | 0 | 1：每小節在資料夾的新檔 `learn/log-<時間>.jsonl` 寫一行（情境、各 loop 演奏的內容與來源、規則的選擇、上一小節的 groove），用來比較學習模式，不改變演奏；0：寫完並關閉；`uv run python -m mpc_iml.learn summary <log>` 印出每個模式的小節數與與規則不同的比例（#250 之前的 log 另有喜歡比例與範例數）；`learn nod` 時點頭的小節有 `nod` 欄位，summary 加上 `nods:` 一行與每次 groove 改變時 bass 變奏是否改變 |
+| `/mpciml/preset/ensemble/mode-pads` | 0 或 1 | 1 | 1：pad 15、16 切換旋律與 bass 的模式；0：不切換模式（`learn nod` 時 pad 16 仍是點頭），盲測比較時送出（[盲測比較](trials.md)） |
 | `/mpciml/preset/ensemble/follow-by` | `bar` 或 `groove` | `bar` | `groove`：變奏跟隨你的 groove（由 groove 的節奏型選擇，fill 小節的下一小節 bass 保持 groove 的變奏並在第 4 拍奏過門）；`bar`：跟隨每一小節（#250） |
 | `/mpciml/preset/ensemble/nod` | 無 | - | 同 `learn nod` 時的 pad 16：在這一小節點頭（第一拍內為前一小節）；`learn` 不是 `nod` 或時鐘未執行時拒絕 |
 | `/mpciml/preset/ensemble/learn-group` | 0 或 1 | 0 | `learn nod` 時：1 讓沒有點頭的 groove 在每段以一半的機率演奏相近 groove 的點頭 |
@@ -391,12 +388,12 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `loop-errors` | 上次讀取時略過的 loop 檔案數 |
 | `rhythm` | 值（0、1 或 2） |
 | `transform` | 正在演奏的 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
-| `learn` | 學習模式（`off`、`likes`、`demo`、`nod`） |
-| `likes` | 載入 `ensemble` 之後計入選擇的「喜歡」次數；`learn nod` 時為記住變奏的點頭次數 |
-| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`，`follow-by groove` 時 bass 回應 fill 為 `fill`，`learn nod` 時 bass 為 `nod`、`group` 或 `invite`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
-| `learned` | 最多 4 個 `<部分>:<情境>><變奏>`，學到的最高選擇與規則不同的情境；`learn nod` 時為本次點頭過的 groove，最多 4 個 `bass:groove <id>><變奏>`（沒有時為 `-`） |
-| `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
-| `examples` | 以 `learn demo` 示範的 bass 與旋律範例數（含 profile 中的範例） |
+| `learn` | 學習模式（`off`、`nod`） |
+| `likes` | 載入 `ensemble` 之後記住變奏的點頭次數 |
+| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`，`melody-mode still` 時旋律為 `still`，`follow-by groove` 時 bass 回應 fill 為 `fill`，`learn nod` 時 bass 為 `nod`、`group` 或 `invite`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `learned` | `learn nod` 時為本次點頭過的 groove，最多 4 個 `bass:groove <id>><變奏>`（沒有時為 `-`） |
+| `want` | `auto auto`：`learn demo` 移除後（#250）保留，回覆清單不變 |
+| `examples` | `0 0`：`learn demo` 移除後（#250）保留，回覆清單不變 |
 | `profile-errors` | 上次讀取 profile 失敗時為 1（演奏規則，樂句開頭不覆寫該檔），否則為 0 |
 | `learn-log` | 寫出每小節的 log 時為 1，否則為 0 |
 | `mode-pads` | pad 15、16 切換模式時為 1，否則為 0 |
@@ -413,14 +410,13 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 pad 16、15 之後印出一行，例如：
 
 ```text
-ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+ensemble: bar 12  Am7  groove 2 (bar 5)  bass drive (rule)  melody home (rule)  16: nod  15: -
 ```
 
-依序是小節（從 Start 的 0 起算）與它在演奏中的和弦進行裡的和弦（#236）、bass 與旋律正在演奏的變奏與選擇的來源（`rule`、`bandit`、
-`model`、`want`，`melody-mode still` 時旋律為 `still`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn demo` 時為
-`keep <變奏>`、`next <變奏>`，`learn likes` 時 pad 16 為 `like`，`mode-pads 1` 時為切換到的模式
-（`bass rule`、`melody fixed`），什麼都不做時（`mode-pads 0`，或 `learn demo` 且 `melody-mode still`
-時的 pad 15）為 `-`。clock 未執行（Live 停止或預備拍）時按
+依序是小節（從 Start 的 0 起算）與它在演奏中的和弦進行裡的和弦（#236）、groove 欄位、bass 與旋律正在演奏的變奏與選擇的來源（`rule`，
+`melody-mode still` 時旋律為 `still`，`fill`、`nod`、`group`、`invite`；該 loop 不發聲時為 `-`），以及現在按 pad 16、15 會做什麼：`learn nod` 時
+pad 16 為 `nod`，`mode-pads 1` 時為切換到的模式（`bass rule`、`melody fixed`），什麼都不做時
+（`mode-pads 0`）為 `-`。clock 未執行（Live 停止或預備拍）時按
 pad 16、15 而沒有作用，會印出 `ensemble: pad 16 ignored, the clock is not running`，`status 0`
 時也會印出。狀態行只用於顯示，不改變演奏。
 

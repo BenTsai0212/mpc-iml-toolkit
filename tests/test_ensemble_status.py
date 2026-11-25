@@ -5,14 +5,12 @@ with either setting.
 
 On the simulated DAW clock of `test_ensemble.py` (`Rig`, whose status line is off
 unless asked). The golden sessions of `test_ensemble_learn.py` play with `status 1`,
-so the golden files of `learn off` and `learn likes` check that the line changes
-nothing that plays.
+so the golden file of `learn off` checks that the line changes nothing that plays.
 """
 
 import pytest
 from test_ensemble import LAYER, START, Rig
-from test_ensemble_demo import PUSHED
-from test_ensemble_learn import MELODY, bar_of, reply
+from test_ensemble_learn import MELODY, PUSHED, bar_of, reply
 
 from mpc_iml.clock import PadHit
 from mpc_iml.ensemble import Ensemble, for_musician
@@ -40,27 +38,22 @@ def test_status_defaults_to_1_and_has_a_reply() -> None:
         ensemble.controls()["status"]([2])
 
 
-def test_learn_demo_shows_the_variations_and_what_pad_16_does_before_and_after_presses() -> None:
-    rig = running("demo")
+def test_learn_nod_shows_the_variations_and_that_pad_16_nods() -> None:
+    rig = running("nod")
     bar_of(rig, 0, hits=PUSHED)
     bar_of(rig, 1, press=8)
-    bar_of(rig, 2, press=8)
-    bar_of(rig, 3)
+    bar_of(rig, 2)
     assert status(rig) == [
-        "ensemble: bar 0  Am7  groove -  bass -  melody -  16: keep home  15: keep open",
+        "ensemble: bar 0  Am7  groove -  bass -  melody -  16: nod  15: melody fixed",
         "ensemble: bar 1  Am7  groove -  bass push (rule)  melody open (rule)"
-        "  16: keep push  15: keep open",
+        "  16: nod  15: melody fixed",
         "ensemble: bar 1  Am7  groove -  bass push (rule)  melody open (rule)"
-        "  16: next drive  15: keep open",
-        "ensemble: bar 2  Fmaj7  groove -  bass push (want)  melody home (rule)  16: next drive"
-        "  15: keep home",
-        "ensemble: bar 2  Fmaj7  groove -  bass push (want)  melody home (rule)  16: next home"
-        "  15: keep home",
-        "ensemble: bar 3  Fmaj7  groove 1 (bar 2)  bass drive (want)  melody home (rule)"
-        "  16: next home"
-        "  15: keep home",
+        "  16: nod  15: melody fixed",
+        "ensemble: bar 2  Fmaj7  groove -  bass home (rule)  melody home (rule)"
+        "  16: nod  15: melody fixed",
     ]
     assert all(for_musician(line) for line in status(rig))
+    assert not for_musician("ensemble: nod bar 1, no groove to count for")
 
 
 @pytest.mark.parametrize(
@@ -84,9 +77,8 @@ def test_the_status_line_names_the_chord_of_its_bar(progression: str, chords: li
     [
         ("off", 0, "16: -  15: -"),
         ("off", 1, "16: bass rule  15: melody fixed"),
-        ("likes", 0, "16: like  15: -"),
-        ("likes", 1, "16: like  15: melody fixed"),
-        ("demo", 0, "16: keep home  15: keep home"),
+        ("nod", 0, "16: nod  15: -"),
+        ("nod", 1, "16: nod  15: melody fixed"),
     ],
 )
 def test_the_pad_text_of_each_learn_mode(learn: str, mode_pads: int, pads: str) -> None:
@@ -94,19 +86,20 @@ def test_the_pad_text_of_each_learn_mode(learn: str, mode_pads: int, pads: str) 
     bar_of(rig, 0)
     bar_of(rig, 1)
     (line,) = [line for line in status(rig) if line.startswith("ensemble: bar 1 ")]
-    assert line.endswith(f"(rule)  {pads}") or line.endswith(f"(bandit)  {pads}"), line
+    assert line.endswith(f"(rule)  {pads}"), line
 
 
 def test_status_0_logs_no_status_line() -> None:
-    rig = running("demo", status=0)
+    rig = running("nod", status=0)
     bar_of(rig, 0)
     bar_of(rig, 1, press=8)
+    bar_of(rig, 2)
     assert status(rig) == []
-    assert "ensemble: want bass home (kept) to bar 4" in rig.log
+    assert "ensemble: nod bar 1 -> groove 1 (bar 2), bass home" in rig.log
 
 
 @pytest.mark.parametrize("status_on", [0, 1])
-@pytest.mark.parametrize(("learn", "mode_pads"), [("off", 0), ("likes", 1), ("demo", 1)])
+@pytest.mark.parametrize(("learn", "mode_pads"), [("off", 0), ("nod", 0), ("nod", 1)])
 def test_a_press_while_the_clock_is_stopped_is_shown_with_either_setting(
     learn: str, mode_pads: int, status_on: int
 ) -> None:
@@ -123,7 +116,7 @@ def test_a_press_while_the_clock_is_stopped_is_shown_with_either_setting(
 
 def test_a_mode_switch_while_the_clock_is_stopped_is_not_ignored() -> None:
     rig = Rig(melody=True, bass="loop", status=1)
-    rig.ensemble.controls()["learn"](["likes"])
+    rig.ensemble.controls()["learn"](["nod"])
     rig.hit(MELODY)
     assert rig.log == ["ensemble: melody fixed"]
     rig.ensemble.on_pad(PadHit(0.0, LAYER - 36, 0, 100, None))
@@ -131,6 +124,6 @@ def test_a_mode_switch_while_the_clock_is_stopped_is_not_ignored() -> None:
 
 
 def test_other_lines_are_not_for_the_musician() -> None:
-    assert not for_musician("ensemble: want bass push (kept) to bar 4")
+    assert not for_musician("ensemble: nod bar 16 -> groove 2 (bar 8), bass push")
     assert not for_musician("ensemble: surprise fill in bar 3")
     assert not for_musician("engine: pad 16 ignored, the clock is not running")

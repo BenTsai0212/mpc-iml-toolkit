@@ -80,12 +80,11 @@ _SAME = {
     ("reset-learning", ()),
     ("learn-log", (0,)),
     ("learn-log", (1,)),
-    ("learn-loops", (0,)),
     ("status", (0,)),
     ("status", (1,)),
 }
 """Controls that do not change what the replay plays: it starts from the rules, with
-no profile, no learn log and the selected loops (#196); the status line only logs
+no profile and no learn log (#196); the status line only logs
 (#230)."""
 
 Pattern = frozenset[tuple[str, int]]
@@ -241,9 +240,8 @@ def response(changes: Sequence[float], bands: Sequence[int]) -> Response:
 def replay_settings(controls: Iterable[tuple[str, Sequence[Any]]]) -> Settings:
     """The replay `Settings` for `ensemble` controls in order (a trial's `messages`).
     Raises `ValueError` for a control the replay cannot play: `bass` other than
-    `loop`, or a control it does not know. With `learn likes` or `demo` the replay
-    plays the recorded pads 15 and 16 as likes and wanted variations; with `learn nod`
-    (#250) it plays the recorded pad 16 as the nod."""
+    `loop`, or a control it does not know. With `learn nod` (#250) it plays the
+    recorded pad 16 as the nod."""
     values: dict[str, Any] = {}
     for control, args in controls:
         if control == "bass" and list(args) == ["loop"]:

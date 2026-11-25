@@ -24,7 +24,6 @@ from mpc_iml.webdemo.sim import Settings, replay
 DATA = Path(__file__).parent / "data"
 TWO_BARS = DATA / "trial-two-bars.jsonl"
 EXAMPLE = Path(__file__).parents[1] / "examples" / "trial" / "rhythm.json"
-LEARN = EXAMPLE.with_name("learn.json")
 
 
 def test_the_two_bar_recording_has_known_measures() -> None:
@@ -102,11 +101,6 @@ def test_replay_settings_from_a_trial() -> None:
     assert replay_settings(trial.messages(rhythm)) == Settings(surprise=1, rhythm=1, mode_pads=0)
     assert replay_settings([("bass-loop", ["walk"]), ("fade-bars", [4])]) == Settings(
         bass_loop="walk", fade_bars=4
-    )
-    learn, _ = load_trial(LEARN)
-    demo = next(c for c in learn.conditions if c.name == "learn-demo")
-    assert replay_settings(learn.messages(demo)) == Settings(
-        surprise=1, learn="demo", mode_pads=0, melody_mode="still"
     )
     nod, _ = load_trial(EXAMPLE.with_name("nod.json"))
     learn_nod = next(c for c in nod.conditions if c.name == "learn-nod")
