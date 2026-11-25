@@ -176,6 +176,11 @@ HIP_HOP = {
     "two-five-one": "Dm7 (1) G7 (1) Cmaj7 (2)",
 }
 """The hip-hop progressions of the `## Decision` on #236, with their chords."""
+SETS = {
+    "haze": "Fmaj7 (2) Em7 (2) Dm7 (2) Gm7 (1) C7 (1)",
+    "midnight": "Bm7 (2) Gmaj7 (2) Em7 (2) F#7 (2)",
+}
+"""The progressions of the lo-fi and trap sets (#262), with their chords."""
 
 FOLDER = Path(__file__).parents[1] / "src" / "mpc_iml" / "progressions" / "ensemble"
 BUSY = {"kick": [100, 0, 0, 100] * 4, "snare": [0, 0, 0, 0, 90, 0, 0, 0] * 2, "hat": [70] * 16}
@@ -184,8 +189,9 @@ OPEN = {"kick": [100, 0, 0, 0, 0, 0, 0, 0] * 2}
 
 def test_the_built_in_set_follows_the_two_old_progressions() -> None:
     progressions = load_progressions()
-    assert list(progressions) == ["minor-two", "minor-four", *HIP_HOP]
-    assert {name: chord_names(progressions[name]) for name in HIP_HOP} == HIP_HOP
+    added = HIP_HOP | SETS
+    assert list(progressions) == ["minor-two", "minor-four", *sorted(added)]
+    assert {name: chord_names(progressions[name]) for name in added} == added
     for name in progressions:
         assert main(["check", str(FOLDER / f"{name}.json")]) == 0
 
@@ -200,7 +206,7 @@ def test_m7b5_has_a_flat_fifth() -> None:
     assert loop_pitch(LoopNote(0, 0, 3, 1, 1, semitones=1), b, b, 4) == 82
 
 
-@pytest.mark.parametrize("progression", HIP_HOP)
+@pytest.mark.parametrize("progression", [*HIP_HOP, *SETS])
 def test_every_built_in_loop_plays_on_the_new_progressions(progression: str) -> None:
     """Each built-in bass and melody loop over 8 bars with the surprises on: every
     note is a MIDI note, the bass stays monophonic, and the bass's first note of

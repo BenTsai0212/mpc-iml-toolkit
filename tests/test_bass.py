@@ -26,6 +26,9 @@ BASS_LOOPS = load_loops().played("bass")
 LOOPS = load_loops().played("melody")
 FIRST = ("boom", "walk")
 """The bass loops before the hip-hop library (#232)."""
+HELD = ("haze-bass", "midnight-808")
+"""The bass loops of the lo-fi and trap sets (#262): `home` holds one long note in some
+bars (long lo-fi roots, a held 808)."""
 
 
 def chords(progression: str, bar: int) -> tuple[tuple[int, str], tuple[int, str]]:
@@ -69,7 +72,8 @@ def test_bass_loops_are_monophonic_with_a_skeleton_and_an_approach() -> None:
 def test_every_bass_variation_is_a_full_monophonic_line(name: str) -> None:
     """Every built-in bass loop; the first two (`FIRST`) also keep their shape: both
     levels, an approach note and at least 4 notes a bar. The hip-hop loops (#232) may
-    be sparser (`sub` holds its last note instead of approaching)."""
+    be sparser (`sub` holds its last note instead of approaching), and the loops of the
+    lo-fi and trap sets (`HELD`, #262) may hold one note a bar."""
     loop = BASS_LOOPS[name]
     assert tuple(v.name for v in loop.variations) == BASS_VARIATIONS
     home = loop.variation("home")
@@ -85,7 +89,7 @@ def test_every_bass_variation_is_a_full_monophonic_line(name: str) -> None:
         for bar in range(loop.bars):
             line = variation.bar_notes(bar, 1)
             assert any(n.step == 0 for n in line)
-            assert len(line) >= (4 if name in FIRST else 2)
+            assert len(line) >= (4 if name in FIRST else 1 if name in HELD else 2)
             notes = sorted(variation.bar_notes(bar, ORNAMENTS), key=lambda n: n.step)
             ends = [n.step + n.length for n in notes]
             assert all(end <= nxt.step for end, nxt in zip(ends, notes[1:], strict=False))

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import test_engine
 from test_engine_preset_state import installed
-from test_progressions import HIP_HOP, TWO
+from test_progressions import HIP_HOP, SETS, TWO
 
 from mpc_iml.ensemble import Ensemble, make_preset
 from mpc_iml.progressions import (
@@ -24,7 +24,7 @@ start = test_engine.start
 """The engine fixtures of `test_engine.py`."""
 
 PREFIX = "/mpciml/preset/ensemble/"
-BUILT_IN = ["minor-two", "minor-four", *HIP_HOP]
+BUILT_IN = ["minor-two", "minor-four", *sorted(HIP_HOP | SETS)]
 
 
 def write(folder: Path, name: str, data: Any) -> Path:

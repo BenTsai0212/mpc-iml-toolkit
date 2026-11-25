@@ -156,9 +156,14 @@ def test_reload_needs_the_data_folder_and_no_arguments(tmp_path: Path) -> None:
             "bass-loop-step",
             "bass-loop",
             [-1, -1, 1, 1, 1],
-            ["line", "walk", "line", "boom", "knock"],
+            ["line", "walk", "line", "boom", "haze-bass"],
         ),
-        ("loop-step", "loop", [1, 1, 1, 1, -1], ["pluck", "rhodes", "arp", "bells", "arp"]),
+        (
+            "loop-step",
+            "loop",
+            [1, 1, 1, 1, 1, -1],
+            ["midnight-keys", "pluck", "rhodes", "arp", "bells", "arp"],
+        ),
     ],
 )
 def test_step_moves_through_the_list_and_wraps(

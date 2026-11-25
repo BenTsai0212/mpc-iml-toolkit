@@ -2,6 +2,7 @@
 `parse_loop` gate and `python -m mpc_iml.vargen <loop>`."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,10 @@ def _check(loop: LoopFile, variation: str, novelty: float, seed: int) -> None:
     octaves = {t[3] for t in model.pitch[()]} | {0}
     for c in generate(loop, variation, model, novelty=novelty, seed=seed, count=2):
         assert all(n in c.notes for n in kept)
-        assert [n for n in c.notes if n.chord == 1] == [n for n in source if n.chord == 1]
+        # Without order: approach notes on one step (`haze-keys`, #262) may change places.
+        assert Counter(n for n in c.notes if n.chord == 1) == Counter(
+            n for n in source if n.chord == 1
+        )
         assert all(0 <= n.step < STEPS and 0 <= n.bar < loop.bars for n in c.notes)
         assert all(abs(n.offset) <= 0.5 and n.octave in octaves for n in c.notes)
         assert max(len(source) - cap, len(kept), 1) <= len(c.notes) <= len(source) + cap
