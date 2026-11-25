@@ -24,8 +24,12 @@ presses pad 16 (bass) or 15 (melody) at the same step as a like, so the first pr
 keeps the variation answering that bar and a further one moves to the next variation,
 until the phrase ends (#215). Each row then shows the
 contexts of its bar and where each choice came from (`chose`), and the song keeps
-the learning log lines and the final `learned` reply. Nothing is saved: the demo has
-no data folder, so there is no profile and no learn log.
+the learning log lines and the final `learned` reply. With `nod` (#250),
+`Settings.nods` sends the control `nod` in the first beat of the bar after each listed
+grid bar, so the nod counts for that bar, as pad 16 does live; a replayed recording's
+pad 16 is the nod itself. The groove settings `follow-by`, `answer-after`,
+`learn-group` and `new-groove` go through the controls of the same name. Nothing is
+saved: the demo has no data folder, so there is no profile and no learn log.
 """
 
 import functools
@@ -83,8 +87,9 @@ _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _MOTIF = re.compile(r"ensemble: rhythm motif (kick|snare)[\w ]*")
 """The line `ensemble` logs for the motif at a phrase start (#189): information."""
-_LEARNING = re.compile(r"ensemble: (like|learned|trained|want) .*")
-"""The lines `ensemble` logs while learning (#196): kept in `Song.learning`."""
+_LEARNING = re.compile(r"ensemble: (like|learned|trained|want|nod|groove \d+) .*")
+"""The lines `ensemble` logs while learning (#196, the nods and the grooves they play
+in, #250): kept in `Song.learning`."""
 LIKE_STEP = 8
 """The step of the answering bar where `Settings.likes` presses like: past the
 first beat, so the like credits the bar playing (`learn.liked_bar`)."""
@@ -119,7 +124,8 @@ class Settings:
     seed: int = 0
     """The seed of the surprises (`Ensemble(seed=…)`), fixed so a run is reproducible."""
     learn: str = "off"
-    """The setting `learn` (#196): `off` (the default, the rules), `likes` or `demo`."""
+    """The setting `learn` (#196): `off` (the default, the rules), `likes`, `demo` or
+    `nod` (#250)."""
     likes: tuple[int, ...] = ()
     """With `learn likes`: the grid bars (from 0) whose answer, the bar after each,
     the musician likes."""
@@ -133,6 +139,18 @@ class Settings:
     """With `learn demo`: `(bar, part)`, the musician presses pad 16 (`bass`) or 15
     (`melody`) in the bar that answers grid bar `bar` (from 0), at `LIKE_STEP`
     (#215): in `auto` it keeps the variation playing, else it moves to the next."""
+    follow_by: str = "bar"
+    """The setting `follow-by` (#250): `bar` (the default, as in the instrument) or
+    `groove`."""
+    answer_after: int = 2
+    """The setting `answer-after` (#250): 2 (the default) or 1."""
+    learn_group: int = 0
+    """The setting `learn-group` (#250): 0 (the default) or 1."""
+    new_groove: str = "rules"
+    """The setting `new-groove` (#250): `rules` (the default) or `invite`."""
+    nods: tuple[int, ...] = ()
+    """With `learn nod`: the grid bars (from 0) the musician nods to, with the control
+    `nod` in the first beat of the bar after each (`learn.liked_bar`)."""
 
 
 @dataclass(frozen=True)
@@ -195,7 +213,7 @@ class Song:
     brightness: tuple[tuple[int, int], ...]
     rows: tuple[BarRow, ...]
     learning: tuple[str, ...] = ()
-    """The learning log lines (likes, wants, learned contexts, trained trees)."""
+    """The learning log lines (likes, wants, learned contexts, trained trees, nods)."""
     learned: tuple[str, ...] = ()
     """The reply `learned` at the end: up to 4 `<part>:<context>><arm>` that differ
     from the rules (empty: none)."""
@@ -232,9 +250,9 @@ def simulate(
 
     Raises `ValueError` for a grid of no bars or more than `MAX_BARS`, a drum or step
     count other than `DRUMS` and `STEPS`, a velocity outside 0-127, a tempo outside
-    `TEMPO_RANGE`, a like, a want or a press outside the grid or the `learn` mode, or a setting
-    the preset's controls refuse. `library` holds the progressions `settings.progression`
-    names (default `progressions()`).
+    `TEMPO_RANGE`, a like, a want, a press or a nod outside the grid or the `learn`
+    mode, or a setting the preset's controls refuse. `library` holds the progressions
+    `settings.progression` names (default `progressions()`).
     """
     hits = _hits(grid)
     low, high = TEMPO_RANGE
@@ -315,6 +333,11 @@ def _check_learning(settings: Settings, bars: int) -> None:
         raise ValueError("wants need learn demo")
     if settings.presses and settings.learn != "demo":
         raise ValueError("presses need learn demo")
+    if settings.nods and settings.learn != "nod":
+        raise ValueError("nods need learn nod")
+    for bar in settings.nods:
+        if not 0 <= bar < bars:
+            raise ValueError(f"a nod must be in bars 1-{bars}, got bar {bar + 1}")
     for bar in settings.likes:
         if not 0 <= bar < bars:
             raise ValueError(f"a like must be in bars 1-{bars}, got bar {bar + 1}")
@@ -342,6 +365,8 @@ class _Run:
         self.chose: dict[int, tuple[str, str]] = {}
         self._likes = {bar + 1 for bar in settings.likes}
         self._liked: set[int] = set()
+        self._nods = {bar + 1 for bar in settings.nods}
+        self._nodded: set[int] = set()
         self._presses: dict[int, list[str]] = {}
         for bar, part in settings.presses:
             self._presses.setdefault(bar + 1, []).append(part)
@@ -369,8 +394,12 @@ class _Run:
         controls["rhythm"]([settings.rhythm])
         controls["learn"]([settings.learn])
         controls["mode-pads"]([settings.mode_pads])
+        controls["follow-by"]([settings.follow_by])
+        controls["answer-after"]([settings.answer_after])
+        controls["learn-group"]([settings.learn_group])
+        controls["new-groove"]([settings.new_groove])
         controls["status"]([0])  # the page shows the bars in its table (#230)
-        self.ensemble, self._like = ensemble, controls["like"]
+        self.ensemble, self._like, self._nod = ensemble, controls["like"], controls["nod"]
         self.chords = ensemble.progression
 
         def send_wants(start: BarStart) -> None:
@@ -399,10 +428,14 @@ class _Run:
             self.log.append(line)
 
     def feed(self, data: bytes, t: float) -> None:
-        """One clock message at `t`, then the bar lines, a like due and the notes now due."""
+        """One clock message at `t`, then the bar lines, a like or nod due and the notes
+        now due."""
         self.clock.feed(data, t)
         self.access.bar_line()
         state = self.clock.state()
+        if state.status == "running" and state.bar in self._nods - self._nodded:
+            self._nodded.add(state.bar)
+            self._nod([])
         if (
             state.status == "running"
             and state.step >= LIKE_STEP

@@ -1,0 +1,45 @@
+{
+  "format": "mpc-iml-trial",
+  "format_version": 1,
+  "title": "Following each bar or following the groove",
+  "bars": 160,
+  "min_bars": 64,
+  "guide": {
+    "start": [
+      "You will play with two bands, one after another. Give each one a full go; they may sound alike, and that is fine. Play each the same way.",
+      "You lead a band with your drums. The bass and keys follow you.",
+      "Play a groove for a few phrases (4 bars each), then change to a different one; add fills between grooves.",
+      "Try a few grooves: steady kicks on the beat, kicks that push ahead of the beat, a busy groove. Come back to one of them later.",
+      "No pads to press: just play. To rest, stop drumming; the band keeps playing. Do not press Stop in Live."
+    ],
+    "condition": [
+      "A new band. Play the same way: a groove for a few phrases, then a different one, with fills between them."
+    ]
+  },
+  "base": {
+    "bass": ["loop"],
+    "melody-mode": ["still"],
+    "surprise": [1],
+    "rhythm": [0],
+    "learn": ["off"],
+    "new-groove": ["rules"],
+    "answer-after": [2],
+    "follow-by": ["bar"],
+    "learn-log": [0],
+    "mode-pads": [0],
+    "status": [0]
+  },
+  "conditions": [
+    {"name": "follow-bar", "settings": {"follow-by": ["bar"], "learn-log": [1]}},
+    {"name": "follow-groove", "settings": {"follow-by": ["groove"], "learn-log": [1]}}
+  ],
+  "questions": [
+    {"id": "heard-me", "text": "It heard me", "scale": "1-5"},
+    {"id": "followed-change", "text": "When I changed groove, the bass changed with me", "scale": "1-5"},
+    {"id": "leading", "text": "I am leading it", "scale": "1-5"},
+    {"id": "sounds-good", "text": "It sounds good", "scale": "1-5"},
+    {"id": "fun", "text": "It is fun", "scale": "1-5"},
+    {"id": "heard-moment", "text": "A moment it heard me", "scale": "text"},
+    {"id": "broken-moment", "text": "A moment that felt broken", "scale": "text"}
+  ]
+}
