@@ -11,8 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from test_ensemble import BAR, KICK, LAYER, SNARE, START, STEP, STOP, Rig
-from test_ensemble_demo import PUSHED
-from test_ensemble_learn import STEADY, bar_of
+from test_ensemble_learn import PUSHED, STEADY, bar_of
 
 from mpc_iml.ensemble import groove_record, groove_text
 from mpc_iml.grooves import Decision

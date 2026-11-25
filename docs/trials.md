@@ -38,14 +38,14 @@ question waits). Enter after `min_bars` ends it at once, as before. The session
 file's `condition` record has `ended_early: true` for a condition ended before
 `min_bars`; sessions written before this field read as `false`. Without
 `min_bars`, Enter ends a condition at once. Other values, or more than `bars`, are
-errors that name it. `learn.json` and `nod.json` set 100 (of 240 bars), `groove.json`
-64 (of 160), `rhythm.json` 32 (of 32).
+errors that name it. `nod.json` sets 100 (of 240 bars), `groove.json` 64 (of 160),
+`rhythm.json` 32 (of 32).
 
 **Why**: in the learning trial of 2026-11-23 the musician skipped the second
 condition (0 bars) and played the third for 25: he did not know in advance how many
 conditions there were, so he was unsure whether to play each one fully, and only
 one condition gave usable data. So the tool tells the structure (below), the
-`learn.json` guide starts with "give each one a full go", and `min_bars` keeps a
+learning trial's guide starts with "give each one a full go", and `min_bars` keeps a
 condition from ending too early by accident.
 
 ## Before a trial
@@ -106,13 +106,11 @@ The example files send `status 0`, so a blind trial shows only the ignored press
 
 ## Comparing learning modes
 
-[`examples/trial/learn.json`](../examples/trial/learn.json) compares `learn off`,
-`learn likes` and `learn demo` (#196), about 10 minutes each (240 bars at 90 BPM;
-Enter ends a condition early):
-
-```bash
-uv run python -m mpc_iml.trial run examples/trial/learn.json ~/mpc-iml-trials
-```
+The learning trial is [`examples/trial/nod.json`](../examples/trial/nod.json)
+([below](#learning-off-or-learning-from-nods)). The first learning trial (#196,
+`examples/trial/learn.json`) compared `learn off`, `learn likes` and `learn demo`;
+those modes were replaced by the nod (#250) and the file was removed. What it taught
+still holds for any trial of learning modes:
 
 **Keep a profile out of the comparison.** The engine reads the profile
 `<data folder>/learn/ensemble.json` when it starts, and while `learn` is not `off`
@@ -121,10 +119,10 @@ one (or your own practice) learned:
 
 - `base` sends `learn off`, then `reset-learning`: every condition starts from the
   rules, whatever the profile held. The condition then sends its `learn` mode.
-- Run trials with a data folder of their own (`~/mpc-iml-trials` above, not your
-  usual `~/mpc-iml-data`): the `likes` and `demo` conditions save what they learned
-  over that folder's profile, which would otherwise replace your "my band". Copy
-  your `loops/` folder into it if you play your own loops.
+- Run trials with a data folder of their own (`~/mpc-iml-trials`, not your usual
+  `~/mpc-iml-data`): a learning condition saves what it learned over that folder's
+  profile, which would otherwise replace your "my band". Copy your `loops/` folder
+  into it if you play your own loops.
 - `base` sends `learn-log 0` and each condition `learn-log 1`, so each condition
   gets its own `<data folder>/learn/log-<time>.jsonl`, in play order. A log file
   is created at its first bar, so the settings check before the first condition
@@ -132,27 +130,23 @@ one (or your own practice) learned:
 
 **Only the bass learns.** `base` sends `melody-mode still` (#233): the melody plays
 its `home` line every bar at one brightness, whatever the drums do, while the bass
-follows the kicks with its rules and learns as in `follow`. So the three conditions
-differ only in the bass, and the musician judges the learning by the bass alone. With
-`follow` the melody also changed with the drums (and learned), which mixed two parts
-into one score; `fixed` stops the bass from following too, so the bass played `home`
-every bar and the condition could not be judged (#215's manual check).
+follows the kicks with its rules and learns as in `follow`. So the conditions differ
+only in the bass, and the musician judges the learning by the bass alone. With
+`follow` the melody also changed with the drums, which mixed two parts into one
+score; `fixed` stops the bass from following too, so the bass played `home` every
+bar and the condition could not be judged (#215's manual check).
 
-This comparison is not blind to the pads: pad 16 is like in `likes`, chooses the
-wanted bass variation in `demo`, and does nothing in `off` (`mode-pads 0`). The
-trial shows the musician the guide in `learn.json` (`guide`, #241) instead of a
-description of the controls: lead the band as in a jam, stay with a groove for a
-few phrases, tap pad 16 once "like a nod to the bass player" when the bass plays
-something worth hearing again, change the groove to change the bass, and later come
-back to a groove where you nodded. In the #215 checks the musician pressed rarely
-when unsure what a press does; guidance in terms of playing lets them keep playing
-and press without having to understand the engine. The guide is the same before
-every condition, so it does not reveal which one is playing, and it no longer
-teaches pressing again for the next variation (that still works in `learn demo`,
-it is only not taught). Pad 15 does nothing here (`melody-mode still`; the terminal
-shows `ensemble: pad 15 ignored, the melody is still`), and the guide names pad 16
-only. The report's response
-measures are left empty beyond 64 bars.
+**Guide the musician in terms of playing.** The trial shows the musician its guide
+(`guide`, #241) instead of a description of the controls: lead the band as in a jam,
+stay with a groove for a few phrases, tap pad 16 once "like a nod to the bass
+player" when the bass plays something worth hearing again, change the groove to
+change the bass, and later come back to a groove where you nodded. In the #215
+checks the musician pressed rarely when unsure what a press does; guidance in terms
+of playing lets them keep playing and press without having to understand the
+engine. The guide is the same before every condition, so it does not reveal which
+one is playing. Pad 15 does nothing here (`melody-mode still`, `mode-pads 0`), and
+the guide names pad 16 only. The report's response measures are left empty beyond
+64 bars.
 
 ## Following each bar or the groove
 
@@ -170,7 +164,7 @@ The guide asks the musician to hold a groove for a few phrases, change to a
 different one, and play fills between grooves; there are no pads to press. Besides
 the usual questions, `followed-change` asks "When I changed groove, the bass changed
 with me". The matching count comes from the learn logs (`base` sends `learn-log 0`
-and each condition `learn-log 1`, as in `learn.json`): `python -m mpc_iml.learn
+and each condition `learn-log 1`, as above): `python -m mpc_iml.learn
 summary <log>` lists each groove change and whether the bass variation changed with
 it. Run this trial before the next one: its result decides whether the nod trial's
 `follow-by groove` stays, or whether a later trial compares nods with `follow-by
@@ -189,12 +183,12 @@ uv run python -m mpc_iml.trial run examples/trial/nod.json ~/mpc-iml-trials
   rules`, so the two conditions differ only in `learn`. `learn-group 1` and
   `new-groove invite` are left for later trials, each against its default, so that
   every trial compares one thing.
-- As in `learn.json`, `base` sends `learn off`, then `reset-learning`, so each
+- As [above](#comparing-learning-modes), `base` sends `learn off`, then `reset-learning`, so each
   condition starts with no nods, whatever the profile held, and `learn-log 0` with
   `learn-log 1` in each condition. Run it with a data folder of its own: `learn
   nod` saves its nods over that folder's profile.
 - `melody-mode still`: only the bass learns from a nod.
-- The guide keeps the nod wording of `learn.json`: tap pad 16 once on the last note
+- The guide keeps the nod wording of the first learning trial: tap pad 16 once on the last note
   of a phrase, like a nod to the bass player, and later come back to a groove where
   you nodded. Pad 16 nods with `learn nod` and does nothing with `learn off`
   (`mode-pads 0`), so this comparison, too, is not blind to the pad.

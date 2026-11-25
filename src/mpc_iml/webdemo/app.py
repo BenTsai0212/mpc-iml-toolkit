@@ -7,10 +7,8 @@ only gathers input and shows output: `sim.simulate` and `sim.replay` run the rea
 rules, `synth.render` makes the audio, `roll.draw` the piano roll and
 `midifile.write` the MIDI file.
 
-The `learn` setting (#196) shows learning over a scripted session: with `likes` the
-bars whose answer is liked, with `demo` the wanted variations and the presses of
-pads 16 and 15 (`parse_likes`, `parse_wants`, `parse_presses`, #215), with `nod`
-the bars nodded to (`parse_nods`, #250); the table gains the contexts and where each
+The `learn` setting shows learning over a scripted session: with `nod` the bars
+nodded to (`parse_nods`, #250); the table gains the contexts and where each
 choice came from, and the page shows the learning log and what was learned. The
 `follow-by` setting (#250) makes the band follow each bar or the groove.
 
@@ -77,10 +75,7 @@ __all__ = [
     "Uploaded",
     "analytics_default_off",
     "build",
-    "parse_likes",
     "parse_nods",
-    "parse_presses",
-    "parse_wants",
     "play",
     "play_variations",
     "resize",
@@ -129,8 +124,7 @@ transformation in the bar after it, as the reply `transform` gives them, and `to
 the drums each moved line took and the steps its notes moved to (next to `bar` so
 they show without scrolling, #189); then the drums of a bar (as the rules read them)
 and what the band plays in the bar after it; `context` is the bass's and the melody's
-learning context of the bar and `chose` where their choice came from, `liked` when
-the answer was liked (#196) and `pressed` the pads pressed in it (#215)."""
+learning context of the bar and `chose` where their choice came from."""
 
 Table = list[list[str | int]]
 
@@ -205,12 +199,6 @@ def learning(song: Song) -> str:
     return "\n".join([*song.learning, "learned: " + (" ".join(song.learned) or "-")])
 
 
-def parse_likes(text: str) -> tuple[int, ...]:
-    """`"2 3 7"`: the grid bars (from 1) whose answer is liked, as `Settings.likes`
-    (from 0). Raises `ValueError` for anything but whole numbers from 1."""
-    return _parse_bars(text, "likes")
-
-
 def parse_nods(text: str) -> tuple[int, ...]:
     """`"8 16"`: the grid bars (from 1) nodded to, as `Settings.nods` (from 0), #250.
     Raises `ValueError` for anything but whole numbers from 1."""
@@ -224,34 +212,6 @@ def _parse_bars(text: str, name: str) -> tuple[int, ...]:
             raise ValueError(f"{name}: {word!r} is not a bar number from 1")
         bars.append(int(word) - 1)
     return tuple(sorted(set(bars)))
-
-
-def parse_wants(text: str) -> tuple[tuple[int, str, str], ...]:
-    """`"1 bass push, 6 bass home, 10 bass auto"`: from the answer to each grid bar
-    (from 1), the part wants that variation, as `Settings.wants`. Raises
-    `ValueError` for an entry that is not `<bar> <part> <want>`; `sim` checks the
-    part and the want."""
-    wants: list[tuple[int, str, str]] = []
-    for entry in filter(None, (e.strip() for e in text.replace(";", ",").split(","))):
-        words = entry.split()
-        if len(words) != 3 or not words[0].isdigit() or int(words[0]) < 1:
-            raise ValueError(f"wants: expected <bar> <part> <want>, got {entry!r}")
-        wants.append((int(words[0]) - 1, words[1], words[2]))
-    return tuple(wants)
-
-
-def parse_presses(text: str) -> tuple[tuple[int, str], ...]:
-    """`"3 bass, 5 bass, 9 melody"`: in the answer to each grid bar (from 1), the
-    musician presses pad 16 (bass) or 15 (melody), as `Settings.presses` (#215).
-    Raises `ValueError` for an entry that is not `<bar> <part>`; `sim` checks the
-    part."""
-    presses: list[tuple[int, str]] = []
-    for entry in filter(None, (e.strip() for e in text.replace(";", ",").split(","))):
-        words = entry.split()
-        if len(words) != 2 or not words[0].isdigit() or int(words[0]) < 1:
-            raise ValueError(f"presses: expected <bar> <part>, got {entry!r}")
-        presses.append((int(words[0]) - 1, words[1]))
-    return tuple(presses)
 
 
 def play(table: Sequence[Sequence[object]], settings: Settings) -> Shown:
@@ -329,10 +289,6 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
             seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
         with gr.Row():
             learn = gr.Radio(list(LEARN_MODES), value=default.learn, label="learn")
-            likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
-            wants = gr.Textbox(label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto")
-            presses = gr.Textbox(label="presses (learn demo): pads 16 and 15, 3 bass, 9 melody")
-        with gr.Row():
             follow_by = gr.Radio(list(FOLLOW_BY), value=default.follow_by, label="follow-by")
             nods = gr.Textbox(label="nods (learn nod): bars nodded to, 8 16")
         with gr.Tab("step grid"):
@@ -419,16 +375,13 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
             rhythm,
             seed,
             learn,
-            likes,
-            wants,
-            presses,
             follow_by,
             nods,
         ]
 
         def settings_of(tempo: float, *values: object) -> Settings:
             progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values[:9]
-            learn, likes, wants, presses, follow_by, nods = (str(v or "") for v in values[9:])
+            learn, follow_by, nods = (str(v or "") for v in values[9:])
             return Settings(
                 tempo,
                 str(progression),
@@ -441,9 +394,6 @@ def build(data: Path | None = None, share: bool = False) -> "gr.Blocks":
                 int(float(str(rhythm))),
                 int(float(str(seed))),
                 learn,
-                parse_likes(likes) if learn == "likes" else (),
-                parse_wants(wants) if learn == "demo" else (),
-                presses=parse_presses(presses) if learn == "demo" else (),
                 follow_by=follow_by or default.follow_by,
                 nods=parse_nods(nods) if learn == "nod" else (),
             )
@@ -565,9 +515,7 @@ def _table_row(row: BarRow) -> list[str | int]:
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",
         " / ".join(row.context),
-        " / ".join(row.chose)
-        + (", liked" if row.liked else "")
-        + "".join(f", pressed {part}" for part in row.pressed),
+        " / ".join(row.chose),
     ]
 
 

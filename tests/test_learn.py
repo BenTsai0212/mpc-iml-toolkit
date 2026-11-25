@@ -1,4 +1,5 @@
-"""Learning the variation in `mpc_iml.learn` (RFC 0005 step 8, #196)."""
+"""The contexts, the rules' choice and the bar a nod refers to in `mpc_iml.learn`
+(RFC 0005 step 8, #196, #250)."""
 
 import random
 
@@ -10,10 +11,6 @@ from mpc_iml.ensemble import DEFAULT_ROLES
 from mpc_iml.learn import (
     ARMS,
     CONTEXTS,
-    FORGET,
-    PRIOR,
-    STEP,
-    Learner,
     bass_context,
     context,
     liked_bar,
@@ -64,61 +61,6 @@ def test_rule_choice_is_the_rules(seed: int) -> None:
         assert rule_choice("bass", bass_context(drums, ROLES)) == bass_variation(kicks)
         melody = rule_choice("melody", melody_context(drums, ROLES))
         assert melody == melody_variation(len(drums), hats)
-
-
-def test_start_is_the_rules() -> None:
-    learner = Learner("bass", random.Random(0))
-    assert learner.weights("push/beat") == {"home": 0.0, "push": PRIOR, "drive": 0.0}
-    assert learner.probabilities("push/beat")["push"] == pytest.approx(0.8, abs=0.01)
-    assert learner.learned() == []
-    for c in CONTEXTS["bass"]:
-        assert learner.top(c) == rule_choice("bass", c)
-
-
-def test_choose_is_seeded_and_explores() -> None:
-    a = Learner("melody", random.Random(7))
-    b = Learner("melody", random.Random(7))
-    draws = [a.choose("mid/8ths") for _ in range(1000)]
-    assert draws == [b.choose("mid/8ths") for _ in range(1000)]
-    assert draws.count("home") / len(draws) == pytest.approx(0.8, abs=0.05)
-    assert set(draws) == {"home", "open", "busy"}
-
-
-def test_like_moves_the_context_only() -> None:
-    learner = Learner("bass", random.Random(0))
-    for _ in range(3):
-        learner.like("grid/beat", "drive")
-    assert learner.weights("grid/beat")["drive"] == pytest.approx(3 * STEP)
-    assert learner.top("grid/beat") == "drive"
-    assert learner.weights("grid/-") == learner.prior("grid/-")
-    assert learner.learned() == ["bass:grid/beat>drive"]
-    draws = [learner.choose("grid/beat") for _ in range(500)]
-    assert draws.count("drive") > draws.count("home")
-
-
-def test_forget_drifts_back_to_the_rules() -> None:
-    learner = Learner("bass", random.Random(0))
-    learner.like("grid/beat", "drive")
-    learner.like("grid/beat", "drive")
-    learner.forget()
-    weights = learner.weights("grid/beat")
-    assert weights["drive"] == pytest.approx(2 * STEP * (1 - FORGET))
-    assert weights["home"] == pytest.approx(PRIOR)
-    for _ in range(40):
-        learner.forget()
-    assert learner.learned() == []
-    learner.like("grid/beat", "push")
-    learner.reset()
-    assert learner.weights("grid/beat") == learner.prior("grid/beat")
-
-
-def test_tie_keeps_the_rule() -> None:
-    learner = Learner("melody", random.Random(0))
-    learner.like("mid/none", "busy")
-    learner.like("mid/none", "busy")
-    learner.like("mid/none", "home")
-    learner.like("mid/none", "home")
-    assert learner.top("mid/none") == "home"
 
 
 def test_liked_bar() -> None:

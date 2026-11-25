@@ -86,7 +86,7 @@ def test_min_bars_is_optional_and_at_most_bars() -> None:
 
 def test_example_trials_set_a_minimum_length() -> None:
     """#243: 100 of 240 bars in the learning trial, 32 in the rhythm trial."""
-    assert load_trial(EXAMPLE.with_name("learn.json"))[0].min_bars == 100
+    assert load_trial(EXAMPLE.with_name("nod.json"))[0].min_bars == 100
     rhythm = load_trial(EXAMPLE)[0]
     assert rhythm.min_bars == 32 and rhythm.bars >= 32
 
@@ -143,51 +143,6 @@ def test_example_file_has_the_issue_questions_and_ensemble_accepts_its_settings(
             controls[control](list(args))
 
 
-def test_learn_trial_starts_every_condition_from_the_rules() -> None:
-    trial, _ = load_trial(EXAMPLE.with_name("learn.json"))
-    assert [c.name for c in trial.conditions] == ["learn-off", "learn-likes", "learn-demo"]
-    assert trial.base["reset-learning"] == () and trial.base["learn-log"] == (0,)
-    ensemble = Ensemble()
-    controls = ensemble.controls()
-    for condition in trial.conditions:
-        for _ in range(4):
-            ensemble._learners["bass"].like("grid/-", "drive")
-        assert ensemble._learned() == ["bass:grid/->drive"]
-        for control, args in trial.messages(condition):
-            if control != "learn-log":
-                controls[control](list(args))
-        assert ensemble._learned() == []
-        assert dict(ensemble.state())["learn"] == [condition.name.removeprefix("learn-")]
-        assert dict(ensemble.state())["melody-mode"][0] == "still", "#233"
-
-
-LEARN_GUIDE_START = [
-    "You will play with three bands, one after another. Give each one a full go; "
-    "they may sound alike, and that is fine. Play each the same way.",
-    "You lead a band with your drums. The bass and keys follow your groove.",
-    "Play as in a jam: start a groove, stay with it for a few phrases (4 bars each), "
-    "then change it.",
-    "When the bass plays something you want to hear again with this groove, tap pad 16 "
-    "once, like a nod to the bass player. Keep your hands going.",
-    "If you want the bass to change, change your groove. You do not need a pad for that.",
-    "Try a few grooves: steady kicks on the beat, kicks that push ahead of the beat, a busy "
-    "groove. Later, come back to a groove where you nodded, and listen whether the bass "
-    "remembers.",
-    "To rest, stop drumming; the band keeps playing. Do not press Stop in Live.",
-]
-LEARN_GUIDE_CONDITION = [
-    "A new band. Play the same way: start a groove, nod (pad 16) when you like the bass, "
-    "and come back to that groove later.",
-]
-
-
-def test_learn_trial_guides_the_musician_in_musical_terms() -> None:
-    """#241: the text of the Issue, the same before every condition."""
-    trial, content = load_trial(EXAMPLE.with_name("learn.json"))
-    assert trial.guide == Guide(tuple(LEARN_GUIDE_START), tuple(LEARN_GUIDE_CONDITION))
-    assert content["guide"]["start"] == LEARN_GUIDE_START
-
-
 def test_rhythm_trial_guide_has_no_pads_to_press() -> None:
     trial, _ = load_trial(EXAMPLE)
     lines = trial.guide.start + trial.guide.condition
@@ -196,7 +151,7 @@ def test_rhythm_trial_guide_has_no_pads_to_press() -> None:
     assert any("sparse to busy" in line for line in trial.guide.condition)
 
 
-@pytest.mark.parametrize("name", ["rhythm.json", "learn.json", "groove.json", "nod.json"])
+@pytest.mark.parametrize("name", ["rhythm.json", "groove.json", "nod.json"])
 def test_example_trials_keep_the_modes_from_the_pads(name: str) -> None:
     trial, _ = load_trial(EXAMPLE.with_name(name))
     assert trial.base["mode-pads"] == (0,)

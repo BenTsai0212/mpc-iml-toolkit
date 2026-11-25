@@ -4,7 +4,6 @@ by groove", "The profile" and "Status line, logs and replies"): profile format v
 `python -m mpc_iml.learn show`, the learn log's `nod` field and `summary`."""
 
 import json
-import random
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +15,6 @@ from test_ensemble_nod import lines, rig, session
 
 from mpc_iml.grooves import Features, Pattern
 from mpc_iml.grooves.nods import NodMemory
-from mpc_iml.learn import PARTS, Demonstrations, Learner, LoopLearner
 from mpc_iml.learn_log import summary
 from mpc_iml.learn_profile import (
     OLD_PROFILE,
@@ -41,10 +39,7 @@ V1 = {
 
 
 def write(path: Path, nods: NodMemory) -> None:
-    learners = {p: Learner(p, random.Random(0)) for p in PARTS}
-    demos = {p: Demonstrations(p) for p in PARTS}
-    loops = {p: LoopLearner(p, random.Random(0)) for p in PARTS}
-    write_profile(path, learners, demos, {"follow-by": "groove"}, loops, nods)
+    write_profile(path, {"follow-by": "groove"}, nods)
 
 
 def kept() -> NodMemory:
@@ -60,6 +55,7 @@ def test_the_nods_round_trip_the_most_recent_first(tmp_path: Path) -> None:
     write(path, kept())
     data = json.loads(path.read_text())
     assert data["format_version"] == 2
+    assert sorted(data) == ["format", "format_version", "nods", "settings", "toolkit"]
     assert data["nods"][0] == {
         "prototype": {"kick": [0, 7, 10], "snare": [4, 12], "hat": list(range(0, 16, 2))},
         "features": Features(kicks=3, hats=8).as_dict(),
@@ -76,9 +72,7 @@ def test_the_nods_round_trip_the_most_recent_first(tmp_path: Path) -> None:
     ]
     fresh = NodMemory()
     fresh.nod(9, A_PATTERN, Features(), "home")
-    learners = {p: Learner(p, random.Random(0)) for p in PARTS}
-    demos = {p: Demonstrations(p) for p in PARTS}
-    apply_profile(profile, learners, demos, None, fresh)
+    apply_profile(profile, fresh)
     assert [n.variation for n in fresh.nods] == ["push", "drive"]
     assert fresh.bound_grooves() == ()
     assert fresh.match(5, GROOVE, GROOVE) is fresh.nods[0]
@@ -144,7 +138,7 @@ def test_a_nod_is_found_again_in_a_later_session(tmp_path: Path) -> None:
 
     later = rig("bar")
     later.ensemble.data_folder(tmp_path)
-    assert any(line.endswith("0 examples, 1 nods") for line in later.log)
+    assert any(line.endswith(": 1 nods") for line in later.log)
     session(later, [A, A, A, A, A], {})
     assert "ensemble: groove 1 back, bass push (nod from profile)" in later.log
     shown = basses(later)

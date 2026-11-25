@@ -6,10 +6,6 @@
   wide as the input, trained with `lbfgs`, for smooth output between examples.
   Sigmoid (Wekinator's choice) rather than scikit-learn's default ReLU, whose
   units can all switch off when the layer is small, giving a constant output.
-- `Tree`: a shallow decision tree (`max_depth` 3, `min_samples_leaf` 2,
-  `random_state` 0), deterministic and printable as rules (`Tree.rules`), for the
-  few readable bar features of `learn` (#196). Inputs are not scaled, so its
-  thresholds read in the features' own units.
 
 `Classifier` and `Regressor` scale inputs to 0-1 with a `MinMaxScaler` fitted on
 the training data before the estimator, because the 49 frame values mix 0-1
@@ -25,7 +21,6 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.tree import DecisionTreeClassifier, export_text
 
 
 def _check_rows(inputs: Sequence[Sequence[float]], outputs: Sequence[Sequence[float]]) -> None:
@@ -105,46 +100,3 @@ class Regressor:
             raise RuntimeError("the model is not trained")
         result = self.pipeline.predict(np.asarray([values], dtype=float))
         return [float(v) for v in np.ravel(result[0])]
-
-
-class Tree:
-    """Decision tree classifier on unscaled inputs; outputs the class number."""
-
-    def __init__(
-        self,
-        max_depth: int = 3,
-        min_samples_leaf: int = 2,
-        random_state: int | None = 0,
-        **kwargs: Any,
-    ) -> None:
-        self.max_depth = max_depth
-        self.min_samples_leaf = min_samples_leaf
-        self.random_state = random_state
-        self.kwargs = kwargs
-        self.tree: DecisionTreeClassifier | None = None
-
-    def fit(self, inputs: Sequence[Sequence[float]], outputs: Sequence[Sequence[float]]) -> None:
-        _check_rows(inputs, outputs)
-        if any(len(row) != 1 for row in outputs):
-            raise ValueError("classification outputs must have one value, the class number")
-        tree = DecisionTreeClassifier(
-            max_depth=self.max_depth,
-            min_samples_leaf=self.min_samples_leaf,
-            random_state=self.random_state,
-            **self.kwargs,
-        )
-        tree.fit(np.asarray(inputs, dtype=float), np.array([row[0] for row in outputs]))
-        self.tree = tree
-
-    def predict(self, values: Sequence[float]) -> list[float]:
-        if self.tree is None:
-            raise RuntimeError("the model is not trained")
-        return [float(self.tree.predict(np.asarray([values], dtype=float))[0])]
-
-    def rules(self, feature_names: Sequence[str], class_names: Sequence[str]) -> str:
-        """The tree as indented rules (`export_text`); `class_names[n - 1]` names the
-        class number `n`."""
-        if self.tree is None:
-            raise RuntimeError("the model is not trained")
-        names = [class_names[int(c) - 1] for c in self.tree.classes_]
-        return str(export_text(self.tree, feature_names=list(feature_names), class_names=names))

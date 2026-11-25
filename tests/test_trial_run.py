@@ -327,11 +327,11 @@ def test_the_learn_trial_leaves_no_learning_log_before_a_condition_plays(
             logs.append(sorted((tmp_path / "data").glob("learn/log-*.jsonl")))
             assert dict(engine.ensemble.state())["learn-log"] == [1]
 
-    answers = (["3"] * 6 + ["", ""]) * 3 + ["ABC"]
-    learn = EXAMPLE.with_name("learn.json")
+    answers = (["3"] * 6 + ["", ""]) * 2 + ["AB"]
+    learn = EXAMPLE.with_name("nod.json")
     status, said = play_trial(tmp_path, answers, engine, learn, heard)
     assert status == 0, said
-    assert logs == [[], [], []]
+    assert logs == [[], []]
 
 
 IGNORED = "ensemble: pad 16 ignored, the clock is not running"
@@ -413,7 +413,7 @@ def test_the_structure_is_shown_once_and_the_position_before_each_band(tmp_path:
 
 
 def test_the_structure_line_gives_the_minimum_length_and_minutes_when_the_tempo_is_known() -> None:
-    trial = load_trial(EXAMPLE.with_name("learn.json"))[0]
+    trial = load_trial(EXAMPLE.with_name("nod.json"))[0]
     assert (
         structure(trial, 3, 4, 90.0) == "3 bands, at least 100 bars (about 4 min at 90 BPM) each."
     )

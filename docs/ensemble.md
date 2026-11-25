@@ -210,10 +210,8 @@ melody steady while the bass follows: the melody loop plays its `home` variation
 every bar at velocity 100 with its ornaments, and sends the brightness CC at one
 value (79) at each bar line, whatever the drums do, also in bars without drums (it
 never fades or stops; `no-drums` and `fade-bars` apply to the bass only). The bass
-follows the kicks as in follow, with its rules, learning, wants and pad 16. Learning
-chooses no melody variation: a like credits the bass only, and with `learn demo`
-pad 15 and `want melody` do nothing (the terminal shows `ensemble: pad 15 ignored,
-the melody is still`). Pad 15 does not cycle to still: from still it goes on to
+follows the kicks as in follow, with its rules, learning and pad 16. Learning
+chooses no melody variation: a nod keeps the bass only. Pad 15 does not cycle to still: from still it goes on to
 fixed, then off and follow. `chose` and the status line give `still` for the
 melody.
 
@@ -272,74 +270,23 @@ a fading bar. With the rule bass there is no fill, and with the melody off only 
 fill. `surprise 0` turns them off. The choice is
 random, with a new seed each time `ensemble` is loaded.
 
-### Teach the band with likes
-
-With `learn likes` (#196; send `/mpciml/preset/ensemble/learn likes` before you
-play), the band learns which variation you want for each way of drumming. It
-starts from the rules above and still tries other variations now and then. Pad 16
-is then **like**: press it while the band plays something you like, and that
-choice becomes more likely the next time you drum that way. A press in the first
-beat of a bar likes the bar before. The terminal shows each like
-(`ensemble: like bar 12 bass push/beat>push melody mid/8ths>home`) and, at the
-start of each phrase, what changed (`ensemble: learned bass push/beat>drive (rule
-push)`). Choices you stop liking drift back to the rules. Set the bass mode before
-playing, since pad 16 no longer cycles it, and send `learn off` to play the rules
-again. What is learned is kept in your profile ([Keep what the band
-learned](#keep-what-the-band-learned)).
-
-### Teach the band by showing it
-
-With `learn demo` (#196), you show the band what you want, as in Wekinator. Pad 16
-chooses the bass variation you want and pad 15 the melody variation (#215):
-
-- **Keep:** the first press keeps the variation playing now ("this one"). Nothing
-  changes in the sound, and the way you drummed in the bar before, which the band
-  is answering, becomes an example at once. In the first beat of a bar the press
-  keeps the bar before, as a like does. In a bar where that loop is silent (no
-  kicks for the bass, no drums for the melody), it keeps what the rules choose.
-- **Next:** each further press moves to that loop's next variation (`home`,
-  `push`, `drive` for the bass; `home`, `open`, `busy` for the melody), from the
-  next bar line.
-- **Back to `auto` by itself:** the choice lasts to the end of the 4-bar phrase,
-  or to the end of the next phrase when fewer than 2 complete bars of this one are
-  left. You do not press anything to come back.
-
-The terminal shows each press and the bar where it ends (`ensemble: want bass push
-(kept) to bar 16`, `ensemble: want bass drive (next) to bar 16`) and each return
-(`ensemble: want bass auto (phrase end), plays model (tree)`). While a variation is
-chosen, the band plays it, and every bar you drum with it becomes an example:
-"this way of drumming wants this variation". Bars without drums, and bars where you
-pressed again, are not used. In `auto` the band plays what it learned from your
-examples (a small decision tree, retrained after each example: `ensemble: trained
-bass tree, 9 examples`). Until it has at least 4 examples of 2 variations, the
-ways of drumming you marked play what you marked there (the most common, or the
-latest on a tie), and other drumming plays the rules (`plays model (marked
-contexts, 1 label)`): drumming the same way again brings back what you kept. Keep
-what you like in different ways of drumming to teach the tree. Show
-a few bars of each way of drumming you use. Set the bass and melody modes before
-playing, since pads 15 and 16 no longer cycle them. The examples are kept in your
-profile.
-
 ### See what the band plays and what the pads do
 
 With `status 1` (the default, #230) the terminal shows one line at each bar line
 while Live plays, and again after each press of pad 16 or 15:
 
 ```text
-ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15: keep home
+ensemble: bar 12  Am7  groove 2 (bar 5)  bass drive (rule)  melody home (rule)  16: nod  15: -
 ```
 
 - the bar (counted from 0 at Start) and its chord in the progression playing (#236);
 - the bass and melody variation playing in it and where each choice came from:
-  `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`), `still` for the
-  melody in `melody-mode still` (#233), `fill` for the bass's answer to a fill with
-  `follow-by groove` (#250); `-` when that loop is silent;
-- what pad 16 and pad 15 do if you press them now: `keep <variation>` and
-  `next <variation>` with `learn demo`, `like` with `learn likes`, the mode they
-  switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the pad
-  does nothing (`mode-pads 0`, or pad 15 with `learn demo` and `melody-mode still`).
-  In the first beat of a bar a keep keeps the bar
-  before, as described above.
+  `rule`, `still` for the melody in `melody-mode still` (#233), `fill` for the bass's
+  answer to a fill with `follow-by groove`, and `nod`, `group` or `invite` with
+  `learn nod` (#250); `-` when that loop is silent;
+- what pad 16 and pad 15 do if you press them now: `nod` with `learn nod`, the mode
+  they switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the
+  pad does nothing (`mode-pads 0`).
 
 A press of pad 16 or 15 that does nothing because the clock is not running (Live
 is stopped, or the count-in) is shown as `ensemble: pad 16 ignored, the clock is not
@@ -406,8 +353,7 @@ groove, its first two bars find the stored nod (`ensemble: groove 1 back, bass p
 
 ### Keep what the band learned
 
-What the band learned, your nods (#250) and, while they exist, the likes' weights
-and your examples, is your profile ("my band", #196): one file,
+What the band learned, your nods (#250), is your profile ("my band", #196): one file,
 `mpc-iml-data/learn/ensemble.json`, in the engine's data folder. `ensemble` reads it
 when it is loaded, and while `learn` is not `off` it saves it at the start of each
 4-bar phrase (`ensemble: saved the profile
@@ -424,20 +370,17 @@ learn/ensemble-v1.json`). See what was learned without the engine:
 uv run python -m mpc_iml.learn show
 ```
 
-It prints each nod first: its groove's kick, snare and hat as a 16-step grid, the
-bass variation, how many times you nodded and the date of the last nod. Then, for
-each way of drumming, the rules' choice and the learned weights,
-with `*` where the band learned something else, and the decision tree your
-examples trained, as rules. Give it a path to show another profile. The profile
+It prints each nod: its groove's kick, snare and hat as a 16-step grid, the bass
+variation, how many times you nodded and the date of the last nod. Give it a path to
+show another profile. The profile
 stays on your computer: the toolkit never uploads it, and `mpc-iml-data/` is in the
 `.gitignore` of this repo and of `python -m mpc_iml.new` projects.
 
-To compare `learn off`, `likes` and `demo` in a trial, send `learn-log 1` before
-you play (#196). Each bar then adds a line to a new file
-`mpc-iml-data/learn/log-<time>.jsonl`: the way you drummed (its context), what each
-loop played and where it came from (`rule`, `bandit`, `model`, `want`), what the
-rules would have chosen, whether you liked the bar, and the examples it added. It
-does not change what plays. `learn-log 0` finishes the file (when the engine
+To compare `learn off` and `nod` in a trial, send `learn-log 1` before you play
+(#196). Each bar then adds a line to a new file `mpc-iml-data/learn/log-<time>.jsonl`:
+the way you drummed (its context), what each loop played and where it came from,
+what the rules would have chosen, the groove of the bar before, and its nod. It does
+not change what plays. `learn-log 0` finishes the file (when the engine
 quits, the last two bars are not written). `bar` counts from song start, as in a
 `record --clock` recording, so the two join by bar. Summarise a log:
 
@@ -445,20 +388,24 @@ quits, the last two bars are not written). `bar` counts from song start, as in a
 uv run python -m mpc_iml.learn summary mpc-iml-data/learn/log-20261122-140509.jsonl
 ```
 
-It prints, for each `learn` mode, the bars, how many you liked, how often each
-loop's variation differed from the rules, and your examples per variation. With
-`learn nod` the line of a nodded bar has its `nod` (the groove it counted for and
+It prints, for each `learn` mode, the bars and how often each loop's variation
+differed from the rules (a log from before #250 also shows its likes and examples).
+With `learn nod` the line of a nodded bar has its `nod` (the groove it counted for and
 the bass variation kept, or `null` when nothing was learned), and the summary adds a
 `nods:` line: the nods, how many kept a variation, the grooves nodded, and the bass
 bars played from a nod, a group or an invite. For each groove change it prints
 whether the bass variation changed (`bar 9: groove 1 -> 2, bass push -> home`, or
 `(same)`), which is what the trial of following each bar or the groove asks.
 
-The trial file [`examples/trial/learn.json`](../examples/trial/learn.json) plays
-`learn off`, `likes` and `demo` as three conditions of a blind trial (#197), each
-starting from the rules and with its own log; see
-[docs/trials.md](trials.md#comparing-learning-modes) for how to run it and keep
-your profile out of it.
+The trial file [`examples/trial/nod.json`](../examples/trial/nod.json) plays
+`learn off` and `learn nod` as two conditions of a blind trial, each starting from
+the rules and with its own log; see [docs/trials.md](trials.md) for how to run it and
+keep your profile out of it.
+
+`learn likes` and `learn demo` (#196: likes per way of drumming, and showing the band
+what you want with a decision tree) were replaced by the nod (#250): in the trials of
+2026-11-23 their learning was not audible. `learn likes`, `learn demo`, `like`,
+`want` and `learn-loops` are now refused, and the error names `learn nod`.
 
 ### Write your own bass line
 
@@ -614,17 +561,15 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/fade-bars` | 0-32 | 8 | Empty bars before the loops stop (the last two fade); 0 never stops |
 | `/mpciml/preset/ensemble/surprise` | 0-2 (0 off, 1 the bass fill only, 2 also the melody surprises) | 1 | The surprises at the end of each 4-bar phrase ([A little surprise](#a-little-surprise)) |
 | `/mpciml/preset/ensemble/rhythm` | 0, 1 or 2 | 0 | 1: the bass line's notes move to the kicks of the last bar (plain in the first bar of each 4-bar phrase, then moved, displaced by a 16th in the last); 2: also the melody's notes, to the snares and hats of the last bar (plain in the first bar of each phrase); 0: the lines as written. The default was 1 until #194: in the manual check the moved bass sometimes sounded off the beat in steady styles such as hip-hop |
-| `/mpciml/preset/ensemble/learn` | `off`, `likes`, `demo` or `nod` | `off` | `nod`: pad 16 is the **nod**, and the bass plays what you nodded to when that groove comes back ([Nod to what you like](#nod-to-what-you-like), #250); `likes`: each loop's variation comes from what your likes taught it, starting from the rules, and pad 16 is **like** instead of cycling the bass mode (set the bass mode before playing); `demo`: pads 16 and 15 choose the bass and melody variation you want, and `auto` plays what your examples taught ([Teach the band by showing it](#teach-the-band-by-showing-it)); `off`: the rules (#196) |
+| `/mpciml/preset/ensemble/learn` | `off` or `nod` | `off` | `nod`: pad 16 is the **nod**, and the bass plays what you nodded to when that groove comes back ([Nod to what you like](#nod-to-what-you-like), #250); `off`: the rules (#196). `likes` and `demo` were removed (#250) and are refused |
 | `/mpciml/preset/ensemble/nod` | none | - | As pad 16 with `learn nod`: a nod in this bar (in the first beat, the bar before); refused with another `learn` mode or while the clock is not running |
 | `/mpciml/preset/ensemble/learn-group` | 0 or 1 | 0 | With `learn nod`: 1 lets a groove with no nod play the nod of a close groove, half of the time per section |
 | `/mpciml/preset/ensemble/new-groove` | `rules` or `invite` | `rules` | With `learn nod`: what a groove with no nod plays; `invite` plays another bass variation than the rules', drawn once per groove |
-| `/mpciml/preset/ensemble/like` | none | - | As pad 16 with `learn likes`: likes what the band plays in this bar (in the first beat, the bar before); refused with `learn off` or while the clock is not running |
-| `/mpciml/preset/ensemble/want` | `bass` or `melody`, then `auto` or one of its variations | `auto` | With `learn demo`: the variation you want that loop to play and learn, until you send `auto` (unlike pads 16 and 15, it does not end at the phrase end, #215); refused unless `learn demo` |
 | `/mpciml/preset/ensemble/save-profile` | none | - | Saves what was learned to `learn/ensemble.json` in the data folder now ([Keep what the band learned](#keep-what-the-band-learned)) |
 | `/mpciml/preset/ensemble/load-profile` | none | - | Reads that profile again; refused when it is missing or cannot be read |
-| `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the likes' weights and the examples (the file changes at the next save) |
+| `/mpciml/preset/ensemble/reset-learning` | none | - | Back to the rules: forgets the nods (the file changes at the next save) |
 | `/mpciml/preset/ensemble/learn-log` | 0 or 1 | 0 | 1: writes a line per bar to a new `learn/log-<time>.jsonl` in the data folder, to compare the learning modes; 0: finishes it ([Keep what the band learned](#keep-what-the-band-learned)) |
-| `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (still like in `learn likes` and want in `learn demo`), as trials send ([Blind comparison trials](trials.md)) |
+| `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (pad 16 still nods in `learn nod`), as trials send ([Blind comparison trials](trials.md)) |
 | `/mpciml/preset/ensemble/follow-by` | `bar` or `groove` | `bar` | `groove`: the variations follow your groove, with an answer to fills ([Follow the groove](#follow-the-groove)); `bar`: each bar (#250) |
 | `/mpciml/preset/ensemble/answer-after` | 1 or 2 | 2 | With `follow-by groove`: 1 answers a bar that differs from the groove at once, with the rules for that bar; 2 waits for the groove tracker (a fill, or a new groove at its second bar) |
 | `/mpciml/preset/ensemble/status` | 0 or 1 | 1 | 1: a status line in the terminal at each bar line, with the variations playing, their source and what pads 16 and 15 do now ([See what the band plays and what the pads do](#see-what-the-band-plays-and-what-the-pads-do)); 0: none, as trials send. Presses ignored without a running clock are shown either way |
@@ -654,12 +599,12 @@ melody mode, a playing variation or a playing transformation changes:
 | `loop-errors` | how many of your loop files were skipped at the last read |
 | `rhythm` | the value (0, 1 or 2) |
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
-| `learn` | the learning mode (`off`, `likes`, `demo`, `nod`) |
-| `likes` | the likes that credited a choice, or with `learn nod` the nods that kept a variation, since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`, `nod`, `group` or `invite` for the bass with `learn nod`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
-| `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules, or with `learn nod` up to 4 `bass:groove <id>><variation>` for the nodded grooves of the session (`-` for none) |
-| `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
-| `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
+| `learn` | the learning mode (`off`, `nod`) |
+| `likes` | the nods that kept a variation, since `ensemble` was loaded |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`, `nod`, `group` or `invite` for the bass with `learn nod`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `learned` | with `learn nod` up to 4 `bass:groove <id>><variation>` for the nodded grooves of the session (`-` for none) |
+| `want` | `auto auto`: kept from `learn demo` (removed, #250) so the list does not change |
+| `examples` | `0 0`: kept from `learn demo` (removed, #250) so the list does not change |
 | `profile-errors` | 1 when the profile could not be read at the last try, else 0 |
 | `learn-log` | 1 while the per-bar log is written, else 0 |
 | `mode-pads` | 1 while pads 15 and 16 switch the modes, else 0 |
@@ -821,20 +766,13 @@ The same grid and seed always sound the same. Below the table, a piano roll show
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
 
-The **learn** setting (#196) shows the band learning over the grid: with `likes`,
-list the bars whose answer you like (for example `2 3 7`); with `demo`, list from
-which bar's answer each part wants a variation (for example `1 bass push, 6 bass
-home, 10 bass auto`: from bar 10 the decision tree plays), or list in which bar's
-answer you press pad 16 (`bass`) or 15 (`melody`), as you would while drumming
-(#215; for example `1 bass, 1 bass, 5 bass`: keep the variation playing, then the
-next one, until the phrase ends, then keep what plays over the busier drums of bar
-5). The **wants** field sends the control `want`, which holds until `auto`; a press
-lasts to the end of its phrase. The table's `context` column gives the way each bar
-was drummed, for the bass and the melody, and `chose` where each choice came from
-(`rule`, `bandit`, `model`, `want`; `liked` for a liked answer, `pressed bass` for a
-press). The **learning** box lists the likes, the presses and their phrase ends,
-trained trees and what was learned. The demo has no data folder, so it never saves a
-profile.
+The **learn** setting shows the band learning over the grid: with `nod` (#250), list
+the bars you nod to (for example `8 16`); the nod is sent in the first beat of the
+bar after each, so it counts for that bar, as pad 16 does live. The table's `context`
+column gives the way each bar was drummed, for the bass and the melody, and `chose`
+where each choice came from (`rule`, `fill`, `nod`, `group`, `invite`). The
+**learning** box lists the nods, the grooves they play in, and what was learned. The
+demo has no data folder, so it never saves a profile.
 
 The **variations** tab (#221) plays new variations grown from a line, next to the
 line itself, so you can judge whether they sound like yours before anything reaches

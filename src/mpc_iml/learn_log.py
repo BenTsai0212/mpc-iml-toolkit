@@ -2,20 +2,18 @@
 
 With `learn-log 1` `ensemble` writes `<data folder>/learn/log-<time>.jsonl`
 (`LOG_FOLDER`), JSON Lines as a recording (ADR 0002): a header line, then one line
-per bar in bar order. It works with every `learn` mode, so a trial compares `off`,
-`likes` and `demo` with one tool:
+per bar in bar order. It works with every `learn` mode, so a trial compares `off`
+and `nod` with one tool:
 
     {"format": "mpc-iml-ensemble-log", "format_version": 1, "toolkit": "0.1.0",
-     "settings": {"learn": "likes", "bass-loop": "boom", ...}, "seed": null,
+     "settings": {"learn": "nod", "bass-loop": "boom", ...}, "seed": null,
      "profile": "learn/ensemble.json"}
-    {"bar": 5, "t": 12.5, "learn": "likes",
+    {"bar": 5, "t": 12.5, "learn": "nod",
      "context": {"bass": "push/beat", "melody": "mid/8ths"},
      "choice": {"bass": {"loop": "boom", "variation": "push", "level": 2},
                 "melody": null},
-     "source": {"bass": "bandit", "melody": "-"},
+     "source": {"bass": "nod", "melody": "-"},
      "rule": {"bass": "push", "melody": "home"},
-     "like": false, "want": {"bass": "auto", "melody": "auto"},
-     "example": {"bass": null, "melody": null},
      "groove": {"id": 2, "position": 5, "fill": false, "free": false},
      "nod": null}
 
@@ -24,10 +22,10 @@ trial joins the two files by bar; `t` is the time of the bar line's clock tick o
 the engine's input clock (`ClockState.t_tick`, the time base `record --clock` shares
 with the pads), `null` before any tick. `context` is the drums of the bar before
 (`learn.context`), `choice` what each loop plays (`null` when silent), `source`
-where its variation came from (`-` when silent), `rule` what the #158 rules chose,
-`like` whether a like referred to the bar (`learn.liked_bar`), `want` the wanted
-variations it was planned with and `example` the label of the example the bar
-added (`learn demo`). `groove` (#245) is the groove tracker's live decision on the
+where its variation came from (`-` when silent) and `rule` what the #158 rules chose.
+Logs written while `learn likes` and `learn demo` existed (#196, removed by #250) also
+have `like`, `want` and `example`; `summary` still counts their likes and examples.
+`groove` (#245) is the groove tracker's live decision on the
 bar before (`grooves.Tracker`, as the status line shows it): the groove's `id` and
 the bar's `position` in it (`null` outside a groove), `fill` and `free`. The field
 was added to version 1 without a version bump: a log without it is still a
@@ -38,7 +36,7 @@ version 1 log, and `summary` adds its `grooves:` line only when the field is the
 (`grooves.nods.nod_groove`); `null` when no nod referred to the bar. It too was added
 without a version bump; `summary` adds its `nods:` line and the groove changes when
 the log has `nod` or `groove` fields.
-A bar's line is written two bar lines later, once no like can
+A bar's line is written two bar lines later, once no nod can
 refer to it, and the lines still waiting when the log stops (`learn-log 0`); when
 the engine quits, the last two bars are not written. The file is created at the
 first bar, so a `learn-log 1` and `learn-log 0` with no bar between (as when a
@@ -89,7 +87,7 @@ def log_path(folder: Path, now: datetime | None = None) -> Path:
 
 class BarLog:
     """An open log: the file and its header are written at the first bar (#217), each
-    bar's line once no like can refer to it (module docstring). Not thread-safe;
+    bar's line once no nod can refer to it (module docstring). Not thread-safe;
     `ensemble` holds its lock."""
 
     def __init__(
@@ -115,29 +113,17 @@ class BarLog:
 
     def bar(self, record: dict[str, Any]) -> None:
         """Add the line of the bar `record["bar"]`, planned now; write the lines no
-        like can refer to any more (all of them after a song restart). The first
+        nod can refer to any more (all of them after a song restart). The first
         bar creates the file with the header."""
         if self._file is None:
             self._file = self.path.open("x", encoding="utf-8")
             self._write(self._header)
         bar = int(record["bar"])
-        record.setdefault("like", False)
-        record.setdefault("example", {p: None for p in PARTS})
         record.setdefault("nod", None)
         if any(b >= bar for b in self._pending):
             self._flush(None)
         self._pending[bar] = record
         self._flush(bar - DELAY)
-
-    def like(self, bar: int) -> None:
-        """A like referred to `bar` (written or not yet planned: nothing)."""
-        if bar in self._pending:
-            self._pending[bar]["like"] = True
-
-    def example(self, bar: int, part: str, label: str) -> None:
-        """The bar `bar` added an example of `part` labelled `label`."""
-        if bar in self._pending:
-            self._pending[bar]["example"][part] = label
 
     def nod(self, bar: int, groove: int | None, variation: str | None, from_: str) -> None:
         """The nod on `bar` was resolved: it counted for `groove` and kept `variation`
@@ -190,15 +176,18 @@ def read_log(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 def summary(header: Mapping[str, Any], bars: list[dict[str, Any]]) -> str:
     """The text `python -m mpc_iml.learn summary` prints: per `learn` mode the bars,
-    the like rate, how often each loop's variation differed from the rules', the
-    examples per label, and the grooves, fill bars and free bars (#245) when the
-    log has them."""
+    the like rate and the examples per label (logs of `learn likes` and `learn demo`),
+    how often each loop's variation differed from the rules', and the grooves, fill
+    bars and free bars (#245) when the log has them."""
     lines = [f"log: toolkit {header.get('toolkit')}, {len(bars)} bars"]
     modes = list(dict.fromkeys(str(b.get("learn", "off")) for b in bars))
     for mode in modes:
         mine = [b for b in bars if str(b.get("learn", "off")) == mode]
-        likes = sum(1 for b in mine if b.get("like"))
-        lines.append(f"{mode}: {len(mine)} bars, {likes} likes ({likes / len(mine):.0%} of bars)")
+        line = f"{mode}: {len(mine)} bars"
+        if any("like" in b for b in mine):
+            likes = sum(1 for b in mine if b.get("like"))
+            line += f", {likes} likes ({likes / len(mine):.0%} of bars)"
+        lines.append(line)
         for part in PARTS:
             playing = [b for b in mine if (b.get("choice") or {}).get(part)]
             differ = sum(1 for b in playing if b["choice"][part]["variation"] != b["rule"][part])

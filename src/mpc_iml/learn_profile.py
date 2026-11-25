@@ -9,20 +9,14 @@ Format version 2 (#250, ADR 0009 "Amendment: learning by groove", "The profile")
                "features": {"kicks": 3, "double_kicks": 0, "late_kicks": 1,
                             "snare_off": 0, "hats": 3, "hat_presence": 1},
                "part": "bass", "variation": "push", "nods": 3, "loop": "boom",
-               "last": "2026-11-24"}],
-     "weights": {"bass": {"push/beat": {"home": 0.0, "push": 1.5, "drive": 0.0}, ...},
-                 "melody": {...}},
-     "examples": [{"part": "bass", "features": [6, 2, 1], "label": "drive", "bar": 3}],
-     "loops": {"bass": {"push/beat": {"walk": 1.0}}, "melody": {}}}
+               "last": "2026-11-24"}]}
 
 `nods` are the nods kept (`grooves.nods.NodMemory`), the most recent first; the
 prototype has the steps per role as in the groove group file of #249
 (`grooves.groups.steps`, so a group in that file can be matched to a stored nod
-without a new format). `weights` are each `learn.Learner`'s table and `examples`
-each `learn.Demonstrations`' examples; `loops` is what likes added to each
-`learn.LoopLearner`'s loops, by loop name. These three are optional and stay only
-while `learn likes` and `learn demo` exist (#250 removes them); no model is saved,
-the trees are trained again from the examples when a profile is read (no pickle).
+without a new format). A version 2 file written before `learn likes` and `learn
+demo` were removed (#250) may also have `weights`, `examples` and `loops`; reading
+ignores them and the next save leaves them out.
 `settings` records what the profile was learned with; reading does not apply them.
 The file stays on the musician's machine: it is never committed or uploaded (RFC
 0005 Scope rules).
@@ -32,36 +26,23 @@ renames it once to `learn/ensemble-v1.json` (`OLD_PROFILE`) and starts with no n
 
 `python -m mpc_iml.learn show [<profile>]` prints it (default
 `./mpc-iml-data/learn/ensemble.json`): each nod with its prototype as a 16-step grid
-per role, its variation, count and date; then per part, each context with the
-rules' choice and the learned weights, `*` where the learned top choice differs,
-what likes added to the loops, and the tree trained on the examples as rules.
+per role, its variation, count and date.
 `python -m mpc_iml.learn summary <log>` prints a per-bar log (`learn_log.summary`).
 """
 
 import argparse
 import json
 import os
-import random
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from mpc_iml import __version__
 from mpc_iml.grooves import PART_ROLES, STEPS, Features, Pattern
 from mpc_iml.grooves.nods import Nod, NodMemory
-from mpc_iml.learn import (
-    ARMS,
-    CONTEXTS,
-    FEATURES,
-    PARTS,
-    Demonstrations,
-    Example,
-    Learner,
-    LoopLearner,
-    rule_choice,
-)
+from mpc_iml.learn import ARMS, PARTS
 from mpc_iml.learn_log import read_log, summary
 
 __all__ = [
@@ -96,27 +77,16 @@ class OldProfile(ValueError):
 
 @dataclass(frozen=True)
 class Profile:
-    """What a profile file holds: the nods, the most recent first, and per part the
-    weights, the examples and what likes added to the loops."""
+    """What a profile file holds: the settings it was learned with and the nods, the
+    most recent first."""
 
-    weights: Mapping[str, Mapping[str, Mapping[str, float]]]
-    examples: Sequence[Example]
     settings: Mapping[str, str]
-    loops: Mapping[str, Mapping[str, Mapping[str, float]]] = field(default_factory=dict)
     nods: Sequence[Nod] = ()
 
 
-def write_profile(
-    path: Path,
-    learners: Mapping[str, Learner],
-    demos: Mapping[str, Demonstrations],
-    settings: Mapping[str, str],
-    loops: Mapping[str, LoopLearner] | None = None,
-    nods: NodMemory | None = None,
-) -> None:
-    """Write the profile of `learners`, `demos`, the loop learners `loops` and the
-    nods kept in `nods` to `path` atomically (a partial file, then a rename), making
-    its folder."""
+def write_profile(path: Path, settings: Mapping[str, str], nods: NodMemory) -> None:
+    """Write the profile of the nods kept in `nods` to `path` atomically (a partial
+    file, then a rename), making its folder."""
     data = {
         "format": PROFILE_FORMAT,
         "format_version": PROFILE_VERSION,
@@ -132,15 +102,8 @@ def write_profile(
                 "loop": n.loop,
                 "last": n.last,
             }
-            for n in (nods.nods if nods is not None else ())
+            for n in nods.nods
         ],
-        "weights": {p: learners[p].table() for p in PARTS},
-        "examples": [
-            {"part": e.part, "features": list(e.features), "label": e.label, "bar": e.bar}
-            for p in PARTS
-            for e in demos[p].examples
-        ],
-        "loops": {p: loops[p].table() if loops else {} for p in PARTS},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_name(f".{path.name}.partial")
@@ -168,25 +131,10 @@ def read_profile(path: Path) -> Profile:
 def _parse(data: Any) -> Profile:
     if data["format"] != PROFILE_FORMAT or data["format_version"] != PROFILE_VERSION:
         raise ValueError(f"format {data['format']!r} version {data['format_version']!r}")
-    weights = {p: dict(data["weights"].get(p, {})) for p in PARTS}
-    for part, table in weights.items():
-        Learner(part, random.Random(0)).load(table)
-    examples = [
-        Example(
-            str(e["part"]), tuple(float(v) for v in e["features"]), str(e["label"]), int(e["bar"])
-        )
-        for e in data.get("examples", [])
-    ]
-    for example in examples:
-        if example.part not in PARTS or len(example.features) != len(FEATURES[example.part]):
-            raise ValueError(f"bad example {example}")
-        Demonstrations(example.part).add(example)
     settings = {str(k): str(v) for k, v in dict(data.get("settings", {})).items()}
-    loops = {p: dict(data.get("loops", {}).get(p, {})) for p in PARTS}
-    for part, table in loops.items():
-        LoopLearner(part, random.Random(0)).load(table)
-    nods = [_nod(n) for n in data["nods"]]
-    return Profile(weights, examples, settings, loops, nods)
+    if not isinstance(data["nods"], list):
+        raise ValueError(f"bad nods {data['nods']!r}")
+    return Profile(settings, [_nod(n) for n in data["nods"]])
 
 
 def _nod(data: Any) -> Nod:
@@ -219,60 +167,20 @@ def _steps(value: Any) -> frozenset[int]:
     return frozenset(value)
 
 
-def apply_profile(
-    profile: Profile,
-    learners: Mapping[str, Learner],
-    demos: Mapping[str, Demonstrations],
-    loops: Mapping[str, LoopLearner] | None = None,
-    nods: NodMemory | None = None,
-) -> None:
-    """Load `profile` into `learners`, `demos`, the loop learners `loops` and `nods`
-    (which forgets its nods first), training the trees again."""
-    if nods is not None:
-        nods.reset()
-        for nod in reversed(profile.nods):
-            nods.add(replace(nod))
-    for part in PARTS:
-        learners[part].load(profile.weights[part])
-        if loops is not None:
-            loops[part].load(profile.loops.get(part, {}))
-        demos[part].reset()
-        for example in profile.examples:
-            if example.part == part:
-                demos[part].add(example)
-        demos[part].train()
+def apply_profile(profile: Profile, nods: NodMemory) -> None:
+    """Load the nods of `profile` into `nods`, which forgets its nods first."""
+    nods.reset()
+    for nod in reversed(profile.nods):
+        nods.add(replace(nod))
 
 
 def show(profile: Profile) -> str:
     """The text `python -m mpc_iml.learn show` prints for `profile`."""
-    learners = {p: Learner(p, random.Random(0)) for p in PARTS}
-    demos = {p: Demonstrations(p) for p in PARTS}
-    apply_profile(profile, learners, demos)
     lines = [f"nods: {len(profile.nods)}"]
     for nod in profile.nods:
         times = "nod" if nod.nods == 1 else "nods"
         lines.append(f"  {nod.part} {nod.variation}, {nod.nods} {times}, last {nod.last or '-'}")
         lines += [f"    {r:<5} {_grid(nod.prototype.role(r))}" for r in PART_ROLES]
-    for part in PARTS:
-        arms = ARMS[part]
-        lines.append(f"{part}: context, rule, weights {' '.join(arms)}")
-        for context in CONTEXTS[part]:
-            weights = learners[part].weights(context)
-            rule = rule_choice(part, context)
-            top = learners[part].top(context)
-            mark = f" * learned {top}" if top != rule else ""
-            values = " ".join(f"{weights[a]:.2f}" for a in arms)
-            lines.append(f"  {context:<12} {rule:<6} {values}{mark}")
-        for context, row in profile.loops.get(part, {}).items():
-            added = " ".join(f"{name} +{value:.2f}" for name, value in row.items())
-            lines.append(f"{part}: loops in {context}: {added}")
-        count = len(demos[part].examples)
-        rules = demos[part].rules()
-        if rules is None:
-            lines.append(f"{part}: {count} examples, no tree (the rules play)")
-        else:
-            lines.append(f"{part}: {count} examples, tree:")
-            lines.extend(f"  {line}" for line in rules.rstrip().splitlines())
     return "\n".join(lines)
 
 

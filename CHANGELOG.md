@@ -90,6 +90,13 @@ Until 1.0, interfaces may still change between 0.x releases.
 
 ### Removed
 
+- `ensemble` `learn likes` and `learn demo`, with the controls `like`, `want` and
+  `learn-loops`, the learners `learn.Learner`, `learn.LoopLearner` and
+  `learn.Demonstrations`, `sklearn_backend.Tree` and `examples/trial/learn.json`
+  (#250, ADR 0009 "Amendment: learning by groove"). The nod (`learn nod`) replaces
+  them. They are refused with `bad_arguments` naming `learn nod`; the replies `want`,
+  `examples` and `learn-loops` stay with fixed values. A profile's `weights`,
+  `examples` and `loops` are ignored when read and no longer written.
 - `patches/pressure.pd`, the first front end of the preset `pressure` (#92). It was
   kept as the hardware-checked fallback until `patches/mpc-iml.pd` passed the
   20-minute walkthrough on hardware (#66); use `uv run mpc-iml --preset pressure`
