@@ -24,6 +24,9 @@ from mpc_iml import __version__
 
 TEMPLATE_DIR = "project_template"
 SUFFIX = ".tmpl"
+# Longest package name whose rendered lines all stay within the project's ruff
+# line length of 100 (Issue #263; `tests/test_new.py` checks a name of this length).
+MAX_PACKAGE_LENGTH = 60
 
 
 def package_name(name: str) -> str:
@@ -31,6 +34,10 @@ def package_name(name: str) -> str:
     package = re.sub(r"[^0-9a-zA-Z]+", "_", name).strip("_").lower()
     if not package.isidentifier() or keyword.iskeyword(package) or package == "mpc_iml":
         raise ValueError(f"not a usable package name: {name!r} -> {package!r}")
+    if len(package) > MAX_PACKAGE_LENGTH:
+        raise ValueError(
+            f"package name longer than {MAX_PACKAGE_LENGTH} characters: {name!r} -> {package!r}"
+        )
     return package
 
 
