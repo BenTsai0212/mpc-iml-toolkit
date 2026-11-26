@@ -43,4 +43,4 @@
 | [0003](0003-starting-points-and-guidance.md) | Starting points and guidance | Accepted |
 | [0004](0004-improvisation-and-ai-initiative.md) | Improvisation and AI initiative | Accepted |
 | [0005](0005-drum-led-ensemble.md) | Drum-led ensemble | Accepted |
-| [0006](0006-sounds-for-the-band.md) | Sounds for the band | Proposed |
+| [0006](0006-sounds-for-the-band.md) | Sounds for the band | Accepted |

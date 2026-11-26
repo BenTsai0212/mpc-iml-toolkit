@@ -1,8 +1,9 @@
 # RFC 0006: Sounds for the band
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-26
 - Related: RFC 0002, RFC 0005, #262, #266
+- Accepted: 2026-11-26 (#267)
 
 ## Summary
 
