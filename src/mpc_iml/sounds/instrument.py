@@ -6,19 +6,21 @@ written for each note with its measured pitch. Key ranges split halfway between
 neighbouring notes. Any SFZ player can load the result.
 
 `python -m mpc_iml.sounds.instrument <name> <file>... --out <folder>` writes
-`<folder>/<name>.sfz` and the notes it uses in `<folder>/samples/`.
+`<folder>/<name>.sfz` and the notes it uses in `<folder>/samples/`, and records the
+instrument in `<folder>/sound-set.json` (#272, `mpc_iml.sounds.soundset`).
 """
 
 import argparse
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
-from mpc_iml.sounds import wav
+from mpc_iml.sounds import soundset, wav
 from mpc_iml.sounds.notes import Measurement, measure, note_name, note_number
+from mpc_iml.sounds.soundset import Origin
 from mpc_iml.sounds.wav import Samples
 
 CLEAN = 0.985
@@ -176,11 +178,19 @@ def build(
     release: float = 0.25,
     clean: float = CLEAN,
     span: tuple[int, int] | None = None,
+    origins: Mapping[Path, Origin] | None = None,
 ) -> Instrument:
-    """Write the instrument `name` from the recordings in `files` into the folder `out`.
+    """Write the instrument `name` from the recordings in `files` into the folder `out`,
+    and record it in `out/sound-set.json`.
 
     `span` is the lowest and highest key the part plays; the result lists the keys in it
-    that no kept note reaches. Raises `ValueError` when no recording can be used."""
+    that no kept note reaches. `origins` gives where a recording came from, by its path
+    in `files`. The entry of an instrument built before under `name` is replaced, and
+    the samples it listed that the new one does not use are removed. Raises `ValueError`
+    when `name` is not a name or no recording can be used, and `SoundSetError` when the
+    folder's `sound-set.json` cannot be accepted; nothing is written then."""
+    soundset.check_name(name)
+    document = soundset.read_document(out)
     notes: list[Note] = []
     unreadable: list[tuple[Path, str]] = []
     audio: dict[Path, tuple[Samples, int]] = {}
@@ -227,7 +237,7 @@ def build(
         )
     path = out / f"{name}.sfz"
     path.write_text(sfz_text(name, regions, release), encoding="utf-8")
-    return Instrument(
+    instrument = Instrument(
         name=name,
         path=path,
         regions=tuple(regions),
@@ -235,6 +245,84 @@ def build(
         uncovered=tuple(uncovered(centres, *span) if span else []),
         notes=tuple(notes),
     )
+    settings = {"prefer": prefer, "release": release, "clean": clean}
+    _record(out, document, instrument, files, settings, span, origins or {})
+    return instrument
+
+
+def set_entry(
+    instrument: Instrument,
+    files: Sequence[Path],
+    settings: Mapping[str, float | str],
+    span: tuple[int, int] | None,
+    origins: Mapping[Path, Origin],
+) -> dict[str, object]:
+    """The entry of `instrument` in `sound-set.json`: one entry for each of `files`, with
+    what was measured in it and its region or why it was left out."""
+    measured = {n.path: n.measured for n in instrument.notes}
+    used = {r.source: r for r in instrument.regions}
+    why = dict(instrument.dropped)
+    entries: list[dict[str, object]] = []
+    for path in files:
+        entry: dict[str, object] = {"file": path.name}
+        if path in measured:
+            values = asdict(measured[path])
+            if values["other"] is not None:
+                values["other"] = list(values["other"])
+            entry["measured"] = values
+        if path in used:
+            region = used[path]
+            entry["region"] = {
+                "sample": region.sample,
+                "low": region.low,
+                "high": region.high,
+                "centre": region.centre,
+                "tune": region.tune,
+                "gain_db": region.gain_db,
+            }
+        else:
+            entry["left_out"] = why[path]
+        if path in origins:
+            entry["origin"] = origins[path].to_json()
+        entries.append(entry)
+    return {
+        "sfz": instrument.path.name,
+        "settings": dict(settings),
+        "span": list(span) if span else None,
+        "uncovered": [list(gap) for gap in instrument.uncovered],
+        "files": entries,
+    }
+
+
+def _samples_of(entry: Mapping[str, object]) -> set[str]:
+    files = entry.get("files", [])
+    assert isinstance(files, list)
+    return {f["region"]["sample"] for f in files if "region" in f}
+
+
+def _record(
+    out: Path,
+    document: dict[str, object],
+    instrument: Instrument,
+    files: Sequence[Path],
+    settings: Mapping[str, float | str],
+    span: tuple[int, int] | None,
+    origins: Mapping[Path, Origin],
+) -> None:
+    """Add or replace the entry of `instrument` in `document`, write it, and remove the
+    samples the earlier entry listed that no entry uses now."""
+    instruments = document["instruments"]
+    assert isinstance(instruments, dict)
+    before = _samples_of(instruments.get(instrument.name, {}))
+    instruments[instrument.name] = set_entry(instrument, files, settings, span, origins)
+    soundset.write_document(out, document)
+    hits = document["hits"]
+    assert isinstance(hits, dict)
+    still = {h["sample"] for h in hits.values()}
+    for entry in instruments.values():
+        still |= _samples_of(entry)
+    for sample in sorted(before - still):
+        (out / sample).unlink(missing_ok=True)
 
 
 def report(instrument: Instrument) -> str:

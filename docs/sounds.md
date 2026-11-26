@@ -7,7 +7,8 @@ find out what a recording of a single note really holds before it becomes part o
 sound set. A model that generates single notes cannot be trusted to play the pitch it
 was asked for: in the first notes made this way the note name was always right, but
 the octave was wrong for several of them, and two notes were not clean. The second part (#270) builds an instrument from the measured notes: see
-[Build an instrument](#build-an-instrument).
+[Build an instrument](#build-an-instrument); the last part (#272) gathers instruments
+and drum hits into a [sound set](#sound-sets).
 
 ## Run it
 
@@ -102,6 +103,62 @@ The rules:
   every kept note are listed.
 
 When no recording can be used, the command prints the reason and ends with status 1.
+
+## Sound sets
+
+The last part of step 1 (#272, [ADR 0013](adr/0013-sound-set-folders.md)): a folder
+that holds the instruments and drum hits made for one band is a **sound set**:
+
+```text
+<folder>/
+  sound-set.json
+  <instrument>.sfz
+  samples/<instrument>-<note>.wav
+  hits/<hit>.wav
+```
+
+`sound-set.json` records what the set holds. For each instrument: its SFZ file, the
+settings it was built with (`prefer`, `release`, `clean`), the span and the keys no
+note reaches, and for every source recording what was measured in it and its region,
+or why it was left out. For each hit: its sample, the recording it was cut from, its
+length and how much its level was moved. Source recordings are named by file name
+only and are not copied into the set, so the folder can be moved or shared.
+
+Building an instrument into a folder adds it to `sound-set.json` (or replaces the
+entry of an instrument with the same name) and keeps the other instruments and the
+hits. Building it again removes the samples it no longer uses; nothing else is
+deleted. Names are lower case letters, digits and hyphens.
+
+### Drum hits
+
+Each drum hit is one WAV file, cut from one recording:
+
+```bash
+uv run python -m mpc_iml.sounds.hits kick kick-take-2.wav --out band-set --seconds 0.6
+```
+
+It writes `band-set/hits/kick.wav`, records the hit and prints one line:
+
+```text
+kick: hits/kick.wav  0.60 s  level -2.1 dB  from kick-take-2.wav
+```
+
+The hit starts 32 frames before the sound (the first sample within 40 dB of the
+peak), lasts `--seconds` (0.5 s by default), ends with a 30 ms fade and peaks 3 dB
+under full scale. It is written as 24-bit WAV with the sample rate and channels of
+its recording. A silent recording is refused. The set does not map hits to pads: put
+them on your own pads.
+
+### Check a set
+
+```bash
+uv run python -m mpc_iml.sounds.soundset check band-set
+```
+
+It reports every problem it finds, in the format and in each SFZ file, sample and hit
+the file names but the folder lacks, and ends with status 1 when there is one. When
+`sound-set.json` cannot be accepted, the instrument and the hit commands stop with
+status 1 before they write anything.
 
 ## Known gap
 
