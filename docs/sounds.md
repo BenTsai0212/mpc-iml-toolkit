@@ -302,7 +302,12 @@ The **band** tab has four parts, top to bottom:
    set. For the chosen set, one line for each player of the band: the instrument of
    its name (how many regions, and what it plays when that differs from the player) or
    that the set has none; then the instruments of the set that are not players of the
-   band, and the drum hits.
+   band, and the drum hits. When the page opens and when you choose another band, the
+   tab chooses the set in which the most players of the band have an instrument of
+   their name that plays their part (#282); the chosen set stays when it is among the
+   best or when no set has a player of the band. **Read the folder again** keeps the
+   chosen set while it is there and chooses again when it is gone. You can still
+   choose any set by hand.
 3. **Listen**: renders the band's audition with the set, as the audition command does,
    and plays the band, each instrument and the drums, with the lines the command
    prints. The **bars** slider plays only the first bars; the default is all of them.
@@ -317,7 +322,8 @@ The **band** tab has four parts, top to bottom:
 A set that is gone or changed on disk, or one with two sample rates, gives a message
 on the page. Without `--sounds` the tab shows the bands and part 4 still sends the
 controls. The tab reads folders on your machine and sends to the engine, so it is not
-on the page under `--share`.
+on the page under `--share`. The settings above the tabs and the outputs below them
+belong to the other tabs and are hidden while the band tab is open (#282).
 
 It does not yet describe the sound of a player, generate notes or hits, build
 instruments, or keep or try again: those come with step 4. It does not set levels,

@@ -18,13 +18,16 @@ from mpc_iml.sounds import soundset
 from mpc_iml.sounds.instrument import build
 from mpc_iml.webdemo import __main__ as webdemo_main
 from mpc_iml.webdemo.bandtab import (
+    choose_set,
     list_sets,
     listen,
     load_set,
     match_lines,
     match_text,
     messages,
+    pick_set,
     play_with,
+    players_matched,
 )
 
 
@@ -211,3 +214,93 @@ def test_the_demo_starts_with_and_without_sounds(
     argv = ["--sounds", str(sounds_folder(tmp_path))] if with_sounds else []
     assert webdemo_main.main(argv) == 0
     assert launched and launched[0]["server_name"] == "127.0.0.1"
+
+
+def two_sets(tmp_path: Path) -> Path:
+    """`sounds/a` (`bass`, `keys`, `vibes`) and `sounds/b` (`808`, `keys`, `bell`,
+    `pad`), each instrument playing its player's part."""
+    sounds = tmp_path / "sounds"
+    for name, parts in [
+        ("a", [("bass", "bass"), ("keys", "melody"), ("vibes", "melody")]),
+        ("b", [("808", "bass"), ("keys", "melody"), ("bell", "melody"), ("pad", "melody")]),
+    ]:
+        for player, part in parts:
+            instrument(tmp_path, sounds / name, player, [60.0], part=part)
+    return sounds
+
+
+def test_the_set_with_the_most_players_of_the_band_is_chosen(tmp_path: Path) -> None:
+    sounds = two_sets(tmp_path)
+    bands = load_bands()
+    sets = {name: load_set(sounds, name) for name in ("a", "b")}
+    assert players_matched(bands["lofi"], sets["a"]) == 3
+    assert players_matched(bands["lofi"], sets["b"]) == 2
+    assert choose_set(bands["lofi"], sets, None) == "a"
+    assert choose_set(bands["lofi"], sets, "b") == "a"
+    assert choose_set(bands["trap"], sets, "a") == "b"
+    assert pick_set(bands["trap"], sounds, ["a", "b"], "a") == "b"
+    assert pick_set(bands["lofi"], sounds, ["a", "b"], None) == "a"
+
+
+def test_of_equally_good_sets_the_chosen_one_stays(tmp_path: Path) -> None:
+    sounds = two_sets(tmp_path)
+    shutil.copytree(sounds / "a", sounds / "c")
+    sets = {name: load_set(sounds, name) for name in ("a", "b", "c")}
+    lofi = load_bands()["lofi"]
+    assert choose_set(lofi, sets, "c") == "c"
+    assert choose_set(lofi, sets, "a") == "a"
+    assert choose_set(lofi, sets, "b") == "a"
+
+
+def test_without_a_player_of_the_band_the_chosen_set_stays(tmp_path: Path) -> None:
+    """`bass` built for the melody part has the right name and the wrong part: it does
+    not count."""
+    sounds = tmp_path / "sounds"
+    instrument(tmp_path, sounds / "x", "bass", [60.0], part="melody")
+    instrument(tmp_path, sounds / "y", "drone", [60.0])
+    sets = {name: load_set(sounds, name) for name in ("x", "y")}
+    lofi = load_bands()["lofi"]
+    assert players_matched(lofi, sets["x"]) == 0
+    assert choose_set(lofi, sets, "y") == "y"
+    assert choose_set(lofi, sets, None) is None
+    assert pick_set(lofi, sounds, ["x", "y"], "y") == "y"
+    assert pick_set(lofi, sounds, ["x", "y"], None) == "x"
+
+
+def handlers(page: Any) -> dict[str, tuple[list[int], Any]]:
+    """The inputs and handler of each event of the band tab, by the handler's name."""
+    found = {}
+    for index, dependency in enumerate(page.config["dependencies"]):
+        fn = page.fns[index].fn
+        found[getattr(fn, "__name__", "")] = (dependency["inputs"], fn)
+    return found
+
+
+def test_the_page_chooses_the_set_when_it_opens_the_band_changes_and_on_reading_again(
+    tmp_path: Path,
+) -> None:
+    if not webdemo_main.gradio_installed():
+        pytest.skip("needs the demo extra")
+    from mpc_iml.webdemo.app import build
+
+    sounds = two_sets(tmp_path)
+    shutil.copytree(sounds / "b", sounds / "0-trap")
+    page = build(sounds=sounds)
+    dropdowns = [
+        b
+        for b in page.blocks.values()
+        if type(b).__name__ == "Dropdown" and getattr(b, "label", None) == "sound set"
+    ]
+    assert len(dropdowns) == 1
+    first = next(iter(load_bands()))
+    assert first == "lofi" and dropdowns[0].value == "a"
+    on = handlers(page)
+    _, on_band = on["on_band"]
+    assert on_band("trap", "a")[3]["value"] == "0-trap"
+    assert on_band("trap", "b")[3]["value"] == "b"
+    assert on_band("lofi", "b")[3]["value"] == "a"
+    _, on_reload = on["on_reload"]
+    assert on_reload("trap", "a")[0]["value"] == "a"
+    shutil.rmtree(sounds / "a")
+    assert on_reload("lofi", "a")[0]["value"] == "0-trap"
+    assert on_reload("lofi", "b")[0]["value"] == "b"
