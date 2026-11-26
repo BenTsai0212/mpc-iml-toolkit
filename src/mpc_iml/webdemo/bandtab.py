@@ -13,11 +13,14 @@ the engine's control port on this machine, and `todo_lines` say what is left to 
 hand. Errors a musician can cause (a folder that is gone, a set that changed on disk,
 two sample rates) come back as a message, not an exception.
 
+Its "Make sounds" part (#288) makes a sound set with the generator file given with
+`--generator`; its logic is in `webdemo.makesounds`.
+
 `tab` builds the tab; `app.build` leaves it out under `--share`, as it reads folders on
-the machine and sends messages to the engine.
+the machine, runs the generator's command and sends messages to the engine.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,8 +35,10 @@ from mpc_iml.osc import DEFAULT_HOST
 from mpc_iml.plays import Plays
 from mpc_iml.sounds import audition, soundset
 from mpc_iml.sounds.audition import AuditionError
+from mpc_iml.sounds.generate import Generator
 from mpc_iml.sounds.instrument import describe
 from mpc_iml.sounds.soundset import SoundSet, SoundSetError
+from mpc_iml.webdemo import makesounds
 
 if TYPE_CHECKING:
     pass
@@ -309,11 +314,24 @@ def play_with(
     return lines + todo_lines(band, sound_set)
 
 
-def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
+MAKE = "Make"
+MAKING = "Making… one run at a time"
+
+
+def tab(
+    gr: Any,
+    sounds: Path | None,
+    port: int = CONTROL_PORT,
+    generator: Generator | None = None,
+    page: Any = None,
+) -> Any:
     """The band tab, inside the page's `gr.Blocks` (module docstring); returns the
     `gr.Tab`, so the page can wire its selection (#282). The set is chosen with
-    `pick_set` when the page opens, when the band changes and when the folder is read
-    again and the chosen set is gone."""
+    `pick_set` when the page is built, when the band changes and when the folder is
+    read again and the chosen set is gone; with `page` (the `gr.Blocks`), also each time
+    the page is opened, from the folder as it is then (#288). With `generator` and
+    `sounds`, part 3 makes sounds (#288); without, it says how to start the demo with
+    both."""
     bands = load_bands()
     first = next(iter(bands.values()))
     listing = list_sets(sounds)
@@ -325,6 +343,12 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
             return f"No sound sets in `{sounds}`."
         refused = [f"- {s.name}: cannot be chosen: {s.problem}" for s in found.sets if s.problem]
         return f"Sound sets in `{sounds}`." + ("\n\n" + "\n".join(refused) if refused else "")
+
+    def made_in(band: Band, chosen: str | None) -> tuple[str, dict[str, Any] | None]:
+        """The set name part 3 starts with for `band` when `chosen` is chosen
+        (`makesounds.set_name`), and that set's document (`None` when it does not exist)."""
+        named = makesounds.set_name(band, chosen, makesounds.document(sounds, chosen))
+        return named, makesounds.document(sounds, named)
 
     choices = listing.choices()
     first_set = pick_set(first, sounds, choices, None)
@@ -347,7 +371,40 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
             lines=6,
             interactive=False,
         )
-        gr.Markdown("### 3. Listen")
+        gr.Markdown("### 3. Make sounds")
+        can_make = generator is not None and sounds is not None
+        if not can_make:
+            gr.Markdown(makesounds.HOW_TO_START)
+        else:
+            assert generator is not None
+            first_name, first_data = made_in(first, first_set)
+            first_rows = makesounds.rows(first, first_data)
+            first_chosen = makesounds.chosen_at_start(first, first_data)
+            gr.Markdown(
+                f"Made with the generator `{generator.name}` (model `{generator.model}`). "
+                "Edit the words, choose what to make and press Make. Making a player the "
+                "set already has replaces its instrument, with new seeds."
+            )
+            make_name = gr.Textbox(first_name, label="set name")
+            table = gr.Dataframe(
+                first_rows,
+                headers=makesounds.HEADERS,
+                type="array",
+                interactive=True,
+                static_columns=[0, 1],
+                label="players and hits",
+            )
+            to_make = gr.CheckboxGroup(
+                [row[0] for row in first_rows], value=first_chosen, label="which to make"
+            )
+            plan_text = gr.Markdown(
+                makesounds.plan_line(
+                    first, first_data, first_name, first_chosen, makesounds.words_of(first_rows)
+                )
+            )
+            make_button = gr.Button(MAKE, variant="primary")
+            made_text = gr.Textbox(label="made", lines=10, interactive=False)
+        gr.Markdown("### 4. Listen")
         with gr.Row():
             bars = gr.Slider(
                 1, len(first.audition), value=len(first.audition), step=1, label="bars"
@@ -358,7 +415,7 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
         for _ in range(MAX_INSTRUMENTS + 1):
             slots.append(gr.Audio(type="numpy", interactive=False, visible=False))
         heard_lines = gr.Textbox(label="audition", lines=4, interactive=False)
-        gr.Markdown("### 4. Play with it")
+        gr.Markdown("### 5. Play with it")
         play_button = gr.Button(f"Set the engine to this band (port {port})")
         todo = gr.Textbox(label="what is left to do", lines=8, interactive=False)
 
@@ -410,4 +467,79 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
             on_listen, [band_name, set_name, bars], [band_audio, *slots, heard_lines]
         )
         play_button.click(on_play, [band_name, set_name], todo)
+
+        def on_open(name: str, chosen: str | None) -> tuple[object, ...]:
+            band = bands[name]
+            found = list_sets(sounds)
+            names = found.choices()
+            picked = pick_set(band, sounds, names, chosen if chosen in names else None)
+            opened: tuple[object, ...] = (
+                gr.update(choices=names, value=picked),
+                listing_text(found),
+                match_text(band, sounds, picked),
+            )
+            return opened + (on_source(name, picked) if can_make else ())
+
+        if can_make:
+
+            def on_source(name: str, chosen: str | None) -> tuple[object, ...]:
+                band = bands[name]
+                named, data = made_in(band, chosen)
+                found = makesounds.rows(band, data)
+                picked = makesounds.chosen_at_start(band, data)
+                return (
+                    named,
+                    found,
+                    gr.update(choices=[row[0] for row in found], value=picked),
+                    makesounds.plan_line(band, data, named, picked, makesounds.words_of(found)),
+                )
+
+            def on_plan(name: str, named: str, found: list[list[str]], picked: list[str]) -> str:
+                band = bands[name]
+                data = makesounds.document(sounds, named)
+                words = makesounds.words_of(found)
+                return makesounds.plan_line(band, data, named, picked or [], words)
+
+            def on_make(
+                name: str, named: str, found: list[list[str]], picked: list[str]
+            ) -> Iterator[tuple[object, ...]]:
+                band = bands[name]
+                lines: list[str] = []
+                busy = gr.update(value=MAKING, interactive=False)
+                keep = (gr.update(),) * 6
+                for chunk in makesounds.make(
+                    band, generator, sounds, named, picked or [], makesounds.words_of(found)
+                ):
+                    lines += chunk
+                    yield ("\n".join(lines), busy, *keep)
+                listing = list_sets(sounds)
+                names = listing.choices()
+                value = named if named in names else None
+                data = makesounds.document(sounds, value)
+                rows = makesounds.rows(band, data)
+                yield (
+                    "\n".join(lines),
+                    gr.update(value=MAKE, interactive=True),
+                    gr.update(choices=names, value=value),
+                    listing_text(listing),
+                    match_text(band, sounds, value),
+                    rows,
+                    gr.update(value=[]),
+                    makesounds.plan_line(band, data, named, [], makesounds.words_of(rows)),
+                )
+
+            source = [make_name, table, to_make, plan_text]
+            band_name.change(on_source, [band_name, set_name], source)
+            set_name.change(on_source, [band_name, set_name], source)
+            for box in (make_name, table, to_make):
+                box.change(on_plan, [band_name, make_name, table, to_make], plan_text)
+            make_button.click(
+                on_make,
+                [band_name, make_name, table, to_make],
+                [made_text, make_button, set_name, sets_info, matched, table, to_make, plan_text],
+                concurrency_limit=1,
+            )
+        if page is not None:
+            opened = [set_name, sets_info, matched] + (source if can_make else [])
+            page.load(on_open, [band_name, set_name], opened)
     return band_tab

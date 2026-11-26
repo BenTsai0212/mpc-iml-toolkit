@@ -933,7 +933,9 @@ on the page under `--share`.
 
 The **band** tab (#280) plays a built-in band with one of your sound sets and sets the
 engine to that band: start the demo with `--sounds <folder>`, a folder whose
-subfolders are sound sets. See [docs/sounds.md](sounds.md#the-band-tab-of-the-web-demo).
+subfolders are sound sets. With `--generator <file>` as well, it makes and tries
+again the sounds of each player with a model you installed (#288). See
+[docs/sounds.md](sounds.md#the-band-tab-of-the-web-demo).
 It is not on the page under `--share` either.
 
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`

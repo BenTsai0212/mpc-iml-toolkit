@@ -182,16 +182,27 @@ uv sync --extra demo
 uv run python -m mpc_iml.webdemo --sounds my-sound-sets
 ```
 
-**band** 分頁由上而下有四個部分：
+要同時在頁面上產生 sound set（#288，第 3 步的第二部分），再給你安裝的模型的 generator 檔（[產生單音](#產生單音)、ADR 0015）：
+
+```bash
+uv run python -m mpc_iml.webdemo --sounds my-sound-sets --generator ~/models/my-model.json
+```
+
+demo 啟動時檢查這個檔案；被拒絕的檔案會讓 demo 不啟動，並說出問題。頁面只執行這個檔案的指令，頁面上輸入的文字以一個參數、不經 shell 傳給它。
+
+**band** 分頁由上而下有五個部分：
 
 1. **選樂團**：一個內建樂團，顯示標題、說明、速度與內容，以及演奏者的表（名稱、聲部與演奏什麼）。
 2. **選 sound set**：`--sounds` 中含有 `sound-set.json` 的子資料夾。`soundset check` 的檢查拒絕的 set 附原因列出，不能選；建立或修改 set 之後，按 **Read the folder again** 重新讀取資料夾。選定的 set 為樂團的每個演奏者列一行：同名的樂器（幾個 region，以及與演奏者不同時它演奏什麼），或 set 沒有這個樂器；接著是 set 中不是樂團演奏者的樂器，以及鼓聲。頁面打開時與選了另一個樂團時，分頁選出最多演奏者有同名、且演奏其聲部之樂器的 set（#282）；已選的 set 是最好的之一、或沒有任何 set 有樂團的演奏者時，保留已選的 set。**Read the folder again** 在已選的 set 還在時保留它，不在時重新選。仍然可以手動選任何 set。
-3. **試聽**：像試聽指令一樣以 set 演奏樂團的試聽 pattern，播放整個樂團、每個樂器與鼓，並顯示指令會印出的各行。**bars** 滑桿只演奏前幾小節，預設是全部。
-4. **演奏**：把樂團的 `bass-loop`、`loop` 與 `progression` 以 [docs/ensemble.zh-TW.md](ensemble.zh-TW.md) 的 preset 訊息送到本機 engine 的控制 port（6450），再列出要手動完成的事：在 DAW 設定的速度、每個樂器的 SFZ 檔與它的 track 接收的聲部（bass 或旋律）、鼓聲的路徑。UDP 訊息沒有回覆，所以頁面無法知道 engine 是否在執行：請確認樂團有改變。
+3. **產生聲音**（有 `--generator` 時）：**set name** 是要建立或修改的 `--sounds` 子資料夾。只有當樂團的每個演奏者在已選的 set 中都有同名且演奏其聲部的樂器，或 set 中有為這個樂團產生的樂器或鼓聲（`generate band` 會記錄樂團）時，它才一開始就是已選 set 的名稱；否則一開始是 `<樂團>-set`，這個 set 可能還不存在。該名稱的 set 中有為其他樂團產生的聲音時，下方說明會發生什麼的那一行會寫出那個樂團。表格為樂團的每個演奏者與每個鼓聲各列一行：名稱、是什麼（演奏者的聲部，或 `hit`）與可以編輯的文字。文字是產生該樂器或鼓聲時記錄在 set 中的文字，沒有時是樂團的預設文字。**which to make** 選這次要產生的演奏者與鼓聲：新的 set 全選，已經全部都有的 set 都不選。執行前有一行說明會發生什麼：第 1 輪要求幾個 take、會取代 set 中的哪些項目。**Make** 依序產生它們（與 `generate band` 相同），每完成一個就顯示它的各行；結束時重新讀取資料夾、選定這個 set，第 2 部分顯示它與樂團的對應。同一時間只執行一個 Make。每次打開頁面（重新載入或開第二個視窗）時，第 2、3 部分依當時的資料夾填入。沒有 `--generator`（或 `--sounds`）時，這個部分說明如何以兩者啟動 demo，沒有 Make 按鈕。
+4. **試聽**：像試聽指令一樣以 set 演奏樂團的試聽 pattern，播放整個樂團、每個樂器與鼓，並顯示指令會印出的各行。**bars** 滑桿只演奏前幾小節，預設是全部。
+5. **演奏**：把樂團的 `bass-loop`、`loop` 與 `progression` 以 [docs/ensemble.zh-TW.md](ensemble.zh-TW.md) 的 preset 訊息送到本機 engine 的控制 port（6450），再列出要手動完成的事：在 DAW 設定的速度、每個樂器的 SFZ 檔與它的 track 接收的聲部（bass 或旋律）、鼓聲的路徑。UDP 訊息沒有回覆，所以頁面無法知道 engine 是否在執行：請確認樂團有改變。
 
-已列出的 set 被刪除或在磁碟上改變、或有兩種取樣率時，頁面顯示訊息。沒有 `--sounds` 時分頁只顯示樂團，第 4 部分仍會送出控制項。這個分頁讀取本機的資料夾並送訊息到 engine，所以在 `--share` 時不在頁面上。分頁上方的設定與下方的輸出屬於其他分頁，打開 band 分頁時隱藏（#282）。
+已列出的 set 被刪除或在磁碟上改變、或有兩種取樣率時，頁面顯示訊息。沒有 `--sounds` 時分頁只顯示樂團，第 5 部分仍會送出控制項。這個分頁讀取本機的資料夾、執行 generator 的指令並送訊息到 engine，所以在 `--share` 時不在頁面上。分頁上方的設定與下方的輸出屬於其他分頁，打開 band 分頁時隱藏（#282）。
 
-它還不描述演奏者的聲音、不產生音或鼓聲、不建立樂器，也沒有保留或重試：產生目前只在指令列（[產生單音](#產生單音)），分頁在之後的步驟加入。它不設定音量、效果器或 DAW 的速度，也不上傳任何東西。
+**重試**：選一個 set 已經有的演奏者（或鼓聲），修改或保留它的文字，按 **Make**：它的樂器被取代，seed 從 set 中為它記錄的最大 seed 之後開始，所以同樣的文字會得到新的 take。其他演奏者與鼓聲不變。重試會取代原有的內容：頁面不保留舊版本以供比較，也無法復原。保留一個 set 之前先試聽（第 4 部分）；想保留某個版本時先複製資料夾。
+
+這個分頁不以錄音建立樂器、不上傳錄音、不能停止執行中的產生，也不顯示單一演奏者內的進度。它不設定音量、效果器或 DAW 的速度，也不上傳任何東西。
 
 ## 產生單音
 
@@ -257,7 +268,7 @@ uv run python -m mpc_iml.sounds.generate hit kick --generator stable-audio.json 
 
 ### Take
 
-take 保存在 set 的 `takes/` 下：`takes/<樂器>-<要求的音>-s<seed>.wav`（`#` 寫成 `s`）與 `takes/<鼓聲>-s<seed>.wav`。`sound-set.json` 中每個 take 的 `file` 指向它，`origin` 記錄模型、送出的 prompt、seed 與設定（`generator`、要求的音 `asked`、`seconds` 與 `round`）。再次產生一個樂器或鼓聲時取代其項目，並刪除舊項目列出、現在沒有項目使用的 take 與 sample；其他樂器、鼓聲與它們的 take 不變。可以刪除 `takes/` 以節省空間：set 仍可載入，`soundset check` 會說有幾個 take 不見了，但之後無法以它們重新建立樂器。
+take 保存在 set 的 `takes/` 下：`takes/<樂器>-<要求的音>-s<seed>.wav`（`#` 寫成 `s`）與 `takes/<鼓聲>-s<seed>.wav`。`sound-set.json` 中每個 take 的 `file` 指向它，`origin` 記錄模型、送出的 prompt、seed 與設定（`generator`、文字 `words`、要求的音 `asked`、`seconds` 與 `round`；#288），`generate band` 另記錄為哪個樂團 `band` 產生。再次產生一個樂器或鼓聲時取代其項目，並刪除舊項目列出、現在沒有項目使用的 take 與 sample；其他樂器、鼓聲與它們的 take 不變。可以刪除 `takes/` 以節省空間：set 仍可載入，`soundset check` 會說有幾個 take 不見了，但之後無法以它們重新建立樂器。
 
 量測只抓得到音高錯誤、雜音與靜音，不是全部：保留一個 set 之前，請在 SFZ player 中或以試聽**聆聽**樂器。產生的檔案不放進 repository。
 

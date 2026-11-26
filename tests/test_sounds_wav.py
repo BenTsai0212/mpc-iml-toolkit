@@ -79,13 +79,32 @@ def test_broken_files_are_refused(tmp_path: Path) -> None:
 
 def test_the_core_install_does_not_import_sounds() -> None:
     """`mpc_iml.sounds` needs numpy from the `demo` extra; only it imports itself, and
-    the web demo's band tab (#280), which only `webdemo.app` imports, after the demo
-    extra is checked."""
+        the web demo's band tab (#280) and its "Make sounds" part (#288), which only
+        `webdemo.app` imports, after the demo extra is checked; and `webdemo.__main__`,
+        which reads the generator file after the demo extra is checked (#288). An import
+    under `if TYPE_CHECKING:` is never run and does not count."""
     tab = SRC / "webdemo" / "bandtab.py"
+    make = SRC / "webdemo" / "makesounds.py"
+    main = SRC / "webdemo" / "__main__.py"
     for path in SRC.rglob("*.py"):
-        if SRC / "sounds" in path.parents or path == tab:
+        if SRC / "sounds" in path.parents or path in (tab, make):
             continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if path == main:
+            text = path.read_text(encoding="utf-8")
+            assert text.index("from mpc_iml.sounds") > text.index("if not gradio_installed()")
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        typing_only = {
+            id(inner)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.If)
+            and isinstance(node.test, ast.Name)
+            and node.test.id == "TYPE_CHECKING"
+            for inner in ast.walk(node)
+        }
+        for node in ast.walk(tree):
+            if id(node) in typing_only:
+                continue
             names = []
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]

@@ -5,6 +5,8 @@ through its share servers; only a person runs it, never an agent or CI. The groo
 tab (#249) saves in `--data <folder>`, and is left out under `--share`, so a
 musician's playing never reaches a public link. The band tab (#280) lists the sound
 sets in the subfolders of `--sounds <folder>`, and is left out under `--share` too.
+With `--generator <file>` (ADR 0015) it also makes sound sets with that file's command
+(#288); the file is checked here, and a file that is refused stops the start.
 """
 
 import argparse
@@ -48,13 +50,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="a folder whose subfolders are sound sets, for the band tab",
     )
+    parser.add_argument(
+        "--generator",
+        type=Path,
+        help="a generator file (ADR 0015): the band tab makes sound sets with its command",
+    )
     args = parser.parse_args(argv)
     if not gradio_installed():
         print(INSTALL_HINT, file=sys.stderr)
         return 2
+    generator = None
+    if args.generator is not None:
+        from mpc_iml.sounds.generate import GeneratorError, load_generator
+
+        try:
+            generator = load_generator(args.generator)
+        except GeneratorError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
     from mpc_iml.webdemo.app import build
 
-    build(args.data, args.share, args.sounds).launch(
+    build(args.data, args.share, args.sounds, generator).launch(
         server_name="127.0.0.1", server_port=args.port, share=args.share
     )
     return 0

@@ -605,7 +605,7 @@ MIDI 檔、learning）在 **step grid** 與 **recording** 時顯示，**variatio
 **grooves** 與 **band** 兩者都不顯示；隱藏的設定保留原本的值。
 
 **band** 分頁（#280）以你的 sound set 演奏內建樂團，並把 engine 設成這個樂團：以 `--sounds <資料夾>`
-啟動 demo，資料夾的子資料夾是各個 sound set。說明見
+啟動 demo，資料夾的子資料夾是各個 sound set。再加上 `--generator <檔案>` 時，它以你安裝的模型產生並重試每個演奏者的聲音（#288）。說明見
 [docs/sounds.zh-TW.md](sounds.zh-TW.md#網頁-demo-的-band-分頁)。在 `--share` 時它不在頁面上。
 
 要讓隊友從另一台電腦打開，加上 `--share`：Gradio 經由它的分享伺服器產生暫時的公開連結（72 小時
