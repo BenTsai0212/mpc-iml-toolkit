@@ -123,7 +123,7 @@ def test_the_page_builds() -> None:
         "Tab",
     }
     tabs = {getattr(b, "label", None) for b in page.blocks.values() if type(b).__name__ == "Tab"}
-    assert tabs == {"step grid", "recording", "variations", "grooves"}
+    assert tabs == {"step grid", "recording", "variations", "grooves", "band"}
     rhythm = [b for b in page.blocks.values() if getattr(b, "label", None) == "rhythm"]
     assert len(rhythm) == 1 and getattr(rhythm[0], "value", None) == 0
 

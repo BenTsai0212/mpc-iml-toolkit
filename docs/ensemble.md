@@ -924,6 +924,11 @@ Tick **blind** before loading to shuffle the cards with the seed and show them a
 recordings and writes in the data folder; without `--data` it cannot save. It is not
 on the page under `--share`.
 
+The **band** tab (#280) plays a built-in band with one of your sound sets and sets the
+engine to that band: start the demo with `--sounds <folder>`, a folder whose
+subfolders are sound sets. See [docs/sounds.md](sounds.md#the-band-tab-of-the-web-demo).
+It is not on the page under `--share` either.
+
 The **recording** tab plays a recording made with `python -m mpc_iml.record --clock`
 instead: the band answers it exactly as the engine would have, at the recording's
 tempo, from the clock's Start to the next Stop, at most 64 bars. Pads 1 and 5 are

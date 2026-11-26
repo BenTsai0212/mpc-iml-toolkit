@@ -172,6 +172,26 @@ uv run python -m mpc_iml.sounds.audition lofi lofi-set --out lofi-audition
 
 指令背後的函式接受音符與載入的 set 並回傳陣列，所以網頁 demo 可以不寫檔就呼叫：`play(band, bars)` 執行試聽，`played(song)` 以秒給出音符，`audition(song, set)` 演奏全部，`render_notes(instrument, notes, rate, frames)` 以一個樂器演奏一串音符。
 
+## 網頁 demo 的 band 分頁
+
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 3 步的第一部分（#280）：在網頁 demo 中以已經做好的 sound set 做同樣的試聽，並有一個按鈕把 engine 設成這個樂團。把每個 sound set 放在同一個資料夾的各自子資料夾中，再以它啟動 demo：
+
+```bash
+uv sync --extra demo
+uv run python -m mpc_iml.webdemo --sounds my-sound-sets
+```
+
+**band** 分頁由上而下有四個部分：
+
+1. **選樂團**：一個內建樂團，顯示標題、說明、速度與內容，以及演奏者的表（名稱、聲部與演奏什麼）。
+2. **選 sound set**：`--sounds` 中含有 `sound-set.json` 的子資料夾。`soundset check` 的檢查拒絕的 set 附原因列出，不能選；建立或修改 set 之後，按 **Read the folder again** 重新讀取資料夾。選定的 set 為樂團的每個演奏者列一行：同名的樂器（幾個 region，以及與演奏者不同時它演奏什麼），或 set 沒有這個樂器；接著是 set 中不是樂團演奏者的樂器，以及鼓聲。
+3. **試聽**：像試聽指令一樣以 set 演奏樂團的試聽 pattern，播放整個樂團、每個樂器與鼓，並顯示指令會印出的各行。**bars** 滑桿只演奏前幾小節，預設是全部。
+4. **演奏**：把樂團的 `bass-loop`、`loop` 與 `progression` 以 [docs/ensemble.zh-TW.md](ensemble.zh-TW.md) 的 preset 訊息送到本機 engine 的控制 port（6450），再列出要手動完成的事：在 DAW 設定的速度、每個樂器的 SFZ 檔與它的 track 接收的聲部（bass 或旋律）、鼓聲的路徑。UDP 訊息沒有回覆，所以頁面無法知道 engine 是否在執行：請確認樂團有改變。
+
+已列出的 set 被刪除或在磁碟上改變、或有兩種取樣率時，頁面顯示訊息。沒有 `--sounds` 時分頁只顯示樂團，第 4 部分仍會送出控制項。這個分頁讀取本機的資料夾並送訊息到 engine，所以在 `--share` 時不在頁面上。
+
+它還不描述演奏者的聲音、不產生音或鼓聲、不建立樂器，也沒有保留或重試：這些隨第 4 步加入。它不設定音量、效果器或 DAW 的速度，也不上傳任何東西。
+
 ## 已知的缺口
 
 在低音（約 E2 以下）旁，分析窗的旁瓣可能被算成一個不在泛音上的弱峰，約比最強峰低 30 dB。這讓乾淨的低音的 `clean` 最多少半個百分點，`other` 會指出這個旁瓣。方法保持不變，讓結果能與已演奏過的 sound set 比較。

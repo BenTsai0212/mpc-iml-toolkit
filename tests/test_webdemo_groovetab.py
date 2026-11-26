@@ -194,7 +194,7 @@ def test_the_grooves_tab_is_on_the_page_but_not_under_share(tmp_path: Path) -> N
         pytest.skip("needs the demo extra")
     from mpc_iml.webdemo.app import build
 
-    assert tabs_of(build(tmp_path)) == {"step grid", "recording", "variations", "grooves"}
+    assert tabs_of(build(tmp_path)) == {"step grid", "recording", "variations", "grooves", "band"}
     assert tabs_of(build(tmp_path, share=True)) == {"step grid", "recording", "variations"}
     buttons = {
         getattr(b, "value", None): getattr(b, "interactive", None)

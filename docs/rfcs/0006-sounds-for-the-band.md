@@ -3,13 +3,20 @@
 - Status: Accepted
 - Date: 2026-11-26
 - Related: RFC 0002, RFC 0005, #262, #266
-- Amended: 2026-11-26 (#268)
+- Amended: 2026-11-26 (#268); 2026-11-26 (#280)
 - Accepted: 2026-11-26 (#267)
 
 > **Amendment (2026-11-26, #268).** The output of this RFC is called a **sound
 > set**, not a kit, because a kit is already the pad and module file of ADR 0007.
 > Audio is read by the package's own WAV reader, so `soundfile` is no longer named
 > as a dependency. The direction is unchanged.
+
+> **Amendment (2026-11-26, #280).** Step 3 is built in two parts. First the tab
+> with sound sets that already exist: choose a band, choose a set made for it,
+> listen to each player and the whole band, and set the engine to the band with the
+> existing controls (#280). Then, together with step 4, describing the sound of each
+> player and keeping or trying again, which need generation. The decision maker chose
+> this order on 2026-11-26. The direction is unchanged.
 
 ## Summary
 

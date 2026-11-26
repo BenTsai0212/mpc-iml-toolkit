@@ -1,0 +1,365 @@
+"""The band tab of the web demo: choose a band, hear it with a sound set, set the engine
+(#280, RFC 0006 step 3, first part).
+
+The functions before `tab` hold the page's logic without Gradio and take and return
+plain values: `list_sets` lists the sound sets under the `--sounds` folder (a subfolder
+whose `sound-set.json` is refused is listed with the reason, one without the file is
+not listed), `match_lines` says which instrument of a set plays each player of a band,
+`listen` renders the band's audition with a set (`sounds.audition`), `messages` are the
+band's three controls as the existing `ensemble` preset messages, `send` sends them to
+the engine's control port on this machine, and `todo_lines` say what is left to do by
+hand. Errors a musician can cause (a folder that is gone, a set that changed on disk,
+two sample rates) come back as a message, not an exception.
+
+`tab` builds the tab; `app.build` leaves it out under `--share`, as it reads folders on
+the machine and sends messages to the engine.
+"""
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import numpy.typing as npt
+from pythonosc.udp_client import SimpleUDPClient
+
+from mpc_iml.bands import Band, load_bands
+from mpc_iml.engine import CONTROL_PORT
+from mpc_iml.osc import DEFAULT_HOST
+from mpc_iml.plays import Plays
+from mpc_iml.sounds import audition, soundset
+from mpc_iml.sounds.audition import AuditionError
+from mpc_iml.sounds.instrument import describe
+from mpc_iml.sounds.soundset import SoundSet, SoundSetError
+
+if TYPE_CHECKING:
+    pass
+
+__all__ = [
+    "CONTROL",
+    "MAX_INSTRUMENTS",
+    "PLAYER_HEADERS",
+    "Heard",
+    "Listing",
+    "SetChoice",
+    "band_lines",
+    "list_sets",
+    "listen",
+    "load_set",
+    "match_lines",
+    "match_text",
+    "messages",
+    "play_with",
+    "player_rows",
+    "send",
+    "tab",
+    "todo_lines",
+]
+
+CONTROL = "/mpciml/preset/ensemble/"
+"""The address prefix of the `ensemble` preset controls (`docs/ensemble.md`)."""
+MAX_INSTRUMENTS = 8
+"""The most instruments the page shows an audio player for."""
+PLAYER_HEADERS = ["player", "part", "what it plays"]
+
+_ERRORS = (AuditionError, SoundSetError, OSError, ValueError)
+
+
+@dataclass(frozen=True)
+class SetChoice:
+    """A subfolder of the sounds folder that holds a `sound-set.json`, and why it
+    cannot be chosen (empty when it can)."""
+
+    name: str
+    folder: Path
+    problem: str = ""
+
+
+@dataclass(frozen=True)
+class Listing:
+    """The sets under the sounds folder, and a message when it cannot be read."""
+
+    sets: tuple[SetChoice, ...] = ()
+    message: str = ""
+
+    def choices(self) -> list[str]:
+        """The names of the sets that can be chosen."""
+        return [s.name for s in self.sets if not s.problem]
+
+
+@dataclass(frozen=True)
+class Heard:
+    """What `listen` rendered, as 16-bit stereo arrays at `rate`, with the audition's
+    lines; or only a `message` when it could not."""
+
+    rate: int = 0
+    band: npt.NDArray[np.int16] | None = None
+    instruments: Mapping[str, npt.NDArray[np.int16]] = field(default_factory=dict)
+    drums: npt.NDArray[np.int16] | None = None
+    lines: tuple[str, ...] = ()
+    message: str = ""
+
+
+def list_sets(sounds: Path | None) -> Listing:
+    """The subfolders of `sounds` that hold a `sound-set.json`, by name, each with its
+    problems (`soundset.problems`) joined, or a message when there is no folder."""
+    if sounds is None:
+        return Listing(
+            message="Start the demo with `--sounds <folder>` to choose a sound set: "
+            "a folder whose subfolders are sound sets."
+        )
+    try:
+        folders = sorted(p for p in sounds.iterdir() if (p / soundset.FILE).is_file())
+    except OSError as error:
+        return Listing(message=f"cannot read the sounds folder {sounds}: {error}")
+    sets = []
+    for folder in folders:
+        found = soundset.problems(folder)
+        sets.append(SetChoice(folder.name, folder, "; ".join(found)))
+    return Listing(tuple(sets))
+
+
+def load_set(sounds: Path | None, name: str | None) -> SoundSet:
+    """The set `name` under `sounds`, read again from the disk. Raises `SoundSetError`
+    when there is no folder or set, or the set is refused now."""
+    if sounds is None or not name:
+        raise SoundSetError("choose a sound set first")
+    if "/" in name or "\\" in name or name in (".", ".."):
+        raise SoundSetError(f"{name!r} is not a sound set of {sounds}")
+    folder = sounds / name
+    if not (folder / soundset.FILE).is_file():
+        raise SoundSetError(
+            f"{folder}: the set is gone (no {soundset.FILE}); read the folder again"
+        )
+    return soundset.load(folder)
+
+
+def band_lines(band: Band) -> list[str]:
+    """The band's title, description, tempo and content."""
+    content = ", ".join(f"{control} `{name}`" for control, name in band.controls().items())
+    return [f"**{band.title}** ({band.name})", band.description, f"{band.tempo} BPM; {content}"]
+
+
+def player_rows(band: Band) -> list[list[str]]:
+    """One row for each player: name, part and the description of what it plays."""
+    return [[p.name, str(p.plays.part), p.description] for p in band.players]
+
+
+def _plays(plays: Plays) -> str:
+    return describe(plays) or "every note"
+
+
+def match_lines(band: Band, sound_set: SoundSet) -> list[str]:
+    """For each player of `band`, the instrument of its name in `sound_set` (how many
+    regions, and what it plays when that differs from the player) or that there is
+    none; then the instruments that are not players of the band, and the drum hits."""
+    lines = []
+    for player in band.players:
+        instrument = sound_set.instruments.get(player.name)
+        if instrument is None:
+            lines.append(f"{player.name}: no instrument of this name in the set")
+            continue
+        line = f"{player.name}: instrument {player.name}, {len(instrument.regions)} region(s)"
+        if instrument.plays != player.plays:
+            line += (
+                f"; it plays {_plays(instrument.plays)}, the player plays {_plays(player.plays)}"
+            )
+        lines.append(line)
+    players = {p.name for p in band.players}
+    for name, instrument in sound_set.instruments.items():
+        if name not in players:
+            part = instrument.plays.part
+            plays = f"plays the {part} part" if part else "plays no part, skipped"
+            lines.append(f"{name}: not a player of the band ({plays})")
+    hits = ", ".join(sound_set.hits) or "none"
+    lines.append(f"drum hits: {hits}")
+    return lines
+
+
+def match_text(band: Band, sounds: Path | None, name: str | None) -> str:
+    """`match_lines` for the set `name`, read again from the disk, or why it cannot be
+    read; empty when no set is chosen."""
+    if not name:
+        return ""
+    try:
+        return "\n".join(match_lines(band, load_set(sounds, name)))
+    except _ERRORS as error:
+        return str(error)
+
+
+def _pcm(samples: npt.NDArray[np.float32]) -> npt.NDArray[np.int16]:
+    return np.asarray(np.round(np.clip(samples, -1.0, 1.0) * 32767), dtype=np.int16)
+
+
+def listen(band: Band, sounds: Path | None, name: str | None, bars: int | None = None) -> Heard:
+    """The band's audition (its first `bars` bars) rendered with the set `name`: the
+    band, each instrument that plays a part and the drums, and the lines of the
+    audition command; or a message."""
+    try:
+        if bars is not None and not 1 <= bars <= len(band.audition):
+            raise AuditionError(f"bars must be 1-{len(band.audition)}, got {bars}")
+        sound_set = load_set(sounds, name)
+        result = audition.audition(audition.play(band, bars), sound_set)
+    except _ERRORS as error:
+        return Heard(message=str(error))
+    return Heard(
+        rate=result.rate,
+        band=_pcm(result.band),
+        instruments={n: _pcm(s) for n, s in result.instruments.items()},
+        drums=_pcm(result.drums),
+        lines=tuple(audition.report(band, sound_set, result)),
+    )
+
+
+def messages(band: Band) -> list[tuple[str, list[str]]]:
+    """The band's three controls as `ensemble` preset messages, in the order of
+    `Band.controls`: `bass-loop`, `loop`, `progression`."""
+    return [(CONTROL + control, [value]) for control, value in band.controls().items()]
+
+
+def send(sent: Sequence[tuple[str, list[str]]], port: int = CONTROL_PORT) -> None:
+    """Send `sent` to the control port on this machine. Raises `OSError`."""
+    client = SimpleUDPClient(DEFAULT_HOST, port)
+    for address, args in sent:
+        client.send_message(address, args)
+
+
+def todo_lines(band: Band, sound_set: SoundSet | None) -> list[str]:
+    """What the musician still does by hand: the tempo of the DAW, each instrument's
+    SFZ file and the part its track receives, and the drum hits."""
+    lines = [f"Set the tempo of the DAW to {band.tempo} BPM."]
+    if sound_set is None:
+        return lines + ["No sound set: load your own instruments on the bass and melody tracks."]
+    for name, instrument in sound_set.instruments.items():
+        part = instrument.plays.part
+        if part is None:
+            lines.append(f"{name}: plays no part, not needed ({instrument.sfz})")
+        else:
+            lines.append(f"{name}: load {instrument.sfz} on a track that receives the {part} part")
+    for name, hit in sound_set.hits.items():
+        lines.append(f"{name}: drum hit {hit.sample}")
+    if not sound_set.hits:
+        lines.append("The set has no drum hits.")
+    return lines
+
+
+def play_with(
+    band: Band, sounds: Path | None, name: str | None, port: int = CONTROL_PORT
+) -> list[str]:
+    """Send the band's controls to the engine, then say what is left to do by hand
+    with the set `name` (when one is chosen)."""
+    sent = messages(band)
+    try:
+        send(sent, port)
+    except OSError as error:
+        return [f"could not send to {DEFAULT_HOST}:{port}: {error}"]
+    lines = [f"Sent {address} {args[0]} to {DEFAULT_HOST}:{port}." for address, args in sent] + [
+        "A UDP message gets no answer: the page cannot tell whether an engine is running. "
+        "Check that the band changes."
+    ]
+    sound_set = None
+    if name:
+        try:
+            sound_set = load_set(sounds, name)
+        except _ERRORS as error:
+            lines.append(f"The sound set cannot be read: {error}")
+    return lines + todo_lines(band, sound_set)
+
+
+def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
+    """The band tab, inside the page's `gr.Blocks` (module docstring)."""
+    bands = load_bands()
+    first = next(iter(bands.values()))
+    listing = list_sets(sounds)
+
+    def listing_text(found: Listing) -> str:
+        if found.message:
+            return found.message
+        if not found.sets:
+            return f"No sound sets in `{sounds}`."
+        refused = [f"- {s.name}: cannot be chosen: {s.problem}" for s in found.sets if s.problem]
+        return f"Sound sets in `{sounds}`." + ("\n\n" + "\n".join(refused) if refused else "")
+
+    with gr.Tab("band"):
+        gr.Markdown("### 1. Choose a band")
+        band_name = gr.Dropdown(list(bands), value=first.name, label="band")
+        about = gr.Markdown("\n\n".join(band_lines(first)))
+        players = gr.Dataframe(
+            player_rows(first), headers=PLAYER_HEADERS, type="array", interactive=False
+        )
+        gr.Markdown("### 2. Choose a sound set")
+        with gr.Row():
+            choices = listing.choices()
+            set_name = gr.Dropdown(
+                choices, value=choices[0] if choices else None, label="sound set"
+            )
+            reload_button = gr.Button("Read the folder again", interactive=sounds is not None)
+        sets_info = gr.Markdown(listing_text(listing))
+        matched = gr.Textbox(
+            match_text(first, sounds, choices[0] if choices else None),
+            label="players and instruments",
+            lines=6,
+            interactive=False,
+        )
+        gr.Markdown("### 3. Listen")
+        with gr.Row():
+            bars = gr.Slider(
+                1, len(first.audition), value=len(first.audition), step=1, label="bars"
+            )
+            listen_button = gr.Button("Listen", variant="primary", interactive=sounds is not None)
+        band_audio = gr.Audio(label="the band", type="numpy", interactive=False)
+        slots = []
+        for _ in range(MAX_INSTRUMENTS + 1):
+            slots.append(gr.Audio(type="numpy", interactive=False, visible=False))
+        heard_lines = gr.Textbox(label="audition", lines=4, interactive=False)
+        gr.Markdown("### 4. Play with it")
+        play_button = gr.Button(f"Set the engine to this band (port {port})")
+        todo = gr.Textbox(label="what is left to do", lines=8, interactive=False)
+
+        def on_band(name: str, chosen: str | None) -> tuple[object, ...]:
+            band = bands[name]
+            return (
+                "\n\n".join(band_lines(band)),
+                player_rows(band),
+                gr.update(maximum=len(band.audition), value=len(band.audition)),
+                match_text(band, sounds, chosen),
+            )
+
+        def on_set(name: str, chosen: str | None) -> str:
+            return match_text(bands[name], sounds, chosen)
+
+        def on_reload(chosen: str | None) -> tuple[object, ...]:
+            found = list_sets(sounds)
+            names = found.choices()
+            value = chosen if chosen in names else (names[0] if names else None)
+            return gr.update(choices=names, value=value), listing_text(found)
+
+        def on_listen(name: str, chosen: str | None, count: float) -> list[object]:
+            heard = listen(bands[name], sounds, chosen, int(count))
+            if heard.message:
+                gr.Warning(heard.message)
+                hidden = [gr.update(value=None, visible=False)] * len(slots)
+                return [None, *hidden, heard.message]
+            parts: list[tuple[str, object]] = list(heard.instruments.items())
+            lines = list(heard.lines)
+            if len(parts) > MAX_INSTRUMENTS:
+                lines.append(f"only the first {MAX_INSTRUMENTS} instruments are shown")
+            parts = parts[:MAX_INSTRUMENTS] + [("drums", heard.drums)]
+            updates = [
+                gr.update(value=(heard.rate, samples), label=label, visible=True)
+                for label, samples in parts
+            ]
+            updates += [gr.update(value=None, visible=False)] * (len(slots) - len(updates))
+            return [(heard.rate, heard.band), *updates, "\n".join(lines)]
+
+        def on_play(name: str, chosen: str | None) -> str:
+            return "\n".join(play_with(bands[name], sounds, chosen, port))
+
+        band_name.change(on_band, [band_name, set_name], [about, players, bars, matched])
+        set_name.change(on_set, [band_name, set_name], matched)
+        reload_button.click(on_reload, set_name, [set_name, sets_info])
+        listen_button.click(
+            on_listen, [band_name, set_name, bars], [band_audio, *slots, heard_lines]
+        )
+        play_button.click(on_play, [band_name, set_name], todo)
