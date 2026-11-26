@@ -199,7 +199,7 @@ uv run python -m mpc_iml.webdemo --sounds my-sound-sets
 
 ### generator 檔
 
-generator 檔說明如何執行你的模型。它放在你的電腦上，不放進 repository。名稱就是檔名（`stable-audio.json` 寫 `"name": "stable-audio"`）。下面的範例是 Stable Audio 3 的開放權重，從安裝它的資料夾以其 `stable-audio` 指令執行；參數請對照你的版本的 `stable-audio --help`：
+generator 檔說明如何執行你的模型。它放在你的電腦上，不放進 repository。名稱就是檔名（`stable-audio.json` 寫 `"name": "stable-audio"`）。下面的範例是 Stable Audio 3 的開放權重，從安裝它的資料夾以其 `stable-audio` 指令執行。這是 2026-11-25 以 repository `Stability-AI/stable-audio-3` 的 `4007b6f` 執行過的指令，參數是該版本的參數；請對照你的版本的 `stable-audio --help`：
 
 ```json
 {
@@ -207,10 +207,10 @@ generator 檔說明如何執行你的模型。它放在你的電腦上，不放�
   "format_version": 1,
   "name": "stable-audio",
   "title": "Stable Audio 3 (open weights)",
-  "model": "stable-audio-3",
+  "model": "stable-audio-3-small-sfx",
   "folder": "~/models/stable-audio",
-  "command": ["uv", "run", "stable-audio", "--prompt", "{prompt}", "--seed", "{seed}",
-              "--duration", "{seconds}", "--output", "{out}"],
+  "command": ["uv", "run", "stable-audio", "--model", "small-sfx", "-p", "{prompt}",
+              "--seed", "{seed}", "--duration", "{seconds}", "-o", "{out}"],
   "note_prompt": "TrackType: Instrument. {words}, one single note, {note}, dry, no reverb",
   "hit_prompt": "TrackType: SFX. {words}, one-shot drum hit, dry, no reverb",
   "timeout": 300
@@ -220,6 +220,9 @@ generator 檔說明如何執行你的模型。它放在你的電腦上，不放�
 - `command` 是參數的 list，不經 shell 執行，工作目錄是 `folder`：你的文字不論含有什麼，都以一個參數交給模型。`{prompt}` 與 `{out}` 必須有，`{seed}` 與 `{seconds}` 可選，其他 `{...}` 是錯誤。
 - `note_prompt` 必須含 `{words}` 與 `{note}`（音名，例如 `E2` 或 `F#2`）；`hit_prompt` 必須含 `{words}`。
 - `model` 是每個 take 記錄的模型。`timeout` 是一個 take 可執行的秒數（預設 120）；超過時停止。
+- 保留 `--model`：沒有它時 `stable-audio` 會自行選擇預設模型，那個模型沒有以這些指令試過。
+
+使用這些指令之前，先單獨執行一次模型：模型第一次執行時會下載權重（2026-11-25 約十分鐘），也可能要求你登入；而一個 take 超過 `timeout` 就會被停止。
 
 檢查檔案：
 

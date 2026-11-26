@@ -341,8 +341,10 @@ commands; a person who installed a model does.
 A generator file says how to run your model. It lives on your machine, not in the
 repository. Its name is the file name (`stable-audio.json` holds `"name":
 "stable-audio"`). This example is for the open weights of Stable Audio 3, run through
-its `stable-audio` command from the folder where you installed it; check the flags
-against `stable-audio --help` of your version:
+its `stable-audio` command from the folder where you installed it. It is the command
+that was run on 2026-11-25 with the repository `Stability-AI/stable-audio-3` at
+`4007b6f`, and the flags are those of that version; check them against
+`stable-audio --help` of your version:
 
 ```json
 {
@@ -350,10 +352,10 @@ against `stable-audio --help` of your version:
   "format_version": 1,
   "name": "stable-audio",
   "title": "Stable Audio 3 (open weights)",
-  "model": "stable-audio-3",
+  "model": "stable-audio-3-small-sfx",
   "folder": "~/models/stable-audio",
-  "command": ["uv", "run", "stable-audio", "--prompt", "{prompt}", "--seed", "{seed}",
-              "--duration", "{seconds}", "--output", "{out}"],
+  "command": ["uv", "run", "stable-audio", "--model", "small-sfx", "-p", "{prompt}",
+              "--seed", "{seed}", "--duration", "{seconds}", "-o", "{out}"],
   "note_prompt": "TrackType: Instrument. {words}, one single note, {note}, dry, no reverb",
   "hit_prompt": "TrackType: SFX. {words}, one-shot drum hit, dry, no reverb",
   "timeout": 300
@@ -368,6 +370,12 @@ against `stable-audio --help` of your version:
   `hit_prompt` must hold `{words}`.
 - `model` is what each take records as its model. `timeout` is the seconds one take
   may run (120 by default); a take that runs longer is stopped.
+- Keep `--model`: without it `stable-audio` chooses its own default model, which was
+  not tried with these commands.
+
+Run the model once on its own, outside these commands, before you use them: the first
+run of a model downloads its weights (about ten minutes on 2026-11-25) and may ask you
+to log in, and a take that runs past `timeout` is stopped.
 
 Check the file:
 
