@@ -253,6 +253,7 @@ def generate_band(
                 keys=player.plays.keys,
                 min_velocity=player.plays.min_velocity,
                 octave=player.plays.octave,
+                band=band.name,
                 run=run,
             )
         except ValueError as error:
@@ -268,6 +269,7 @@ def generate_band(
                 out,
                 seed=first.get(h.hit.name, seed),
                 seconds=h.hit.seconds,
+                band=band.name,
                 run=run,
             )
         except ValueError as error:

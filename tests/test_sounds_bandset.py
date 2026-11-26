@@ -104,12 +104,14 @@ def test_a_band_gives_a_whole_set(
         assert {r.origin.settings["words"] for r in instrument.regions if r.origin} == {
             player.sound.words
         }
+        assert {r.origin.settings["band"] for r in instrument.regions if r.origin} == {name}
     for hit in band.hits.values():
         assert any(line.startswith(f"{hit.name}: made, hits/{hit.name}.wav") for line in printed)
         origin = loaded.hits[hit.name].origin
         assert origin is not None and origin.settings == {
             "generator": "fake",
             "words": hit.words,
+            "band": name,
             "seconds": 1.0,
         }
     assert printed[-2] == f"  uv run python -m mpc_iml.sounds.soundset check {out}"

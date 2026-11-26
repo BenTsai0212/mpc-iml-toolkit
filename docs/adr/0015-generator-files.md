@@ -102,7 +102,9 @@ before it is measured.
   <note name>, "seconds": <duration>, "round": <n>}}`; a hit's settings have
   `generator`, `words` and `seconds`. `words` was added by #288 so that the band tab
   can show the words an instrument or hit was made with; `settings` is a free object
-  in format 1 of ADR 0013, so the format does not change.
+  in format 1 of ADR 0013, so the format does not change. `generate band` also records
+  `"band": <band name>` next to `words` (#288), so that the band tab does not offer a
+  set made for one band to another band that shares player names.
 - Generating an instrument or a hit again removes the takes its earlier entry named
   that no entry names now. Nothing else in the folder is deleted.
 - The generator file, the options and `sound-set.json` are checked before anything is

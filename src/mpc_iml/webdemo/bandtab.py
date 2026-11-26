@@ -319,13 +319,19 @@ MAKING = "Making… one run at a time"
 
 
 def tab(
-    gr: Any, sounds: Path | None, port: int = CONTROL_PORT, generator: Generator | None = None
+    gr: Any,
+    sounds: Path | None,
+    port: int = CONTROL_PORT,
+    generator: Generator | None = None,
+    page: Any = None,
 ) -> Any:
     """The band tab, inside the page's `gr.Blocks` (module docstring); returns the
     `gr.Tab`, so the page can wire its selection (#282). The set is chosen with
-    `pick_set` when the page opens, when the band changes and when the folder is read
-    again and the chosen set is gone. With `generator` and `sounds`, part 3 makes sounds
-    (#288); without, it says how to start the demo with both."""
+    `pick_set` when the page is built, when the band changes and when the folder is
+    read again and the chosen set is gone; with `page` (the `gr.Blocks`), also each time
+    the page is opened, from the folder as it is then (#288). With `generator` and
+    `sounds`, part 3 makes sounds (#288); without, it says how to start the demo with
+    both."""
     bands = load_bands()
     first = next(iter(bands.values()))
     listing = list_sets(sounds)
@@ -337,6 +343,12 @@ def tab(
             return f"No sound sets in `{sounds}`."
         refused = [f"- {s.name}: cannot be chosen: {s.problem}" for s in found.sets if s.problem]
         return f"Sound sets in `{sounds}`." + ("\n\n" + "\n".join(refused) if refused else "")
+
+    def made_in(band: Band, chosen: str | None) -> tuple[str, dict[str, Any] | None]:
+        """The set name part 3 starts with for `band` when `chosen` is chosen
+        (`makesounds.set_name`), and that set's document (`None` when it does not exist)."""
+        named = makesounds.set_name(band, chosen, makesounds.document(sounds, chosen))
+        return named, makesounds.document(sounds, named)
 
     choices = listing.choices()
     first_set = pick_set(first, sounds, choices, None)
@@ -365,8 +377,7 @@ def tab(
             gr.Markdown(makesounds.HOW_TO_START)
         else:
             assert generator is not None
-            first_data = makesounds.document(sounds, first_set)
-            first_name = makesounds.set_name(first, first_set)
+            first_name, first_data = made_in(first, first_set)
             first_rows = makesounds.rows(first, first_data)
             first_chosen = makesounds.chosen_at_start(first, first_data)
             gr.Markdown(
@@ -456,14 +467,26 @@ def tab(
             on_listen, [band_name, set_name, bars], [band_audio, *slots, heard_lines]
         )
         play_button.click(on_play, [band_name, set_name], todo)
+
+        def on_open(name: str, chosen: str | None) -> tuple[object, ...]:
+            band = bands[name]
+            found = list_sets(sounds)
+            names = found.choices()
+            picked = pick_set(band, sounds, names, chosen if chosen in names else None)
+            opened: tuple[object, ...] = (
+                gr.update(choices=names, value=picked),
+                listing_text(found),
+                match_text(band, sounds, picked),
+            )
+            return opened + (on_source(name, picked) if can_make else ())
+
         if can_make:
 
             def on_source(name: str, chosen: str | None) -> tuple[object, ...]:
                 band = bands[name]
-                data = makesounds.document(sounds, chosen)
+                named, data = made_in(band, chosen)
                 found = makesounds.rows(band, data)
                 picked = makesounds.chosen_at_start(band, data)
-                named = makesounds.set_name(band, chosen)
                 return (
                     named,
                     found,
@@ -516,4 +539,7 @@ def tab(
                 [made_text, make_button, set_name, sets_info, matched, table, to_make, plan_text],
                 concurrency_limit=1,
             )
+        if page is not None:
+            opened = [set_name, sets_info, matched] + (source if can_make else [])
+            page.load(on_open, [band_name, set_name], opened)
     return band_tab

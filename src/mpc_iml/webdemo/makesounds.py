@@ -28,8 +28,10 @@ from mpc_iml.sounds.soundset import TAKES
 __all__ = [
     "HEADERS",
     "HOW_TO_START",
+    "bands_in",
     "chosen_at_start",
     "document",
+    "fits",
     "made_lines",
     "make",
     "plan_line",
@@ -129,9 +131,42 @@ def chosen_at_start(band: Band, data: Mapping[str, Any] | None) -> list[str]:
     return [name for name in bandset.names(band) if not _has(band, data, name)]
 
 
-def set_name(band: Band, chosen: str | None) -> str:
-    """The name of the set to make: the chosen set, or `<band>-set`."""
-    return chosen or f"{band.name}-set"
+def bands_in(data: Mapping[str, Any] | None) -> list[str]:
+    """The bands recorded (as `band` in the settings of a generated origin) for the
+    instruments and hits of the set `data`, by name."""
+    found: set[str] = set()
+    for group in ("instruments", "hits"):
+        entries = data.get(group, {}) if data is not None else {}
+        for entry in entries.values() if isinstance(entries, Mapping) else []:
+            for origin in _origins(entry if isinstance(entry, Mapping) else None):
+                settings = origin.get("settings")
+                made_for = settings.get("band") if isinstance(settings, Mapping) else None
+                if isinstance(made_for, str) and made_for:
+                    found.add(made_for)
+    return sorted(found)
+
+
+def fits(band: Band, data: Mapping[str, Any] | None) -> bool:
+    """Whether the set `data` is one for `band`: every player has an instrument of its
+    name that plays its part, or an instrument or hit of the set was generated for it."""
+    if data is None:
+        return False
+    if band.name in bands_in(data):
+        return True
+    instruments = data.get("instruments", {})
+    for player in band.players:
+        entry = instruments.get(player.name) if isinstance(instruments, Mapping) else None
+        plays = entry.get("plays") if isinstance(entry, Mapping) else None
+        if not isinstance(plays, Mapping) or plays.get("part") != player.plays.part:
+            return False
+    return True
+
+
+def set_name(band: Band, chosen: str | None, data: Mapping[str, Any] | None) -> str:
+    """The name of the set to make: the chosen set (whose document is `data`) when it
+    `fits` the band, else `<band>-set`; a set made for one band is not offered for
+    another that shares player names."""
+    return chosen if chosen and fits(band, data) else f"{band.name}-set"
 
 
 def words_of(table: Sequence[Sequence[Any]]) -> dict[str, str]:
@@ -174,7 +209,12 @@ def plan_line(
         if replaced
         else f"replaces nothing in the set `{name}`"
     )
-    return f"Round 1 asks for {planned.takes} take(s); Make {what}."
+    line = f"Round 1 asks for {planned.takes} take(s); Make {what}."
+    others = [b for b in bands_in(data) if b != band.name]
+    if others:
+        named = ", ".join(f"`{b}`" for b in others)
+        line += f" The set `{name}` holds sounds made for the band {named}, not `{band.name}`."
+    return line
 
 
 def made_lines(made: bandset.Made) -> list[str]:

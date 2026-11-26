@@ -324,8 +324,12 @@ The **band** tab has five parts, top to bottom:
    chosen set while it is there and chooses again when it is gone. You can still
    choose any set by hand.
 3. **Make sounds** (with `--generator`): the **set name** is the subfolder of
-   `--sounds` to make or change (the chosen set, or `<band>-set` when the band has
-   none). A table has one row for each player and each drum hit of the band: its
+   `--sounds` to make or change. It starts as the chosen set's name only when every
+   player of the band has an instrument of its name and part in it, or when the set
+   holds an instrument or hit generated for this band (`generate band` records the
+   band); otherwise it starts as `<band>-set`, which may not exist yet. When the set
+   of that name holds sounds generated for another band, the line below names that
+   band. A table has one row for each player and each drum hit of the band: its
    name, what it is (the player's part, or `hit`) and its words, which you can edit.
    The words are those recorded in the set when the instrument or hit was generated,
    and the band's defaults otherwise. **which to make** chooses the players and hits
@@ -334,7 +338,8 @@ The **band** tab has five parts, top to bottom:
    what of the set is replaced. **Make** makes them one after the other, as
    `generate band` does, and shows the lines of each as it finishes; at the end the
    folder is read again, the set is chosen and part 2 shows how it matches the band.
-   Only one Make runs at a time. Without `--generator` (or `--sounds`) the part says
+   Only one Make runs at a time. Each time the page is opened (a reload, or a second
+   window), parts 2 and 3 are filled from the folder as it is then. Without `--generator` (or `--sounds`) the part says
    how to start the demo with both, and has no Make button.
 4. **Listen**: renders the band's audition with the set, as the audition command does,
    and plays the band, each instrument and the drums, with the lines the command
@@ -469,7 +474,7 @@ Takes are kept in the set, under `takes/`: `takes/<instrument>-<asked note>-s<se
 (`#` written as `s`) and `takes/<hit>-s<seed>.wav`. In `sound-set.json` each one's
 `file` names its take and its `origin` records the model, the prompt that was sent,
 the seed and the settings (`generator`, the `words`, the note `asked`, `seconds` and
-the `round`; #288).
+the `round`; #288), and for `generate band` the `band` it was made for.
 Generating an instrument or a hit again replaces its entry and removes the takes and
 samples its earlier entry listed that no entry uses now; other instruments, the hits
 and their takes are untouched. You may delete `takes/` to save space: the set still

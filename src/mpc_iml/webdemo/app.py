@@ -444,7 +444,7 @@ def build(
         tabs = {"step grid": grid_tab, "recording": recording_tab, "variations": variations_tab}
         if not share:
             tabs["grooves"] = groovetab.tab(gr, data)
-            tabs["band"] = bandtab.tab(gr, sounds, generator=generator)
+            tabs["band"] = bandtab.tab(gr, sounds, generator=generator, page=page)
         outputs_box = gr.Column(visible=True)
         with outputs_box:
             audio = gr.Audio(label="the band", type="numpy", interactive=False)

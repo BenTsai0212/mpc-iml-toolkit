@@ -20,17 +20,21 @@ from mpc_iml.webdemo import __main__ as webdemo_main
 from mpc_iml.webdemo.bandtab import MAKE, list_sets, pick_set
 from mpc_iml.webdemo.makesounds import (
     HOW_TO_START,
+    bands_in,
     chosen_at_start,
     document,
     make,
     plan_line,
     rows,
+    set_name,
     start_seed,
     words_of,
 )
 
 LOFI = load_bands()["lofi"]
+TRAP = load_bands()["trap"]
 NAMES = ["bass", "keys", "vibes", "pad", "kick", "snare", "hat"]
+TRAP_NAMES = ["808", "keys", "bell", "pad", "kick", "snare", "clap", "hat", "openhat"]
 
 
 def defaults() -> dict[str, str]:
@@ -78,6 +82,9 @@ def test_a_set_built_from_recordings_shows_the_defaults(tmp_path: Path) -> None:
     assert words_of(rows(LOFI, data)) == defaults()
     assert chosen_at_start(LOFI, data) == []
     assert start_seed(LOFI, data, "bass") == 1
+    assert bands_in(data) == []
+    assert set_name(LOFI, out.name, data) == out.name
+    assert set_name(TRAP, out.name, data) == "trap-set"
 
 
 def test_the_line_before_making(tmp_path: Path) -> None:
@@ -192,6 +199,52 @@ def test_a_whole_set_is_made_and_each_arrives_as_it_finishes(
         assert {o["settings"]["words"] for o in origins(out, name)} == {words}
 
 
+def trap_defaults() -> dict[str, str]:
+    found = {p.name: p.sound.words for p in TRAP.players}
+    found.update({name: hit.words for name, hit in TRAP.hits.items()})
+    return found
+
+
+def test_a_set_made_for_lofi_is_not_offered_for_trap(
+    made: tuple[Path, Path, list[int], int], tmp_path: Path
+) -> None:
+    sounds = tmp_path / "sounds"
+    shutil.copytree(made[0], sounds)
+    lofi = document(sounds, "lofi-set")
+    assert bands_in(lofi) == ["lofi"]
+    picked = pick_set(TRAP, sounds, ["lofi-set"], None)
+    assert picked == "lofi-set"
+    named = set_name(TRAP, picked, lofi)
+    assert named == "trap-set"
+    data = document(sounds, named)
+    assert data is None
+    found = rows(TRAP, data)
+    assert [row[0] for row in found] == TRAP_NAMES
+    assert chosen_at_start(TRAP, data) == TRAP_NAMES
+    line = plan_line(TRAP, data, named, TRAP_NAMES, words_of(found))
+    assert "replaces nothing in the set `trap-set`" in line and "lofi" not in line
+    assert set_name(LOFI, "lofi-set", lofi) == "lofi-set"
+
+    run_all(make(TRAP, generator(tmp_path), sounds, named, TRAP_NAMES, trap_defaults()))
+    names = list_sets(sounds).choices()
+    assert names == ["lofi-set", "trap-set"]
+    assert pick_set(TRAP, sounds, names, None) == "trap-set"
+    assert pick_set(TRAP, sounds, names, "lofi-set") == "trap-set"
+    assert pick_set(LOFI, sounds, names, None) == "lofi-set"
+    assert pick_set(LOFI, sounds, names, "trap-set") == "lofi-set"
+    trap = document(sounds, "trap-set")
+    assert bands_in(trap) == ["trap"]
+    assert set_name(TRAP, "trap-set", trap) == "trap-set"
+    assert set_name(LOFI, "trap-set", trap) == "lofi-set"
+
+
+def test_typing_the_lofi_set_for_trap_names_lofi(made: tuple[Path, Path, list[int], int]) -> None:
+    lofi = document(made[0], "lofi-set")
+    line = plan_line(TRAP, lofi, "lofi-set", ["808"], trap_defaults())
+    assert "holds sounds made for the band `lofi`, not `trap`" in line
+    assert "holds sounds" not in plan_line(LOFI, lofi, "lofi-set", ["bass"], defaults())
+
+
 def test_trying_vibes_again_uses_new_seeds_and_keeps_the_rest(
     made: tuple[Path, Path, list[int], int], tmp_path: Path
 ) -> None:
@@ -273,6 +326,42 @@ def test_the_page_makes_a_set_and_chooses_it(tmp_path: Path) -> None:
     assert last[1]["interactive"] is True and last[1]["value"] == MAKE
     assert last[2]["value"] == "lofi-set" and last[2]["choices"] == ["lofi-set"]
     assert "drum hits: kick" in last[4]
+
+
+def loader(page: Page) -> tuple[list[int], Any]:
+    """The outputs and the handler of the band tab's load event (the one that sets the
+    sound set)."""
+    chosen = page.one("Dropdown", "sound set")
+    for index, dependency in enumerate(page.config["dependencies"]):
+        loads = any(event == "load" for _, event in dependency["targets"])
+        if loads and chosen in dependency["outputs"]:
+            return dependency["outputs"], page.page.fns[index].fn
+    raise AssertionError("no load handler")
+
+
+def test_opening_the_page_again_reads_the_folder(tmp_path: Path) -> None:
+    page = make_page(tmp_path, True)
+    outputs, on_open = loader(page)
+    assert outputs[0] == page.one("Dropdown", "sound set")
+    assert outputs[3] == page.one("Textbox", "set name")
+    assert outputs[5] == page.one("CheckboxGroup", "which to make")
+    _, on_make = page.handler(MAKE)
+    list(on_make("lofi", "lofi-set", rows(LOFI, None), NAMES))
+    opened = on_open("lofi", None)
+    assert opened[0]["value"] == "lofi-set" and opened[0]["choices"] == ["lofi-set"]
+    assert "bass: instrument bass" in opened[2]
+    assert opened[3] == "lofi-set"
+    assert opened[5]["value"] == []
+    assert opened[6].startswith("Choose at least one")
+    trap = on_open("trap", None)
+    assert trap[3] == "trap-set" and trap[5]["value"] == TRAP_NAMES
+
+
+def test_without_a_generator_the_page_load_fills_part_2(tmp_path: Path) -> None:
+    page = make_page(tmp_path, False)
+    outputs, on_open = loader(page)
+    assert len(outputs) == 3
+    assert on_open("lofi", None)[0]["choices"] == []
 
 
 def test_the_demo_starts_with_and_without_a_generator(
