@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-26
 - Related: RFC 0002, RFC 0005, #262, #266
-- Amended: 2026-11-26 (#268); 2026-11-26 (#280)
+- Amended: 2026-11-26 (#268); 2026-11-26 (#280); 2026-11-26 (#284)
 - Accepted: 2026-11-26 (#267)
 
 > **Amendment (2026-11-26, #268).** The output of this RFC is called a **sound
@@ -17,6 +17,14 @@
 > existing controls (#280). Then, together with step 4, describing the sound of each
 > player and keeping or trying again, which need generation. The decision maker chose
 > this order on 2026-11-26. The direction is unchanged.
+
+> **Amendment (2026-11-26, #284).** Step 4 is built in parts. First one instrument or
+> one drum hit at a time, from the command line, with a model called through a
+> generator file the musician writes ([ADR 0015](../adr/0015-generator-files.md);
+> #284). Default words for the players of a band and the command for a whole sound set
+> follow with step 5, and describing, keeping or trying again in the band tab with the
+> second part of step 3. Generated takes are kept in the set, under `takes/`. The
+> direction is unchanged.
 
 ## Summary
 

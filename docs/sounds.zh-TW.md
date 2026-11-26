@@ -120,9 +120,10 @@ uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out trap-set --part m
   <樂器>.sfz
   samples/<樂器>-<音名>.wav
   hits/<鼓聲>.wav
+  takes/<take>.wav
 ```
 
-`sound-set.json` 記錄這個 set 有什麼。每個樂器：SFZ 檔、建立時的設定（`prefer`、`release`、`clean`）、演奏哪些音（`plays`：`part`、`keys`、`min_velocity`、`octave`）、音域與沒有音到得了的鍵，以及每個來源錄音量到了什麼、用在哪個 region 或為什麼被排除。每個鼓聲：sample、從哪個錄音切出來、長度與音量調了多少。來源錄音只記檔名，不複製進 set，所以資料夾可以搬移或分享。
+`sound-set.json` 記錄這個 set 有什麼。每個樂器：SFZ 檔、建立時的設定（`prefer`、`release`、`clean`）、演奏哪些音（`plays`：`part`、`keys`、`min_velocity`、`octave`）、音域與沒有音到得了的鍵，以及每個來源錄音量到了什麼、用在哪個 region 或為什麼被排除。每個鼓聲：sample、從哪個錄音切出來、長度與音量調了多少。來源錄音只記檔名，不複製進 set，所以資料夾可以搬移或分享。模型為 set 產生的 take 是例外：它們保存在 `takes/`（[產生單音](#產生單音)）。
 
 把樂器建到資料夾時，會把它加進 `sound-set.json`（同名的樂器則取代其項目），其他樂器與鼓聲保持不變。再建一次時刪除不再使用的 sample，其他檔案不刪。名稱只用小寫字母、數字與連字號。
 
@@ -190,7 +191,75 @@ uv run python -m mpc_iml.webdemo --sounds my-sound-sets
 
 已列出的 set 被刪除或在磁碟上改變、或有兩種取樣率時，頁面顯示訊息。沒有 `--sounds` 時分頁只顯示樂團，第 4 部分仍會送出控制項。這個分頁讀取本機的資料夾並送訊息到 engine，所以在 `--share` 時不在頁面上。分頁上方的設定與下方的輸出屬於其他分頁，打開 band 分頁時隱藏（#282）。
 
-它還不描述演奏者的聲音、不產生音或鼓聲、不建立樂器，也沒有保留或重試：這些隨第 4 步加入。它不設定音量、效果器或 DAW 的速度，也不上傳任何東西。
+它還不描述演奏者的聲音、不產生音或鼓聲、不建立樂器，也沒有保留或重試：產生目前只在指令列（[產生單音](#產生單音)），分頁在之後的步驟加入。它不設定音量、效果器或 DAW 的速度，也不上傳任何東西。
+
+## 產生單音
+
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 4 步的第一部分（#284，[ADR 0015](adr/0015-generator-files.md)）：以文字描述一個聲音，由**你**安裝的模型產生，得到 sound set 中可演奏的樂器或鼓聲。工具包不含模型、不下載任何東西，也不把任何東西送出：它執行你給的指令，讀取指令寫出的 WAV 檔。agent 與 CI 不執行這些指令，由安裝了模型的人執行。
+
+### generator 檔
+
+generator 檔說明如何執行你的模型。它放在你的電腦上，不放進 repository。名稱就是檔名（`stable-audio.json` 寫 `"name": "stable-audio"`）。下面的範例是 Stable Audio 3 的開放權重，從安裝它的資料夾以其 `stable-audio` 指令執行。這是 2026-11-25 以 repository `Stability-AI/stable-audio-3` 的 `4007b6f` 執行過的指令，參數是該版本的參數；請對照你的版本的 `stable-audio --help`：
+
+```json
+{
+  "format": "mpc-iml-generator",
+  "format_version": 1,
+  "name": "stable-audio",
+  "title": "Stable Audio 3 (open weights)",
+  "model": "stable-audio-3-small-sfx",
+  "folder": "~/models/stable-audio",
+  "command": ["uv", "run", "stable-audio", "--model", "small-sfx", "-p", "{prompt}",
+              "--seed", "{seed}", "--duration", "{seconds}", "-o", "{out}"],
+  "note_prompt": "TrackType: Instrument. {words}, one single note, {note}, dry, no reverb",
+  "hit_prompt": "TrackType: SFX. {words}, one-shot drum hit, dry, no reverb",
+  "timeout": 300
+}
+```
+
+- `command` 是參數的 list，不經 shell 執行，工作目錄是 `folder`：你的文字不論含有什麼，都以一個參數交給模型。`{prompt}` 與 `{out}` 必須有，`{seed}` 與 `{seconds}` 可選，其他 `{...}` 是錯誤。
+- `note_prompt` 必須含 `{words}` 與 `{note}`（音名，例如 `E2` 或 `F#2`）；`hit_prompt` 必須含 `{words}`。
+- `model` 是每個 take 記錄的模型。`timeout` 是一個 take 可執行的秒數（預設 120）；超過時停止。
+- 保留 `--model`：沒有它時 `stable-audio` 會自行選擇預設模型，那個模型沒有以這些指令試過。
+
+使用這些指令之前，先單獨執行一次模型：模型第一次執行時會下載權重（2026-11-25 約十分鐘），也可能要求你登入；而一個 take 超過 `timeout` 就會被停止。
+
+檢查檔案：
+
+```bash
+uv run python -m mpc_iml.sounds.generate check stable-audio.json
+```
+
+### 樂器
+
+```bash
+uv run python -m mpc_iml.sounds.generate notes bass --generator stable-audio.json --words "warm round electric bass" --notes E1 A1 D2 G2 --out lofi-set --part bass --octave 1
+```
+
+`--notes` 接受音名或 MIDI 編號。另接受 `instrument` 說明如何建立樂器與演奏什麼的選項（`--prefer`、`--release`、`--low`、`--high`、`--part`、`--keys`、`--min-velocity`、`--octave`），以及：
+
+- `--duration`：每個 take 要求的秒數（預設 4）。
+- `--takes`：第一輪每個音的 take 數（預設 1）。
+- `--seed`：第一個 seed（預設 1），同一個音之後的 take 用下一個。
+- `--rounds`：要求的輪數（預設 3）。
+
+模型常常奏出要求的音名，但差一個八度，偶爾也有不乾淨的音，所以每個 take 都先量測再採信。乾淨（`instrument` 的門檻）且量到與要求的音相差 2 個半音以內的 take，算是**回應**了這個音。之後每一輪，沒有被回應的音以下一個 seed 再要求一次：最接近的乾淨 take 差了整數個八度時，往反方向要求同樣的八度數（要求 E2、量到 E3：要求 E1）；否則再要求同一個音。會超出鍵盤的音名不要求。
+
+接著以所有 take 照 `instrument` 的方式建立樂器，每個 take 印一行（第幾輪、要求的音、seed、量到什麼、是否留下或為什麼沒有），再印沒有被回應的音與 `instrument` 印出的各行。失敗的 take（指令以錯誤結束、超過 timeout、沒有寫出檔案、寫出的檔案是靜音或無法讀取）附上指令最後印出的幾行回報，其他 take 照常進行。沒有 take 可用時以狀態 1 結束，set 不變。向模型要求任何東西之前，先檢查 generator 檔、選項與 set 的 `sound-set.json`，有問題時以狀態 1 結束。
+
+### 鼓聲
+
+```bash
+uv run python -m mpc_iml.sounds.generate hit kick --generator stable-audio.json --words "dusty lo-fi kick" --out lofi-set --seconds 0.6
+```
+
+以 generator 的 `hit_prompt` 要求一個 take（`--duration`，預設 1 秒；`--seed`，預設 1），照 `hits` 的方式做成鼓聲（`--seconds` 同 `hits`）。
+
+### Take
+
+take 保存在 set 的 `takes/` 下：`takes/<樂器>-<要求的音>-s<seed>.wav`（`#` 寫成 `s`）與 `takes/<鼓聲>-s<seed>.wav`。`sound-set.json` 中每個 take 的 `file` 指向它，`origin` 記錄模型、送出的 prompt、seed 與設定（`generator`、要求的音 `asked`、`seconds` 與 `round`）。再次產生一個樂器或鼓聲時取代其項目，並刪除舊項目列出、現在沒有項目使用的 take 與 sample；其他樂器、鼓聲與它們的 take 不變。可以刪除 `takes/` 以節省空間：set 仍可載入，`soundset check` 會說有幾個 take 不見了，但之後無法以它們重新建立樂器。
+
+量測只抓得到音高錯誤、雜音與靜音，不是全部：保留一個 set 之前，請在 SFZ player 中或以試聽**聆聽**樂器。產生的檔案不放進 repository。
 
 ## 已知的缺口
 

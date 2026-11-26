@@ -61,10 +61,11 @@ def make_hit(
     it in `out/sound-set.json`, replacing a hit of the same name.
 
     Raises `ValueError` when `name` is not a name or the recording cannot be used, and
-    `SoundSetError` when the folder's `sound-set.json` cannot be accepted; nothing is
-    written then."""
+    `SoundSetError` when the folder's `sound-set.json` or `origin` cannot be accepted;
+    nothing is written then."""
     soundset.check_name(name)
     document = soundset.read_document(out)
+    soundset.check_origins([origin] if origin is not None else [])
     samples, rate = wav.read(file)
     hit, gain_db = prepare_hit(samples, rate, seconds)
     sample = f"hits/{name}.wav"

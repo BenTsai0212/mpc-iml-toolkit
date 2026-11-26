@@ -182,6 +182,7 @@ that holds the instruments and drum hits made for one band is a **sound set**:
   <instrument>.sfz
   samples/<instrument>-<note>.wav
   hits/<hit>.wav
+  takes/<take>.wav
 ```
 
 `sound-set.json` records what the set holds. For each instrument: its SFZ file, the
@@ -189,7 +190,9 @@ settings it was built with (`prefer`, `release`, `clean`), what it plays (`plays
 `part`, `keys`, `min_velocity`, `octave`), the span and the keys no note reaches, and for every source recording what was measured in it and its region,
 or why it was left out. For each hit: its sample, the recording it was cut from, its
 length and how much its level was moved. Source recordings are named by file name
-only and are not copied into the set, so the folder can be moved or shared.
+only and are not copied into the set, so the folder can be moved or shared. Takes a
+model generated for the set are the exception: they are kept in `takes/`
+([Generating notes](#generating-notes)).
 
 Building an instrument into a folder adds it to `sound-set.json` (or replaces the
 entry of an instrument with the same name) and keeps the other instruments and the
@@ -326,8 +329,124 @@ on the page under `--share`. The settings above the tabs and the outputs below t
 belong to the other tabs and are hidden while the band tab is open (#282).
 
 It does not yet describe the sound of a player, generate notes or hits, build
-instruments, or keep or try again: those come with step 4. It does not set levels,
+instruments, or keep or try again: generating is on the command line for now
+([Generating notes](#generating-notes)); the tab gets it in a later step. It does not set levels,
 effects or the tempo of the DAW, and it uploads nothing.
+
+## Generating notes
+
+The first part of step 4 of [RFC 0006](rfcs/0006-sounds-for-the-band.md) (#284,
+[ADR 0015](adr/0015-generator-files.md)): describe a sound in words and get a playable
+instrument or a drum hit in a sound set, made by a model **you** installed. The toolkit
+holds no model, downloads nothing and sends nothing anywhere: it runs the command you
+give it and reads the WAV file the command wrote. Agents and CI never run these
+commands; a person who installed a model does.
+
+### A generator file
+
+A generator file says how to run your model. It lives on your machine, not in the
+repository. Its name is the file name (`stable-audio.json` holds `"name":
+"stable-audio"`). This example is for the open weights of Stable Audio 3, run through
+its `stable-audio` command from the folder where you installed it. It is the command
+that was run on 2026-11-25 with the repository `Stability-AI/stable-audio-3` at
+`4007b6f`, and the flags are those of that version; check them against
+`stable-audio --help` of your version:
+
+```json
+{
+  "format": "mpc-iml-generator",
+  "format_version": 1,
+  "name": "stable-audio",
+  "title": "Stable Audio 3 (open weights)",
+  "model": "stable-audio-3-small-sfx",
+  "folder": "~/models/stable-audio",
+  "command": ["uv", "run", "stable-audio", "--model", "small-sfx", "-p", "{prompt}",
+              "--seed", "{seed}", "--duration", "{seconds}", "-o", "{out}"],
+  "note_prompt": "TrackType: Instrument. {words}, one single note, {note}, dry, no reverb",
+  "hit_prompt": "TrackType: SFX. {words}, one-shot drum hit, dry, no reverb",
+  "timeout": 300
+}
+```
+
+- `command` is a list of arguments and runs without a shell, with `folder` as its
+  working directory: your words reach the model as one argument, whatever they hold.
+  `{prompt}` and `{out}` are required; `{seed}` and `{seconds}` are optional; any
+  other `{...}` is an error.
+- `note_prompt` must hold `{words}` and `{note}` (a note name such as `E2` or `F#2`);
+  `hit_prompt` must hold `{words}`.
+- `model` is what each take records as its model. `timeout` is the seconds one take
+  may run (120 by default); a take that runs longer is stopped.
+- Keep `--model`: without it `stable-audio` chooses its own default model, which was
+  not tried with these commands.
+
+Run the model once on its own, outside these commands, before you use them: the first
+run of a model downloads its weights (about ten minutes on 2026-11-25) and may ask you
+to log in, and a take that runs past `timeout` is stopped.
+
+Check the file:
+
+```bash
+uv run python -m mpc_iml.sounds.generate check stable-audio.json
+```
+
+### An instrument
+
+```bash
+uv run python -m mpc_iml.sounds.generate notes bass --generator stable-audio.json --words "warm round electric bass" --notes E1 A1 D2 G2 --out lofi-set --part bass --octave 1
+```
+
+`--notes` takes note names or MIDI numbers. It also takes the options of
+`instrument` that say how the instrument is built and what it plays (`--prefer`,
+`--release`, `--low`, `--high`, `--part`, `--keys`, `--min-velocity`, `--octave`), and:
+
+- `--duration`: the seconds asked of each take (4 by default).
+- `--takes`: takes of each note in the first round (1 by default).
+- `--seed`: the first seed (1 by default); each further take of a note uses the next.
+- `--rounds`: rounds of asking (3 by default).
+
+A model often plays the note name it is asked for one octave away, and now and then a
+note is not clean, so every take is measured before it is trusted. A note is
+**answered** when a clean take (the threshold of `instrument`) was measured within 2
+semitones of it. In each later round, a note that is not answered is asked again with
+the next seed: when its closest clean take came out a whole number of octaves away, it
+is asked that many octaves the other way (asked E2, measured E3: ask E1); otherwise the
+same note again. A note name that would leave the keyboard is not asked.
+
+Then the instrument is built from all the takes, as `instrument` builds it, and the
+command prints one line for each take (the round, the note asked, the seed, what was
+measured, and whether it was kept or why not), the notes no take answered, and the
+lines `instrument` prints. A take that fails (the command ends with an error, runs past
+the timeout, writes no file, or writes a file that is silent or cannot be read) is
+reported with the last lines the command printed, and the other takes go on. When no
+take can be used, the command ends with status 1 and the set is unchanged. Before
+anything is asked of the model, the generator file, the options and the set's
+`sound-set.json` are checked; a problem stops the command with status 1.
+
+### A drum hit
+
+```bash
+uv run python -m mpc_iml.sounds.generate hit kick --generator stable-audio.json --words "dusty lo-fi kick" --out lofi-set --seconds 0.6
+```
+
+It asks for one take (`--duration`, 1 second by default; `--seed`, 1 by default) with
+the generator's `hit_prompt`, and makes the hit from it as `hits` does (`--seconds` as
+there).
+
+### Takes
+
+Takes are kept in the set, under `takes/`: `takes/<instrument>-<asked note>-s<seed>.wav`
+(`#` written as `s`) and `takes/<hit>-s<seed>.wav`. In `sound-set.json` each one's
+`file` names its take and its `origin` records the model, the prompt that was sent,
+the seed and the settings (`generator`, the note `asked`, `seconds` and the `round`).
+Generating an instrument or a hit again replaces its entry and removes the takes and
+samples its earlier entry listed that no entry uses now; other instruments, the hits
+and their takes are untouched. You may delete `takes/` to save space: the set still
+loads, `soundset check` says how many takes are missing, but the instrument can then
+not be built again from them.
+
+A measurement catches a wrong pitch, noise and silence, not everything: **listen** to
+an instrument in an SFZ player, or with the audition, before you keep a set. Nothing
+generated belongs in the repository.
 
 ## Known gap
 

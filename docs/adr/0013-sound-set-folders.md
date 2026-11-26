@@ -3,7 +3,7 @@
 - Status: Proposed
 - Date: 2026-11-26
 - Related: RFC 0006, ADR 0010, #268, #270, #272, #274
-- Amended: 2026-11-26 (#274)
+- Amended: 2026-11-26 (#274); 2026-11-26 (#284, ADR 0015)
 
 > **Amendment (2026-11-26, #274).** Each instrument records which notes of the band
 > it plays (`plays`: its part, its keys, the softest note it plays and its octave),
@@ -11,6 +11,14 @@
 > format version: this ADR is still Proposed and no set has been made with it outside
 > tests. A `sound-set.json` whose instruments have no `plays` is refused. See option 5
 > and "What an instrument plays".
+
+> **Amendment (2026-11-26, #284, ADR 0015).** Takes a model generated for the set are
+> kept in it, under `takes/`: a take was made for the set and has no other home, and
+> without it the instrument cannot be built again. For an entry of `files` or a hit
+> whose origin is `generated`, `file` names a file in `takes/`. The take need not be
+> there (a musician may delete takes to save space): `soundset check` does not require
+> it and says how many are missing. Recordings the musician made are still not copied
+> into the set. Format 1 is unchanged.
 
 ## Context
 
@@ -70,6 +78,7 @@ drum hits as WAV files that the musician put on their own pads.
   <instrument>.sfz
   samples/<instrument>-<note>.wav
   hits/<hit>.wav
+  takes/<take>.wav        (generated takes, #284)
 ```
 
 ### Format 1 of `sound-set.json`
