@@ -239,6 +239,10 @@ break 再回來），`trap` 32 小節（groove、roll 與 rush、break 再回來
 換變奏。`midnight-808` 是寫給在自己八度上的 808 聲音：`trap` 樂團的 `808` 不做八度移調（bass 在第 1
 八度演奏，`midnight` 的根音留在 E1 到 B1 之間）。
 
+每個演奏者另有預設的聲音（`sound`：要求模型時的文字、每個音的秒數與 take 數），每個樂團有它的鼓聲
+（`hits`：`kick`、`snare`、`hat`，`trap` 另有 `clap` 與 `openhat`）。它們只說明聽起來如何，不改變演奏什麼；
+`generate band` 以它們產生整個 sound set，文字可以替換（[為樂團產生整個 sound set](sounds.zh-TW.md#為樂團產生整個-sound-set)，#286）。
+
 ### 鼓停下時
 
 停止打鼓時，樂團繼續演奏，把焦點交給旋律，就像鼓手停打幾小節時期待的那樣（#158）。控制項

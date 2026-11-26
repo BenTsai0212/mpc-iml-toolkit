@@ -8,11 +8,16 @@
   "tempo": 76,
   "content": {"bass_loop": "haze-bass", "loop": "haze-keys", "progression": "haze"},
   "players": [
-    {"name": "bass", "title": "Bass", "description": "The bass line, an octave above the notes the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 1}, "release": 0.12, "prefer": "clean"},
-    {"name": "keys", "title": "Keys", "description": "Every note of the melody part: the chords and the answers.", "plays": {"part": "melody", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean"},
-    {"name": "vibes", "title": "Vibes", "description": "The answers above the chords: the notes from C5 up, doubling the keys.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.4, "prefer": "clean"},
-    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean"}
+    {"name": "bass", "title": "Bass", "description": "The bass line, an octave above the notes the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 1}, "release": 0.12, "prefer": "clean", "sound": {"words": "Upright bass, plucked, warm, close mic", "seconds": 3, "takes": 2}},
+    {"name": "keys", "title": "Keys", "description": "Every note of the melody part: the chords and the answers.", "plays": {"part": "melody", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean", "sound": {"words": "Rhodes electric piano, sustained, steady tone", "seconds": 4, "takes": 1}},
+    {"name": "vibes", "title": "Vibes", "description": "The answers above the chords: the notes from C5 up, doubling the keys.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.4, "prefer": "clean", "sound": {"words": "Vibraphone, soft mallet, motor off", "seconds": 4, "takes": 1}},
+    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean", "sound": {"words": "Warm analog synth pad, sustained, slow attack, steady", "seconds": 6, "takes": 1}}
   ],
+  "hits": {
+    "kick": {"words": "Dusty boom bap kick drum, deep, short decay, close mic", "seconds": 0.6},
+    "snare": {"words": "Crisp snare drum, tight, short tail", "seconds": 0.45},
+    "hat": {"words": "Closed hi-hat, very short, bright, no ring", "seconds": 0.2}
+  },
   "patterns": {
     "groove-1": {
       "kick": [70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0],

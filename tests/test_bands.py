@@ -23,7 +23,50 @@ DIGESTS = {
     "lofi": "5061ac2a89757ac56a15c6add8d5623de030c8936001a6d1af9f9e7bd8423e8a",
     "trap": "e2da6917e751aa7d799be4ed6d45114f9ea17de2eb0f2b8c4f8e7f747d189296",
 }
-"""SHA-256 of each file as written in #276, parsed and dumped with sorted keys."""
+"""SHA-256 of each file as written in #276, parsed and dumped with sorted keys, without
+the `sound` of each player and the `hits` added in #286."""
+
+SOUNDS = {
+    "lofi": {
+        "bass": ("Upright bass, plucked, warm, close mic", 3, 2),
+        "keys": ("Rhodes electric piano, sustained, steady tone", 4, 1),
+        "vibes": ("Vibraphone, soft mallet, motor off", 4, 1),
+        "pad": ("Warm analog synth pad, sustained, slow attack, steady", 6, 1),
+    },
+    "trap": {
+        "808": ("808 bass, long note, saturated with harmonics, long decay", 3, 2),
+        "keys": ("Dark felt piano, soft, close mic", 4, 1),
+        "bell": ("Music box, bright, delicate", 3, 1),
+        "pad": ("Warm analog synth pad, sustained, slow attack, steady", 6, 1),
+    },
+}
+"""The default sound of each player, as written in #286."""
+
+HITS = {
+    "lofi": {
+        "kick": ("Dusty boom bap kick drum, deep, short decay, close mic", 0.6),
+        "snare": ("Crisp snare drum, tight, short tail", 0.45),
+        "hat": ("Closed hi-hat, very short, bright, no ring", 0.2),
+    },
+    "trap": {
+        "kick": (
+            "Trap kick drum, a hard click at the start, then a tight low thump that stops"
+            " quickly, close, no tail",
+            0.5,
+        ),
+        "snare": (
+            "Trap snare drum, bright and cracking, short body, a little noise on top, close",
+            0.45,
+        ),
+        "clap": ("Clap made of several hands, tight, bright, short", 0.45),
+        "hat": ("Closed hi-hat from a drum machine, thin, crisp, very short, almost no ring", 0.15),
+        "openhat": (
+            "Open hi-hat from a drum machine, a bright sizzle that fades in half a second",
+            0.5,
+        ),
+    },
+}
+"""The hits of each band, as written in #286."""
 
 
 def _data(name: str) -> dict[str, Any]:
@@ -34,8 +77,26 @@ def _data(name: str) -> dict[str, Any]:
 def test_the_two_files_are_the_files_of_the_issue() -> None:
     assert sorted(p.stem for p in FOLDER.glob("*.json")) == ["lofi", "trap"]
     for name, digest in DIGESTS.items():
-        dumped = json.dumps(_data(name), sort_keys=True).encode()
+        data = _data(name)
+        sounds = {p["name"]: p.pop("sound") for p in data["players"]}
+        hits = data.pop("hits")
+        dumped = json.dumps(data, sort_keys=True).encode()
         assert hashlib.sha256(dumped).hexdigest() == digest, name
+        assert {k: (v["words"], v["seconds"], v["takes"]) for k, v in sounds.items()} == SOUNDS[
+            name
+        ]
+        assert {k: (v["words"], v["seconds"]) for k, v in hits.items()} == HITS[name]
+        assert list(hits) == list(HITS[name])
+
+
+def test_the_sounds_and_hits_are_loaded() -> None:
+    loaded = load_bands()
+    for name, band in loaded.items():
+        assert {
+            p.name: (p.sound.words, p.sound.seconds, p.sound.takes) for p in band.players
+        } == SOUNDS[name]
+        assert {h.name: (h.words, h.seconds) for h in band.hits.values()} == HITS[name]
+        assert list(band.hits) == list(HITS[name])
 
 
 def test_load_bands_reads_both_with_their_players_and_controls() -> None:
@@ -124,6 +185,18 @@ def _no_part(data: dict[str, Any]) -> None:
     del data["players"][0]["plays"]["part"]
 
 
+def _no_sound(data: dict[str, Any]) -> None:
+    del data["players"][0]["sound"]
+
+
+def _no_hits(data: dict[str, Any]) -> None:
+    del data["hits"]
+
+
+def _no_hat(data: dict[str, Any]) -> None:
+    del data["hits"]["hat"]
+
+
 @pytest.mark.parametrize(
     ("spoil", "problem"),
     [
@@ -144,6 +217,17 @@ def _no_part(data: dict[str, Any]) -> None:
         (_set("audition.4", "fill"), "audition[4]: 'fill' names no pattern"),
         (_set("tempo", 200), "tempo must be a whole number of BPM, 60-160"),
         (_set("players.1.prefer", "warm"), "players[1].prefer must be 'clean' or 'rich'"),
+        (_no_sound, "players[0]: sound is required"),
+        (_set("players.1.sound.words", " "), "players[1].sound.words must be words that are not"),
+        (_set("players.1.sound.seconds", 0), "players[1].sound.seconds must be a number of sec"),
+        (_set("players.1.sound.takes", 0), "players[1].sound.takes must be a whole number, 1 or"),
+        (_set("players.1.sound.level", 2), "players[1].sound: unknown field 'level'"),
+        (_no_hits, "hits is required"),
+        (_no_hat, "hits: hat is required: the audition plays it"),
+        (_set("hits.Big Kick", {"words": "w", "seconds": 1}), "hits: 'Big Kick' is not a name"),
+        (_set("hits.kick.pitch", 36), "hits.kick: unknown field 'pitch'"),
+        (_set("hits.snare.seconds", -1), "hits.snare.seconds must be a number of seconds above"),
+        (_set("hits.snare.words", ""), "hits.snare.words must be words that are not empty"),
     ],
 )
 def test_check_names_each_problem(
@@ -170,8 +254,8 @@ def test_check_passes_the_built_in_files(capsys: pytest.CaptureFixture[str]) -> 
     files = [str(FOLDER / "lofi.json"), str(FOLDER / "trap.json")]
     assert main(["check", *files]) == 0
     out = capsys.readouterr().out
-    assert "band 'lofi', 4 player(s), 8 pattern(s), an audition of 24 bar(s)" in out
-    assert "band 'trap', 4 player(s), 9 pattern(s), an audition of 32 bar(s)" in out
+    assert "band 'lofi', 4 player(s), 3 hit(s), 8 pattern(s), an audition of 24 bar(s)" in out
+    assert "band 'trap', 4 player(s), 5 hit(s), 9 pattern(s), an audition of 32 bar(s)" in out
 
 
 def test_list_prints_the_two_bands(capsys: pytest.CaptureFixture[str]) -> None:

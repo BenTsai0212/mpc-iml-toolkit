@@ -13,6 +13,12 @@ WAV file it wrote and measures it; it sends nothing anywhere.
         [--seed <n>] [--rounds <n>] [the options of `instrument`]
     python -m mpc_iml.sounds.generate hit <name> --generator <file> --words "<words>"
         --out <sound set folder> [--duration <s>] [--seed <n>] [--seconds <s>]
+    python -m mpc_iml.sounds.generate band <band> --generator <file>
+        --out <sound set folder> [--words <name>=<words>]... [--only <name>...]
+        [--seed <n>] [--rounds <n>] [--plan]
+
+`band` makes every player and drum hit of a built-in band with the words the band
+brings (`mpc_iml.sounds.bandset`, #286).
 
 A model often plays the note name it is asked for one octave away, so nothing is
 trusted before it is measured: a note that no clean take answered is asked again in
@@ -730,9 +736,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=hits_module.SECONDS,
         help=f"length of the hit ({hits_module.SECONDS} by default)",
     )
+    band = commands.add_parser("band", help="make a whole sound set for a built-in band")
+    band.add_argument("band", help="the name of a built-in band (python -m mpc_iml.bands list)")
+    band.add_argument("--generator", type=Path, required=True, help="a generator file")
+    band.add_argument("--out", type=Path, required=True, help="the sound set folder")
+    band.add_argument(
+        "--words",
+        action="append",
+        default=[],
+        metavar="NAME=WORDS",
+        help="replace the words of one player or hit; can be given several times",
+    )
+    band.add_argument("--only", nargs="+", metavar="NAME", help="make only these players and hits")
+    band.add_argument("--seed", type=int, default=1, help="the first seed (1 by default)")
+    band.add_argument(
+        "--rounds", type=int, default=ROUNDS, help=f"rounds of asking ({ROUNDS} by default)"
+    )
+    band.add_argument("--plan", action="store_true", help="print what would be asked for and stop")
     args = parser.parse_args(argv)
     if args.command == "check":
         return _check(args.files)
+    if args.command == "band":
+        return _band(args)
     try:
         generator = load_generator(args.generator)
         if args.command == "notes":
@@ -804,6 +829,70 @@ def _hit(args: argparse.Namespace, generator: Generator) -> int:
         f"from {TAKES}/{hit.file}"
     )
     return 0
+
+
+def _band(args: argparse.Namespace) -> int:
+    from mpc_iml.bands import load_bands
+    from mpc_iml.content import ContentError
+    from mpc_iml.sounds import bandset
+
+    try:
+        bands = load_bands()
+        if args.band not in bands:
+            raise ValueError(f"no built-in band {args.band!r}; bands: {', '.join(bands)}")
+        band = bands[args.band]
+        words: dict[str, str] = {}
+        for given in args.words:
+            name, sep, said = given.partition("=")
+            if not sep:
+                raise ValueError(f"--words {given!r}: write it as <name>=<words>")
+            words[name] = said
+        planned = bandset.plan(band, words, args.only)
+        if args.rounds < 1:
+            raise ValueError(f"rounds must be 1 or more, not {args.rounds}")
+        for line in bandset.plan_lines(planned):
+            print(line)
+        if args.plan:
+            return 0
+        generator = load_generator(args.generator)
+
+        def done(made: bandset.Made) -> None:
+            if made.instrument is not None:
+                for line in take_lines(made.instrument):
+                    print(line)
+                if made.instrument.instrument is not None:
+                    print(instrument_module.report(made.instrument.instrument))
+            elif made.hit is not None:
+                take = made.hit.take
+                if made.hit.hit is None:
+                    print(f"{made.name}: seed {take.seed}  failed: {made.hit.error}")
+                    for line in take.output.splitlines():
+                        print(f"    | {line}")
+                else:
+                    hit = made.hit.hit
+                    print(
+                        f"{hit.name}: hits/{hit.name}.wav  {hit.seconds:.2f} s  "
+                        f"level {hit.gain_db:+.1f} dB  from {TAKES}/{hit.file}"
+                    )
+
+        results = bandset.generate_band(
+            band,
+            generator,
+            args.out,
+            words=words,
+            only=args.only,
+            seed=args.seed,
+            rounds=args.rounds,
+            done=done,
+        )
+    except (ValueError, ContentError) as error:
+        print(f"error: {error}")
+        return 1
+    for made in results:
+        print(bandset.made_line(made))
+    for line in bandset.next_lines(band, args.out):
+        print(line)
+    return 0 if all(made.made for made in results) else 1
 
 
 if __name__ == "__main__":

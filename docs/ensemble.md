@@ -287,6 +287,13 @@ melody change variation when the drums change. `midnight-808` is written for an 
 sound in its own octave: the `trap` band's `808` plays without an octave shift (the
 bass plays in octave 1, and the roots of `midnight` stay between E1 and B1).
 
+Each player also has a default sound (`sound`: the words a model is asked with, the
+seconds of each note and the takes), and each band its drum hits (`hits`: `kick`,
+`snare` and `hat`, and for `trap` also `clap` and `openhat`). They say what the band
+sounds like, never what it plays: `generate band` makes a whole sound set with them,
+and you can replace the words ([A whole sound set for a band](sounds.md#a-whole-sound-set-for-a-band),
+#286).
+
 ### When the drums stop
 
 When you stop playing, the band keeps going and hands the focus to the melody, as a
