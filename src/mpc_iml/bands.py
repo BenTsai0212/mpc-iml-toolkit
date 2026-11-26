@@ -11,11 +11,16 @@ plays (the `plays` of ADR 0013), and named bars of drums with the bars of an aud
      "players": [{"name": "bass", "title": "Bass", "description": "…",
                   "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1,
                             "octave": 1},
-                  "release": 0.12, "prefer": "clean"}],
+                  "release": 0.12, "prefer": "clean",
+                  "sound": {"words": "Upright bass, plucked", "seconds": 3, "takes": 2}}],
+     "hits": {"kick": {"words": "Dusty kick drum", "seconds": 0.6}, "snare": {…},
+              "hat": {…}},
      "patterns": {"groove-1": {"kick": [70, 0, …], "snare": […], "hat": […]}},
      "audition": ["groove-1", "groove-1"]}
 
-Words change what a player sounds like, never what it plays (RFC 0006). A band is
+`sound` and `hits` are the default words a model is asked with for each player and
+each drum hit (#286): they say what a player sounds like, never what it plays
+(RFC 0006), and the musician can replace them. A band is
 chosen with the existing controls `bass-loop`, `loop` and `progression` and the tempo
 of the DAW (`Band.controls`): no engine control, no protocol change. Only the built-in
 bands are read (`<mpc_iml>/bands/ensemble/<name>.json`).
@@ -52,8 +57,11 @@ __all__ = [
     "RELEASE",
     "STEPS",
     "TEMPO_RANGE",
+    "HIT_DRUMS",
     "Band",
+    "Hit",
     "Player",
+    "Sound",
     "load_bands",
     "main",
     "parse_band",
@@ -79,9 +87,34 @@ RELEASE = (0.0, 10.0)
 """The release times a player may give, in seconds."""
 
 _TOP = {"format", "format_version", "name", "title", "description", "preset", "tempo"}
-_TOP |= {"content", "players", "patterns", "audition"}
-_PLAYER = ("name", "title", "description", "plays", "release", "prefer")
+_TOP |= {"content", "players", "hits", "patterns", "audition"}
+_PLAYER = ("name", "title", "description", "plays", "release", "prefer", "sound")
+_SOUND = ("words", "seconds", "takes")
+_HIT = ("words", "seconds")
+HIT_DRUMS = DRUMS
+"""The hits every band has: the audition plays them."""
 _BUILT_IN = Content(PRESET, "mpc_iml")
+
+
+@dataclass(frozen=True)
+class Sound:
+    """What a player sounds like by default (#286): the words a model is asked with,
+    how long a note is asked for, in seconds, and how many takes of each note round 1
+    asks for."""
+
+    words: str
+    seconds: float
+    takes: int
+
+
+@dataclass(frozen=True)
+class Hit:
+    """A drum hit of a band (#286): the words a model is asked with and the length of
+    the hit that is kept, in seconds (`sounds.hits --seconds`)."""
+
+    name: str
+    words: str
+    seconds: float
 
 
 @dataclass(frozen=True)
@@ -95,6 +128,7 @@ class Player:
     plays: Plays
     release: float
     prefer: str
+    sound: Sound
 
 
 @dataclass(frozen=True)
@@ -108,6 +142,8 @@ class Band:
     content: Mapping[str, str]
     """`bass_loop`, `loop` and `progression`: names of built-in files."""
     players: tuple[Player, ...]
+    hits: Mapping[str, Hit]
+    """The drum hits, by name, in file order; `kick`, `snare` and `hat` are always there."""
     patterns: Mapping[str, Mapping[str, tuple[int, ...]]]
     audition: tuple[str, ...]
     origin: str = ""
@@ -152,6 +188,57 @@ def _text(value: Any, origin: str, where: str) -> str:
     if not isinstance(value, str):
         raise _fail(origin, f"{where} must be text, got {value!r}")
     return value
+
+
+def _seconds(value: Any, origin: str, where: str) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise _fail(origin, f"{where} must be a number of seconds above 0, got {value!r}")
+    return float(value)
+
+
+def _words(value: Any, origin: str, where: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise _fail(origin, f"{where} must be words that are not empty, got {value!r}")
+    return value
+
+
+def _sound(value: Any, origin: str, where: str) -> Sound:
+    data = _object(value, origin, where, _SOUND)
+    takes = data["takes"]
+    if isinstance(takes, bool) or not isinstance(takes, int) or takes < 1:
+        raise _fail(origin, f"{where}.takes must be a whole number, 1 or more, got {takes!r}")
+    return Sound(
+        _words(data["words"], origin, f"{where}.words"),
+        _seconds(data["seconds"], origin, f"{where}.seconds"),
+        takes,
+    )
+
+
+def _hits(value: Any, origin: str) -> dict[str, Hit]:
+    if not isinstance(value, dict):
+        raise _fail(origin, "hits must map hit names to their words and seconds")
+    hits: dict[str, Hit] = {}
+    for name, entry in value.items():
+        if not _NAME.fullmatch(name):
+            raise _fail(
+                origin,
+                f"hits: {name!r} is not a name: use lower case letters, digits and hyphens",
+            )
+        data = _object(entry, origin, f"hits.{name}", _HIT)
+        hits[name] = Hit(
+            name,
+            _words(data["words"], origin, f"hits.{name}.words"),
+            _seconds(data["seconds"], origin, f"hits.{name}.seconds"),
+        )
+    for drum in HIT_DRUMS:
+        if drum not in hits:
+            raise _fail(origin, f"hits: {drum} is required: the audition plays it")
+    return hits
 
 
 def _tempo(value: Any, origin: str) -> int:
@@ -207,6 +294,7 @@ def _player(value: Any, origin: str, where: str) -> Player:
         Plays.from_json(data["plays"]),
         float(release),
         data["prefer"],
+        _sound(data["sound"], origin, f"{where}.sound"),
     )
 
 
@@ -274,15 +362,16 @@ def parse_band(data: Any, origin: str = "band") -> Band:
     unknown = sorted(set(data) - _TOP)
     if unknown:
         raise _fail(origin, f"unknown field {unknown[0]!r}")
-    for field in ("tempo", "content", "players", "patterns", "audition"):
+    for field in ("tempo", "content", "players", "hits", "patterns", "audition"):
         if field not in data:
             raise _fail(origin, f"{field} is required")
     tempo = _tempo(data["tempo"], origin)
     content = _content(data["content"], origin)
     players = _players(data["players"], origin)
+    hits = _hits(data["hits"], origin)
     patterns = _patterns(data["patterns"], origin)
     audition = _audition(data["audition"], origin, patterns)
-    return Band(name, title, description, tempo, content, players, patterns, audition, origin)
+    return Band(name, title, description, tempo, content, players, hits, patterns, audition, origin)
 
 
 def _read_file(path: Path) -> Band:
@@ -316,7 +405,8 @@ def _check(paths: Sequence[str]) -> int:
             continue
         print(
             f"{path}: ok, band {band.name!r}, {len(band.players)} player(s),"
-            f" {len(band.patterns)} pattern(s), an audition of {len(band.audition)} bar(s)"
+            f" {len(band.hits)} hit(s), {len(band.patterns)} pattern(s),"
+            f" an audition of {len(band.audition)} bar(s)"
         )
     return 1 if failed else 0
 

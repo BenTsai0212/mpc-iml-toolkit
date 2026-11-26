@@ -8,11 +8,18 @@
   "tempo": 140,
   "content": {"bass_loop": "midnight-808", "loop": "midnight-keys", "progression": "midnight"},
   "players": [
-    {"name": "808", "title": "808", "description": "The bass line, in the octave the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.08, "prefer": "rich"},
-    {"name": "keys", "title": "Keys", "description": "The held chords: the notes under C5.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean"},
-    {"name": "bell", "title": "Bell", "description": "The motif above the chords: the notes from C5 up.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.3, "prefer": "clean"},
-    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean"}
+    {"name": "808", "title": "808", "description": "The bass line, in the octave the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.08, "prefer": "rich", "sound": {"words": "808 bass, long note, saturated with harmonics, long decay", "seconds": 3, "takes": 2}},
+    {"name": "keys", "title": "Keys", "description": "The held chords: the notes under C5.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean", "sound": {"words": "Dark felt piano, soft, close mic", "seconds": 4, "takes": 1}},
+    {"name": "bell", "title": "Bell", "description": "The motif above the chords: the notes from C5 up.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.3, "prefer": "clean", "sound": {"words": "Music box, bright, delicate", "seconds": 3, "takes": 1}},
+    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean", "sound": {"words": "Warm analog synth pad, sustained, slow attack, steady", "seconds": 6, "takes": 1}}
   ],
+  "hits": {
+    "kick": {"words": "Trap kick drum, a hard click at the start, then a tight low thump that stops quickly, close, no tail", "seconds": 0.5},
+    "snare": {"words": "Trap snare drum, bright and cracking, short body, a little noise on top, close", "seconds": 0.45},
+    "clap": {"words": "Clap made of several hands, tight, bright, short", "seconds": 0.45},
+    "hat": {"words": "Closed hi-hat from a drum machine, thin, crisp, very short, almost no ring", "seconds": 0.15},
+    "openhat": {"words": "Open hi-hat from a drum machine, a bright sizzle that fades in half a second", "seconds": 0.5}
+  },
   "patterns": {
     "groove-1": {
       "kick": [74, 0, 0, 0, 0, 0, 66, 0, 0, 0, 70, 0, 0, 0, 0, 0],

@@ -448,6 +448,68 @@ A measurement catches a wrong pitch, noise and silence, not everything: **listen
 an instrument in an SFZ player, or with the audition, before you keep a set. Nothing
 generated belongs in the repository.
 
+## A whole sound set for a band
+
+Step 5 of [RFC 0006](rfcs/0006-sounds-for-the-band.md) (#286): name a built-in band
+and get a whole sound set for it from your model, with one command. Each player of
+the band file says what it sounds like by default (its `sound`: words, seconds and
+takes) and the band names its drum hits (`hits`; [ADR 0014](adr/0014-band-files.md)).
+The words say what a player sounds like, never what it plays, and you can replace
+them. As with `notes` and `hit`, a person who installed a model runs this, not agents
+or CI.
+
+First see what would be asked, without running the model:
+
+```bash
+uv run python -m mpc_iml.sounds.generate band lofi --generator stable-audio.json --out lofi-set --plan
+```
+
+It prints, for each player, its words, the notes it will ask for and the takes; for
+each hit, its words; and the number of takes in round 1 (25 for `lofi`, 26 for
+`trap`). With `--plan` it stops there: the model is not run and the folder is not
+created or changed. Without `--plan` it goes on:
+
+```bash
+uv run python -m mpc_iml.sounds.generate band lofi --generator stable-audio.json --out lofi-set
+```
+
+Which notes are asked for comes from what the band plays. The notes the band sends a
+player in its audition (inside its keys, at or above its `min_velocity`), moved by its
+octave, are the notes it sounds. From the lowest of them, one semitone lower when it is
+not a natural note, each next note is 5 semitones up, or 4 when that would not be a
+natural note, until the last is within 2 semitones of the highest or above it. Only
+natural note names are asked for: only those were tried with a model so far. The
+rounds of `notes` then ask again for what was not answered. The instrument's
+`--low` and `--high` are the lowest and the highest note the band sends to the
+player's part, and its `--part`, `--keys`, `--min-velocity`, `--octave`, `--release`
+and `--prefer` are the player's.
+
+- `--words <name>=<words>` replaces the words of one player or hit; give it once for
+  each. For example `--words bass="Fretless electric bass, round, close mic"`.
+- `--only <name>...` makes only those players and hits; everything else in the folder
+  is untouched. Use it to make one player again, with other words or another
+  `--seed`.
+- `--seed` (1 by default) and `--rounds` (3 by default) are those of `notes` and `hit`.
+- A name that is neither a player nor a hit of the band, a `--words` without `=`, and
+  an unknown band stop the command before the model is run.
+
+Then come the lines of `notes` and `hit` for each player and hit, and at the end one
+line for each: made (its regions, the notes no take answered and the keys no note
+reaches) or not made, with the reason. A player or hit that cannot be made does not
+stop the others; the command ends with status 0 when everything asked for was made,
+and 1 otherwise, and what was made is kept. It ends by naming the two commands to run
+next, for this band and folder:
+
+```bash
+uv run python -m mpc_iml.sounds.soundset check lofi-set
+uv run python -m mpc_iml.sounds.audition lofi lofi-set --out lofi-set-audition
+```
+
+**Listen** to the audition, and play the set in an SFZ player on the band's tracks,
+before you keep it: a measurement does not tell you whether the sound is the one you
+wanted. The `kick`, `snare` and `hat` hits play in the audition; other hits of a band
+(the `trap` band's `clap` and `openhat`) go on pads of their own.
+
 ## Known gap
 
 Next to a low note (under about E2), a side lobe of the analysis window can count as a

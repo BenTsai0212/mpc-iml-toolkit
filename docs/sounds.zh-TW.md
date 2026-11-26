@@ -261,6 +261,38 @@ take 保存在 set 的 `takes/` 下：`takes/<樂器>-<要求的音>-s<seed>.wav
 
 量測只抓得到音高錯誤、雜音與靜音，不是全部：保留一個 set 之前，請在 SFZ player 中或以試聽**聆聽**樂器。產生的檔案不放進 repository。
 
+## 為樂團產生整個 sound set
+
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 5 步（#286）：指定一個內建樂團，以一個指令用你的模型產生它的整個 sound set。樂團檔的每個演奏者說明它預設的聲音（`sound`：文字、秒數與 take 數），樂團列出它的鼓聲（`hits`；[ADR 0014](adr/0014-band-files.md)）。這些文字說明演奏者聽起來如何，從不改變它演奏什麼，你可以替換。與 `notes`、`hit` 一樣，由安裝了模型的人執行，agent 與 CI 不執行。
+
+先看會要求什麼，不執行模型：
+
+```bash
+uv run python -m mpc_iml.sounds.generate band lofi --generator stable-audio.json --out lofi-set --plan
+```
+
+它為每個演奏者印出文字、會要求的音與 take 數，為每個鼓聲印出文字，再印第 1 輪的 take 數（`lofi` 25、`trap` 26）。有 `--plan` 時到此為止：不執行模型，也不建立或修改資料夾。沒有 `--plan` 時繼續：
+
+```bash
+uv run python -m mpc_iml.sounds.generate band lofi --generator stable-audio.json --out lofi-set
+```
+
+要求哪些音，來自樂團演奏什麼。樂團在試聽中送給演奏者的音（在它的鍵內、不低於它的 `min_velocity`），移動它的八度後，就是它發出的音。從其中最低的音開始（不是自然音時低一個半音），每個下一個音高 5 個半音，那不是自然音時高 4 個半音，直到最後一個音與最高的音相差 2 個半音以內或在它之上。只要求自然音的音名：目前只以模型試過這些。之後 `notes` 的輪次再要求沒有被回應的音。樂器的 `--low` 與 `--high` 是樂團送給該演奏者聲部的最低與最高音，`--part`、`--keys`、`--min-velocity`、`--octave`、`--release` 與 `--prefer` 是演奏者的值。
+
+- `--words <名稱>=<文字>` 替換一個演奏者或鼓聲的文字，每個給一次。例如 `--words bass="Fretless electric bass, round, close mic"`。
+- `--only <名稱>...` 只產生這些演奏者與鼓聲，資料夾中的其他內容不變。用它以其他文字或另一個 `--seed` 重新產生一個演奏者。
+- `--seed`（預設 1）與 `--rounds`（預設 3）同 `notes` 與 `hit`。
+- 不是樂團的演奏者也不是鼓聲的名稱、沒有 `=` 的 `--words`、不認得的樂團，都在執行模型之前停止指令。
+
+接著是每個演奏者與鼓聲的 `notes` 與 `hit` 各行，最後每個一行：已產生（region 數、沒有 take 回應的音、沒有音到得了的鍵），或沒有產生與原因。無法產生的演奏者或鼓聲不會停止其他的；要求的全部產生時以狀態 0 結束，否則以 1 結束，已產生的保留。最後列出接下來要執行的兩個指令（這個樂團與資料夾）：
+
+```bash
+uv run python -m mpc_iml.sounds.soundset check lofi-set
+uv run python -m mpc_iml.sounds.audition lofi lofi-set --out lofi-set-audition
+```
+
+保留 set 之前，請**聆聽**試聽，並在樂團的 track 上以 SFZ player 演奏：量測無法告訴你聲音是不是你要的。`kick`、`snare` 與 `hat` 在試聽中演奏；樂團的其他鼓聲（`trap` 的 `clap` 與 `openhat`）放在各自的 pad 上。
+
 ## 已知的缺口
 
 在低音（約 E2 以下）旁，分析窗的旁瓣可能被算成一個不在泛音上的弱峰，約比最強峰低 30 dB。這讓乾淨的低音的 `clean` 最多少半個百分點，`other` 會指出這個旁瓣。方法保持不變，讓結果能與已演奏過的 sound set 比較。

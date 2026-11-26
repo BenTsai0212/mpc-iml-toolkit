@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-26
 - Related: RFC 0002, RFC 0005, #262, #266
-- Amended: 2026-11-26 (#268); 2026-11-26 (#280); 2026-11-26 (#284)
+- Amended: 2026-11-26 (#268); 2026-11-26 (#280); 2026-11-26 (#284); 2026-11-26 (#286)
 - Accepted: 2026-11-26 (#267)
 
 > **Amendment (2026-11-26, #268).** The output of this RFC is called a **sound
@@ -25,6 +25,14 @@
 > follow with step 5, and describing, keeping or trying again in the band tab with the
 > second part of step 3. Generated takes are kept in the set, under `takes/`. The
 > direction is unchanged.
+
+> **Amendment (2026-11-26, #286).** Step 5 is built, with the rest of step 4: each
+> player of a band file says what it sounds like by default and the band names its
+> drum hits ([ADR 0014](../adr/0014-band-files.md), amended), the notes to ask for come
+> from what the band sends each player in its audition, and `python -m
+> mpc_iml.sounds.generate band` makes a whole sound set for a built-in band (#286).
+> Only natural note names are asked for. Describing, keeping or trying again in the
+> band tab follows with the second part of step 3. The direction is unchanged.
 
 ## Summary
 
