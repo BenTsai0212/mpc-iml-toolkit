@@ -1,8 +1,8 @@
-# 量測單音
+# 量測單音與建立樂器
 
 [English](sounds.md) | 繁體中文
 
-[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 1 步的前半（#268）：一個單音的錄音在放進 sound set 之前，先確認它實際上是什麼。產生單音的模型不一定奏出要求的音高：在最初以這種方式產生的音中，音名都對，但有幾個音的八度錯了，另有兩個音不乾淨。以量測過的音建立樂器是之後的 Issue。
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 1 步的前半（#268）：一個單音的錄音在放進 sound set 之前，先確認它實際上是什麼。產生單音的模型不一定奏出要求的音高：在最初以這種方式產生的音中，音名都對，但有幾個音的八度錯了，另有兩個音不乾淨。第 1 步的後半（#270）以量測過的音建立樂器，見[建立樂器](#建立樂器)。
 
 ## 執行
 
@@ -34,6 +34,36 @@ bass-E1.wav                  E1        41.3     +4   99.8%  24.6%     -2c
 - 在 Python 中，`measure` 另外給出聲音開始的 frame（第一個距峰值 40 dB 內的樣本）、音量降 20 dB 所需的時間、錄音長度與峰值音量。
 
 靜音的錄音，以及聲音開始後不到約 0.3 s 的錄音，會被拒絕。
+
+## 建立樂器
+
+第 1 步的後半（#270）把一位樂手的單音錄音做成任何 SFZ 播放器都能載入的樂器，讓它能在樂團的軌道上演奏：
+
+```bash
+uv run python -m mpc_iml.sounds.instrument bass bass-*.wav --out bass-set --low E1 --high G3
+```
+
+寫出 `bass-set/bass.sfz`，用到的音放在 `bass-set/samples/`；每個 region、每個被排除的檔案（附原因）、每段沒有音到得了的鍵各印一行：
+
+```text
+bass: samples/bass-E1.wav      keys   0-30  centre  28 (E1)  tune -4  level +1.2 dB  from bass-E1.wav
+bass: left out bass-A1-take2.wav: another take of A1 is cleaner
+bass: no note within 6 semitones of D3 to G3
+```
+
+規則：
+
+- 每個檔案依上文量測。無法讀取或量測的檔案附原因排除，其他檔案照常使用。
+- **clean** 低於 98.5% 的音排除。
+- 每個音高只留一個音：同一音高有好幾個 take 時留最乾淨的；加 `--prefer rich` 時留 **rich** 最高的（小喇叭也放得出來的 bass）。
+- 每個音負責到與相鄰音的中點為止的鍵；最低與最高的音延伸到鍵盤兩端。
+- 切掉音前的靜音：sample 從聲音開始前 32 個 frame 起，結尾 10 ms 淡出。
+- 拉平音量：每個音前 0.4 s 的音量調到留下的音的中位數，最多調高或調低 9 dB；之後任何樣本的峰值都不超過 −1 dB full scale。
+- 每個音寫成 24 bit WAV，取樣率與聲道數與原錄音相同，檔名是 `<名稱>-<音名>.wav`（`#` 寫成 `s`，例如 `keys-Fs4.wav`）。
+- SFZ 檔有一行 `<global>`（2 ms 起音、`--release` 的釋放時間，預設 0.25 s，力度影響音量），每個音一行 `<region>`，含負責的鍵、音與量到的 cents（`tune`）。
+- 加 `--low` 與 `--high`（這個聲部演奏的最低與最高音；兩個都給或都不給）時，列出這個範圍內離每個留下的音都超過 6 個半音的鍵。
+
+沒有任何錄音能用時，指令印出原因並以狀態 1 結束。
 
 ## 已知的缺口
 
