@@ -227,6 +227,59 @@ the file names but the folder lacks, and ends with status 1 when there is one. W
 `sound-set.json` cannot be accepted, the instrument and the hit commands stop with
 status 1 before they write anything.
 
+## Audition
+
+Step 2 of [RFC 0006](rfcs/0006-sounds-for-the-band.md) (#278): hear what a band
+sounds like with a sound set without opening the DAW.
+
+```bash
+uv run python -m mpc_iml.sounds.audition lofi lofi-set --out lofi-audition
+```
+
+The band is a built-in band (`python -m mpc_iml.bands list`). Its audition pattern
+plays through `ensemble` offline, as in the web demo, with the band's content and
+tempo; `--bars 8` plays only the first 8 bars. The command writes 24-bit WAV files
+into `--out`: `<instrument>.wav` for each instrument of the set that plays a part,
+`drums.wav` and `band.wav`. Each file lasts the song (the bars and one more, the band's
+answer to the last bar) plus the longest release. It prints one line for each file,
+and says which players of the band have no instrument of their name in the set, which
+instruments play no part (`part` is `null`) and are skipped, how many notes of each
+part no instrument played, and which drums have no hit.
+
+What it does:
+
+- Which instrument plays which note comes from the set, not from the band: an
+  instrument plays a note of its part when the note is inside one of its regions and
+  hit at least at its `min_velocity`, as its SFZ file says. The band's `bass` notes are
+  the bass part and its `keys` notes the melody part; several instruments may play one
+  note.
+- A note plays its region's sample moved by the note minus `pitch_keycenter` in
+  semitones plus `tune` in cents, by resampling with linear interpolation. It has a
+  2 ms attack, plays until the note ends and then fades over the instrument's
+  release; a sample that ends earlier just ends (no looping). A new note of the same
+  pitch in the same instrument ends the one before.
+- A note's level is full at velocity 127 and 16 dB lower at 0, in a straight line in
+  dB. The `kick`, `snare` and `hat` of the band play the set's hits of those names with
+  the same law, on the step; a drum without a hit is silent.
+- Nothing is mixed: every instrument and the drums are added as they are, and one gain
+  for all of them brings `band.wav` to a peak of 1 dB under full scale. The single
+  files keep that gain, so they add up to `band.wav`. The files are stereo; a mono
+  sample plays in both channels.
+- All samples of the set must have one sample rate, which is the rate of the files; a
+  set with two rates is refused.
+
+It is close to what an SFZ player plays on the band's tracks, but not the same. The
+velocity law is the one of the renders heard on 2026-11-25; an SFZ player's law for
+`amp_veltrack=85` is close to it but not the same. There are no effects, no brightness
+control (CC 74), no levels or panning for each player, and the drums are straight on
+the step, without swing. Nothing it writes belongs in the repository.
+
+The functions behind the command take the notes and the loaded set and return arrays,
+so the web demo can call them without writing files: `play(band, bars)` runs the
+audition, `played(song)` gives its notes in seconds, `audition(song, set)` renders
+everything, and `render_notes(instrument, notes, rate, frames)` renders a list of
+notes with one instrument.
+
 ## Known gap
 
 Next to a low note (under about E2), a side lobe of the analysis window can count as a
