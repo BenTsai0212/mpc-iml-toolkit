@@ -7,7 +7,7 @@ neighbouring notes. Any SFZ player can load the result.
 
 An instrument can play only some of the notes the band sends (#274): the notes of a
 range of keys, the notes hit at least so hard, and it can sound some octaves above the
-notes it is sent (`soundset.Plays`). The SFZ file does that with basic opcodes only, so
+notes it is sent (`mpc_iml.plays.Plays`). The SFZ file does that with basic opcodes only, so
 it plays its share of the part without key or velocity filters in front of it.
 
 `python -m mpc_iml.sounds.instrument <name> <file>... --out <folder>` writes
@@ -23,9 +23,10 @@ from typing import Literal
 
 import numpy as np
 
+from mpc_iml.plays import Plays
 from mpc_iml.sounds import soundset, wav
 from mpc_iml.sounds.notes import Measurement, measure, note_name, note_number
-from mpc_iml.sounds.soundset import Origin, Plays
+from mpc_iml.sounds.soundset import Origin
 from mpc_iml.sounds.wav import Samples
 
 CLEAN = 0.985
@@ -219,7 +220,7 @@ def build(
     and record it in `out/sound-set.json`.
 
     `part`, `keys`, `min_velocity` and `octave` say which notes of the band it plays
-    (`soundset.Plays`). Each kept note's centre is moved down by `octave` octaves, the
+    (`mpc_iml.plays.Plays`). Each kept note's centre is moved down by `octave` octaves, the
     key ranges are split between the moved centres and then cut to `keys`; a note whose
     range falls outside `keys` is left out with the reason. `span` is the lowest and
     highest key the part plays, in notes the band sends; the result lists the keys in

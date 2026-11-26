@@ -97,6 +97,19 @@ uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out band-set --part m
 
 要比收到的音高一個八度發聲的 bass 加 `--part bass --octave 1`。每個樂器放在自己的軌道上，接收它的聲部（三個旋律樂器都接收旋律的 channel），前面不加鍵、力度過濾，也不移八度。
 
+### 樂團的演奏者
+
+樂團檔（ADR 0014，`python -m mpc_iml.bands list`）為每個演奏者寫一行：它的 `plays`（聲部、鍵、`min_velocity`、八度）與建立樂器時的預設值（`release`、`prefer`）。建立每個演奏者時，`--part`、`--keys`、`--min-velocity` 與 `--octave` 取自它的 `plays`，`--release` 與 `--prefer` 取自它的那一行。鍵寫成音名：0 是 C-1，71 是 B4，72 是 C5，127 是 G9。以 `trap` 樂團（`src/mpc_iml/bands/ensemble/trap.json`）為例：
+
+```bash
+uv run python -m mpc_iml.sounds.instrument 808 808-*.wav --out trap-set --part bass --keys C-1 G9 --min-velocity 1 --octave 0 --release 0.08 --prefer rich
+uv run python -m mpc_iml.sounds.instrument keys keys-*.wav --out trap-set --part melody --keys C-1 B4 --min-velocity 1 --octave 0 --release 0.25 --prefer clean
+uv run python -m mpc_iml.sounds.instrument bell bell-*.wav --out trap-set --part melody --keys C5 G9 --min-velocity 1 --octave 0 --release 0.3 --prefer clean
+uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out trap-set --part melody --keys C-1 B4 --min-velocity 86 --octave 0 --release 0.5 --prefer clean
+```
+
+`lofi` 樂團的 `bass` 加 `--octave 1`：它比樂團送出的音高一個八度發聲。
+
 ## Sound set
 
 第 1 步的最後一部分（#272，[ADR 0013](adr/0013-sound-set-folders.md)）：放著為一個樂團做的樂器與鼓聲的資料夾就是一個 **sound set**：

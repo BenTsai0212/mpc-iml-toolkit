@@ -22,7 +22,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 - 測試：`uv run pytest`（預設略過 `@pytest.mark.hardware`）
 - 盲測比較：`uv run python -m mpc_iml.trial run <trial 檔> <資料夾>`（由人接上 MPC 與 Live 後執行；agent 與 CI 不執行）、`uv run python -m mpc_iml.trial report <session>…`；見 `docs/trials.md`
 - groove 離線檢視：`uv run python -m mpc_iml.grooves <錄音>`（`--json` 輸出 `mpc-iml-grooves` 文件；`--similar`、`--return`、`--free-bars` 試其他門檻；#245；`--group-distance [距離]` 另列出每個 groove 依節奏描述子距離在內、點頭會到達的 groove，#250）
-- 量測單音錄音：`uv run python -m mpc_iml.sounds.notes <WAV 檔>…`（需要 `numpy`，隨 `demo` extra 安裝；每個檔案一行：音名、頻率、cents、clean、rich、attack；#268）；以這些錄音建立 SFZ 樂器：`uv run python -m mpc_iml.sounds.instrument <名稱> <WAV 檔>… --out <資料夾>`（`--prefer clean|rich`、`--release <秒>`、`--low <音> --high <音>`；#270；演奏哪些音：`--part bass|melody`、`--keys <低> <高>`、`--min-velocity`、`--octave`，#274）；鼓聲：`uv run python -m mpc_iml.sounds.hits <名稱> <WAV 檔> --out <資料夾>`（`--seconds`）；檢查 sound set：`uv run python -m mpc_iml.sounds.soundset check <資料夾>`（#272）；見 `docs/sounds.md`
+- 量測單音錄音：`uv run python -m mpc_iml.sounds.notes <WAV 檔>…`（需要 `numpy`，隨 `demo` extra 安裝；每個檔案一行：音名、頻率、cents、clean、rich、attack；#268）；以這些錄音建立 SFZ 樂器：`uv run python -m mpc_iml.sounds.instrument <名稱> <WAV 檔>… --out <資料夾>`（`--prefer clean|rich`、`--release <秒>`、`--low <音> --high <音>`；#270；演奏哪些音：`--part bass|melody`、`--keys <低> <高>`、`--min-velocity`、`--octave`，#274）；鼓聲：`uv run python -m mpc_iml.sounds.hits <名稱> <WAV 檔> --out <資料夾>`（`--seconds`）；檢查 sound set：`uv run python -m mpc_iml.sounds.soundset check <資料夾>`（#272）；見 `docs/sounds.md`；樂團檔：`uv run python -m mpc_iml.bands check <檔案>…`、`list`（核心安裝即可；#276、ADR 0014；見 `docs/ensemble.md`）
 - 網頁 demo：`uv sync --extra demo` 後 `uv run python -m mpc_iml.webdemo`（只開在 `127.0.0.1`；`--data <資料夾>` 讓 grooves 分頁讀錄音並存檔（#249）；`--share` 產生 Gradio 的暫時公開連結，此時沒有 grooves 分頁，只由人執行，agent 與 CI 不執行）
 - 硬體測試：`uv run pytest -m hardware`（由人接上 MPC 後執行；agent 與 CI 不執行，對應 Issue 的 `needs-human` 待辦）
 - Max for Live 裝置：`uv run python tools/m4l/build_device.py` 重新產生 `src/mpc_iml/patches/mpc-iml.maxpat`（不要手改該檔；`tests/test_m4l.py` 比對兩者）
@@ -36,7 +36,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 ## 3. 結構
 | 路徑 | 內容 |
 | --- | --- |
-| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）；每個 module 一行，見 `docs/modules.md`；格式見 ADR 0002 |
+| `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）；每個 module 一行，見 `docs/modules.md`；格式見 ADR 0002；內建的 loop、和弦進行與樂團檔在 `loops/`、`progressions/`、`bands/` 的 `ensemble/`（樂團檔照 #276 寫入，不改音符、角色與 pattern） |
 | `assets/ableton/` | Ableton Live 12 入門 set（`mpc-iml-starter.als`，含 CC 20-27 對應）與 rack（`mpc-iml-starter.adg`）；作者在 Live 中建立的二進位檔，不要開啟、重新儲存或重新產生（#104） |
 | `examples/reference/` | 參考範例的選用 Pure Data 接收端（`receiver.pd`，CI 不測試） |
 | `examples/trial/` | 盲測比較的範例 trial 檔（`rhythm.json`：`rhythm 0` 對 `rhythm 1`，#197；`learn.json`：`learn off`、`likes`、`demo`，#196；`groove.json`：`follow-by bar` 對 `groove`，`nod.json`：`learn off` 對 `nod`，#250；`tests/test_trial.py` 讀取） |
