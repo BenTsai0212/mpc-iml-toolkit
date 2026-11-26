@@ -78,9 +78,12 @@ def test_broken_files_are_refused(tmp_path: Path) -> None:
 
 
 def test_the_core_install_does_not_import_sounds() -> None:
-    """`mpc_iml.sounds` needs numpy from the `demo` extra; only it imports itself."""
+    """`mpc_iml.sounds` needs numpy from the `demo` extra; only it imports itself, and
+    the web demo's band tab (#280), which only `webdemo.app` imports, after the demo
+    extra is checked."""
+    tab = SRC / "webdemo" / "bandtab.py"
     for path in SRC.rglob("*.py"):
-        if SRC / "sounds" in path.parents:
+        if SRC / "sounds" in path.parents or path == tab:
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             names = []
@@ -89,3 +92,5 @@ def test_the_core_install_does_not_import_sounds() -> None:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 names = [node.module] + [f"{node.module}.{a.name}" for a in node.names]
             assert not any(n.startswith("mpc_iml.sounds") for n in names), path
+            if path != SRC / "webdemo" / "app.py":
+                assert not any(n.startswith("mpc_iml.webdemo.bandtab") for n in names), path

@@ -54,6 +54,7 @@ __all__ = [
     "rate_of",
     "render_hits",
     "release_of",
+    "report",
     "render_notes",
 ]
 
@@ -286,6 +287,23 @@ def audition(song: sim.Song, sound_set: SoundSet) -> Audition:
     )
 
 
+def report(band: Band, sound_set: SoundSet, result: Audition) -> list[str]:
+    """What the command prints before the files: the players without an instrument
+    of their name, the instruments skipped, the notes no instrument played and the drums
+    without a hit."""
+    lines = [
+        f"{band.name}: player {p.name!r} has no instrument of its name in the set"
+        for p in band.players
+        if p.name not in sound_set.instruments
+    ]
+    lines += [f"{name}: plays no part (part is null), skipped" for name in result.skipped]
+    lines += [
+        f"{part}: {count} note(s) no instrument played" for part, count in result.unplayed.items()
+    ]
+    lines += [f"{drum}: no hit in the set, silent" for drum in result.silent]
+    return lines
+
+
 def _band(name: str) -> Band:
     bands = load_bands()
     if name not in bands:
@@ -312,15 +330,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (AuditionError, SoundSetError, OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    for player in band.players:
-        if player.name not in sound_set.instruments:
-            print(f"{band.name}: player {player.name!r} has no instrument of its name in the set")
-    for name in result.skipped:
-        print(f"{name}: plays no part (part is null), skipped")
-    for part, count in result.unplayed.items():
-        print(f"{part}: {count} note(s) no instrument played")
-    for drum in result.silent:
-        print(f"{drum}: no hit in the set, silent")
+    for line in report(band, sound_set, result):
+        print(line)
     args.out.mkdir(parents=True, exist_ok=True)
     files = {**result.instruments, "drums": result.drums, "band": result.band}
     seconds = len(result.band) / result.rate

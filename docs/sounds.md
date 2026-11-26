@@ -280,6 +280,49 @@ audition, `played(song)` gives its notes in seconds, `audition(song, set)` rende
 everything, and `render_notes(instrument, notes, rate, frames)` renders a list of
 notes with one instrument.
 
+## The band tab of the web demo
+
+The first part of step 3 of [RFC 0006](rfcs/0006-sounds-for-the-band.md) (#280): the
+same audition in the web demo, with sound sets you already made, and a button that
+sets the engine to the band. Put each sound set in its own subfolder of one folder,
+then start the demo with it:
+
+```bash
+uv sync --extra demo
+uv run python -m mpc_iml.webdemo --sounds my-sound-sets
+```
+
+The **band** tab has four parts, top to bottom:
+
+1. **Choose a band**: a built-in band, with its title, description, tempo and
+   content, and a table of its players (name, part and what it plays).
+2. **Choose a sound set**: the subfolders of `--sounds` that hold a `sound-set.json`.
+   A set the checks of `soundset check` refuse is listed with the reason and cannot be
+   chosen; **Read the folder again** reads the folder after you build or change a
+   set. For the chosen set, one line for each player of the band: the instrument of
+   its name (how many regions, and what it plays when that differs from the player) or
+   that the set has none; then the instruments of the set that are not players of the
+   band, and the drum hits.
+3. **Listen**: renders the band's audition with the set, as the audition command does,
+   and plays the band, each instrument and the drums, with the lines the command
+   prints. The **bars** slider plays only the first bars; the default is all of them.
+4. **Play with it**: sends the band's `bass-loop`, `loop` and `progression` to the
+   engine's control port on this machine (6450), as the preset messages of
+   [docs/ensemble.md](ensemble.md#ensemble-controls), then lists what is left to do by
+   hand: the tempo to set in the DAW, the SFZ file of each instrument and the part its
+   track receives (bass or melody), and the paths of the drum hits. A UDP message gets
+   no answer, so the page cannot tell whether an engine is running: check that the
+   band changes.
+
+A set that is gone or changed on disk, or one with two sample rates, gives a message
+on the page. Without `--sounds` the tab shows the bands and part 4 still sends the
+controls. The tab reads folders on your machine and sends to the engine, so it is not
+on the page under `--share`.
+
+It does not yet describe the sound of a player, generate notes or hits, build
+instruments, or keep or try again: those come with step 4. It does not set levels,
+effects or the tempo of the DAW, and it uploads nothing.
+
 ## Known gap
 
 Next to a low note (under about E2), a side lobe of the analysis window can count as a

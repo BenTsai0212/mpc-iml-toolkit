@@ -581,6 +581,10 @@ uv sync --extra demo
 uv run python -m mpc_iml.webdemo
 ```
 
+Its tabs play a step grid, a recording or loop variations; with `--data <folder>` the
+**grooves** tab sorts your grooves, and with `--sounds <folder>` the **band** tab plays
+a band with your sound sets and sets the engine to it ([docs/sounds.md](docs/sounds.md#the-band-tab-of-the-web-demo)).
+
 The full guide is in [docs/ensemble.md](docs/ensemble.md):
 [Set up Live for the bass](docs/ensemble.md#set-up-live-for-the-bass),
 [the bass loop](docs/ensemble.md#the-bass-loop),
