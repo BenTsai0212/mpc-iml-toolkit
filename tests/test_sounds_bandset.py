@@ -101,10 +101,19 @@ def test_a_band_gives_a_whole_set(
         assert instrument.settings["prefer"] == player.prefer
         assert instrument.settings["release"] == player.release
         assert f"{player.name}: made, " in "\n".join(printed)
+        assert {r.origin.settings["words"] for r in instrument.regions if r.origin} == {
+            player.sound.words
+        }
     for hit in band.hits.values():
         assert any(line.startswith(f"{hit.name}: made, hits/{hit.name}.wav") for line in printed)
-    assert printed[-2] == f"  python -m mpc_iml.sounds.soundset check {out}"
-    assert printed[-1].startswith(f"  python -m mpc_iml.sounds.audition {name} {out} --out ")
+        origin = loaded.hits[hit.name].origin
+        assert origin is not None and origin.settings == {
+            "generator": "fake",
+            "words": hit.words,
+            "seconds": 1.0,
+        }
+    assert printed[-2] == f"  uv run python -m mpc_iml.sounds.soundset check {out}"
+    assert printed[-1].startswith(f"  uv run python -m mpc_iml.sounds.audition {name} {out} --out ")
     result = audition(play(band), loaded)
     assert report(band, loaded, result) == [
         "bass: 0 note(s) no instrument played",

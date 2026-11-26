@@ -172,7 +172,13 @@ def test_notes_as_asked_give_an_instrument(tmp_path: Path) -> None:
         "model": "fake-model-small",
         "prompt": "warm bass | note E2",
         "seed": 1,
-        "settings": {"generator": "fake", "asked": "E2", "seconds": 2, "round": 1},
+        "settings": {
+            "generator": "fake",
+            "words": "warm bass",
+            "asked": "E2",
+            "seconds": 2,
+            "round": 1,
+        },
     }
     assert not [p for p in out.iterdir() if p.name.startswith(".takes-")]
     assert soundset.problems(out) == []
@@ -196,6 +202,7 @@ def test_a_note_an_octave_away_is_asked_the_other_way(tmp_path: Path) -> None:
     files = {f["file"]: f for f in read_set(out)["instruments"]["bass"]["files"]}
     assert files["bass-A1-s2.wav"]["origin"]["settings"] == {
         "generator": "fake",
+        "words": "warm bass",
         "asked": "A1",
         "seconds": 2,
         "round": 2,
@@ -313,7 +320,7 @@ def test_a_generated_hit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
         "model": "fake-model-small",
         "prompt": "dusty kick | hit",
         "seed": 4,
-        "settings": {"generator": "fake", "seconds": 1.0},
+        "settings": {"generator": "fake", "words": "dusty kick", "seconds": 1.0},
     }
 
 

@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-26
 - Related: RFC 0002, RFC 0005, #262, #266
-- Amended: 2026-11-26 (#268); 2026-11-26 (#280); 2026-11-26 (#284); 2026-11-26 (#286)
+- Amended: 2026-11-26 (#268); 2026-11-26 (#280); 2026-11-26 (#284); 2026-11-26 (#286); 2026-11-26 (#288)
 - Accepted: 2026-11-26 (#267)
 
 > **Amendment (2026-11-26, #268).** The output of this RFC is called a **sound
@@ -33,6 +33,13 @@
 > mpc_iml.sounds.generate band` makes a whole sound set for a built-in band (#286).
 > Only natural note names are asked for. Describing, keeping or trying again in the
 > band tab follows with the second part of step 3. The direction is unchanged.
+
+> **Amendment (2026-11-26, #288).** The second part of step 3 is built: started with
+> `--generator <file>`, the band tab describes the sound of each player and drum hit
+> in words, makes the sound set with the musician's model, and tries a player again
+> with new seeds until it is kept (#288). A person listens before a set is kept;
+> trying again replaces what was there, and earlier versions are not kept. The
+> direction is unchanged.
 
 ## Summary
 

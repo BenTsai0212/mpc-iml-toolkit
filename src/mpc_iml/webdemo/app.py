@@ -73,6 +73,8 @@ from mpc_iml.webdemo.synth import RATE, render
 if TYPE_CHECKING:
     import gradio as gr
 
+    from mpc_iml.sounds.generate import Generator
+
 __all__ = [
     "ANALYTICS_ENV",
     "BARS",
@@ -315,12 +317,17 @@ def play_variations(
     ]
 
 
-def build(data: Path | None = None, share: bool = False, sounds: Path | None = None) -> "gr.Blocks":
+def build(
+    data: Path | None = None,
+    share: bool = False,
+    sounds: Path | None = None,
+    generator: "Generator | None" = None,
+) -> "gr.Blocks":
     """The demo page. Needs the `demo` extra (`uv sync --extra demo`). Turns
     Gradio's analytics off unless the environment sets them (`analytics_default_off`).
     The grooves tab (`groovetab`, #249) saves in `data`, and the band tab (`bandtab`,
-    #280) reads the sound sets in `sounds`; both are left out when `share` makes a
-    public link."""
+    #280) reads the sound sets in `sounds` and makes them with `generator` (#288); both
+    are left out when `share` makes a public link."""
     analytics = analytics_default_off()
     import gradio as gr
 
@@ -437,7 +444,7 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
         tabs = {"step grid": grid_tab, "recording": recording_tab, "variations": variations_tab}
         if not share:
             tabs["grooves"] = groovetab.tab(gr, data)
-            tabs["band"] = bandtab.tab(gr, sounds)
+            tabs["band"] = bandtab.tab(gr, sounds, generator=generator)
         outputs_box = gr.Column(visible=True)
         with outputs_box:
             audio = gr.Audio(label="the band", type="numpy", interactive=False)

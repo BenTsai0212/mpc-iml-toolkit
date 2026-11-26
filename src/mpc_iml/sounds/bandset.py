@@ -204,13 +204,16 @@ def generate_band(
     words: Mapping[str, str] | None = None,
     only: Sequence[str] | None = None,
     seed: int = 1,
+    seeds: Mapping[str, int] | None = None,
     rounds: int = ROUNDS,
     done: Done | None = None,
     run: RunTake = run_take,
 ) -> list[Made]:
     """Make the instruments of `band`'s players and its drum hits in the sound set `out`
     with `generator`, as `plan(band, words, only)` says; returns what was done for each,
-    in order, and calls `done` with each when it is finished.
+    in order, and calls `done` with each when it is finished. Each starts from the seed
+    `seeds` gives for its name, or from `seed` (#288: trying a player again starts after
+    the seeds recorded for it).
 
     Raises `ValueError` (a `SoundSetError` for the folder) before the generator is run
     when a name is not the band's or the folder's `sound-set.json` cannot be accepted.
@@ -219,6 +222,7 @@ def generate_band(
     if rounds < 1:
         raise ValueError(f"rounds must be 1 or more, not {rounds}")
     soundset.read_document(out)
+    first = dict(seeds or {})
     results: list[Made] = []
 
     def finish(made: Made) -> None:
@@ -240,7 +244,7 @@ def generate_band(
                 out,
                 seconds=player.sound.seconds,
                 takes=player.sound.takes,
-                seed=seed,
+                seed=first.get(player.name, seed),
                 rounds=rounds,
                 prefer="rich" if player.prefer == "rich" else "clean",
                 release=player.release,
@@ -258,7 +262,13 @@ def generate_band(
     for h in planned.hits:
         try:
             made = generate_hit(
-                h.hit.name, generator, h.words, out, seed=seed, seconds=h.hit.seconds, run=run
+                h.hit.name,
+                generator,
+                h.words,
+                out,
+                seed=first.get(h.hit.name, seed),
+                seconds=h.hit.seconds,
+                run=run,
             )
         except ValueError as error:
             finish(Made(h.hit.name, "hit", error=str(error)))
@@ -313,6 +323,6 @@ def next_lines(band: Band, out: Path) -> list[str]:
     audition = out.with_name(f"{out.name}-audition")
     return [
         "next: listen before keeping the set:",
-        f"  python -m mpc_iml.sounds.soundset check {out}",
-        f"  python -m mpc_iml.sounds.audition {band.name} {out} --out {audition}",
+        f"  uv run python -m mpc_iml.sounds.soundset check {out}",
+        f"  uv run python -m mpc_iml.sounds.audition {band.name} {out} --out {audition}",
     ]

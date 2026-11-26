@@ -295,7 +295,19 @@ uv sync --extra demo
 uv run python -m mpc_iml.webdemo --sounds my-sound-sets
 ```
 
-The **band** tab has four parts, top to bottom:
+To make sound sets from the page as well (#288, the second part of step 3), also give
+the generator file of a model you installed ([Generating notes](#generating-notes),
+ADR 0015):
+
+```bash
+uv run python -m mpc_iml.webdemo --sounds my-sound-sets --generator ~/models/my-model.json
+```
+
+The file is checked when the demo starts; a file that is refused stops the start with
+the problem named. The page runs only the command of that file, and the words you type
+reach it as one argument, without a shell.
+
+The **band** tab has five parts, top to bottom:
 
 1. **Choose a band**: a built-in band, with its title, description, tempo and
    content, and a table of its players (name, part and what it plays).
@@ -311,10 +323,23 @@ The **band** tab has four parts, top to bottom:
    best or when no set has a player of the band. **Read the folder again** keeps the
    chosen set while it is there and chooses again when it is gone. You can still
    choose any set by hand.
-3. **Listen**: renders the band's audition with the set, as the audition command does,
+3. **Make sounds** (with `--generator`): the **set name** is the subfolder of
+   `--sounds` to make or change (the chosen set, or `<band>-set` when the band has
+   none). A table has one row for each player and each drum hit of the band: its
+   name, what it is (the player's part, or `hit`) and its words, which you can edit.
+   The words are those recorded in the set when the instrument or hit was generated,
+   and the band's defaults otherwise. **which to make** chooses the players and hits
+   to make now: all of them for a new set, and none for a set that has them all. A
+   line says what will happen before anything runs: the takes round 1 asks for and
+   what of the set is replaced. **Make** makes them one after the other, as
+   `generate band` does, and shows the lines of each as it finishes; at the end the
+   folder is read again, the set is chosen and part 2 shows how it matches the band.
+   Only one Make runs at a time. Without `--generator` (or `--sounds`) the part says
+   how to start the demo with both, and has no Make button.
+4. **Listen**: renders the band's audition with the set, as the audition command does,
    and plays the band, each instrument and the drums, with the lines the command
    prints. The **bars** slider plays only the first bars; the default is all of them.
-4. **Play with it**: sends the band's `bass-loop`, `loop` and `progression` to the
+5. **Play with it**: sends the band's `bass-loop`, `loop` and `progression` to the
    engine's control port on this machine (6450), as the preset messages of
    [docs/ensemble.md](ensemble.md#ensemble-controls), then lists what is left to do by
    hand: the tempo to set in the DAW, the SFZ file of each instrument and the part its
@@ -323,15 +348,21 @@ The **band** tab has four parts, top to bottom:
    band changes.
 
 A set that is gone or changed on disk, or one with two sample rates, gives a message
-on the page. Without `--sounds` the tab shows the bands and part 4 still sends the
-controls. The tab reads folders on your machine and sends to the engine, so it is not
-on the page under `--share`. The settings above the tabs and the outputs below them
+on the page. Without `--sounds` the tab shows the bands and part 5 still sends the
+controls. The tab reads folders on your machine, runs the generator's command and
+sends to the engine, so it is not on the page under `--share`. The settings above the tabs and the outputs below them
 belong to the other tabs and are hidden while the band tab is open (#282).
 
-It does not yet describe the sound of a player, generate notes or hits, build
-instruments, or keep or try again: generating is on the command line for now
-([Generating notes](#generating-notes)); the tab gets it in a later step. It does not set levels,
-effects or the tempo of the DAW, and it uploads nothing.
+**Trying again.** Choose a player (or hit) the set already has, change its words or
+keep them, and press **Make**: its instrument is replaced, and its seeds start after
+the highest seed recorded for it in the set, so the same words give new takes. The
+other players and hits are not touched. Trying again replaces what was there: the
+page keeps no earlier version to compare and cannot undo. Listen (part 4) before you
+keep a set, and copy the folder first when you want to keep a version.
+
+The tab does not build instruments from recordings, upload recordings, stop a run or
+show progress inside one player. It does not set levels, effects or the tempo of the
+DAW, and it uploads nothing.
 
 ## Generating notes
 
@@ -437,7 +468,8 @@ there).
 Takes are kept in the set, under `takes/`: `takes/<instrument>-<asked note>-s<seed>.wav`
 (`#` written as `s`) and `takes/<hit>-s<seed>.wav`. In `sound-set.json` each one's
 `file` names its take and its `origin` records the model, the prompt that was sent,
-the seed and the settings (`generator`, the note `asked`, `seconds` and the `round`).
+the seed and the settings (`generator`, the `words`, the note `asked`, `seconds` and
+the `round`; #288).
 Generating an instrument or a hit again replaces its entry and removes the takes and
 samples its earlier entry listed that no entry uses now; other instruments, the hits
 and their takes are untouched. You may delete `takes/` to save space: the set still

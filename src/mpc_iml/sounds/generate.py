@@ -24,7 +24,7 @@ A model often plays the note name it is asked for one octave away, so nothing is
 trusted before it is measured: a note that no clean take answered is asked again in
 the next round, an octave the other way when its closest clean take came out a whole
 number of octaves away. Takes are kept in the set's `takes/` folder, and each records
-the model, prompt, seed and settings that made it.
+the model, prompt, seed and settings that made it, and the words (#288).
 
 Uses `numpy` through `mpc_iml.sounds`; nothing in the core install imports it.
 """
@@ -326,13 +326,15 @@ class Take:
     """Why the take failed: the command, or the file it wrote."""
     output: str = ""
     """The last lines the command printed, when it failed."""
+    words: str = ""
+    """The sound in words, recorded as `words` in the origin's settings (#288)."""
 
     @property
     def path(self) -> Path:
         return Path(TAKES) / self.file
 
     def origin(self, generator: Generator) -> Origin:
-        settings: dict[str, Any] = {"generator": generator.name}
+        settings: dict[str, Any] = {"generator": generator.name, "words": self.words}
         if self.asked is not None:
             settings["asked"] = note_name(self.asked)
         settings["seconds"] = self.seconds
@@ -521,6 +523,7 @@ def generate_notes(
                         measured,
                         error,
                         output,
+                        words,
                     )
                 )
         unanswered = tuple(
@@ -613,7 +616,7 @@ def generate_hit(
     staging = _staging(out)
     try:
         _, error, output = _run(run, generator, staging, file, prompt, seed, duration, note=False)
-        take = Take(file, prompt, seed, duration, error=error, output=output)
+        take = Take(file, prompt, seed, duration, error=error, output=output, words=words)
         if error is not None:
             return GeneratedHit(name, take, None, error)
         try:

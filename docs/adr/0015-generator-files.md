@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-11-26
 - Related: RFC 0006, ADR 0010, ADR 0013, #268, #270, #272, #274, #284
+- Amended: 2026-11-26 (#288)
 
 ## Context
 
@@ -97,8 +98,11 @@ before it is measured.
   own inside the set and moved into `takes/` only after `sound-set.json` is written, so
   a run where nothing can be used changes nothing in the set.
 - Each take has an origin `{"kind": "generated", "model": …, "prompt": <the prompt
-  sent>, "seed": …, "settings": {"generator": <name>, "asked": <note name>, "seconds":
-  <duration>, "round": <n>}}`; a hit's settings have `generator` and `seconds`.
+  sent>, "seed": …, "settings": {"generator": <name>, "words": <the words>, "asked":
+  <note name>, "seconds": <duration>, "round": <n>}}`; a hit's settings have
+  `generator`, `words` and `seconds`. `words` was added by #288 so that the band tab
+  can show the words an instrument or hit was made with; `settings` is a free object
+  in format 1 of ADR 0013, so the format does not change.
 - Generating an instrument or a hit again removes the takes its earlier entry named
   that no entry names now. Nothing else in the folder is deleted.
 - The generator file, the options and `sound-set.json` are checked before anything is
