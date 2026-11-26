@@ -1,4 +1,9 @@
-"""Train on a recording and run on a replay: `python -m $package examples.jsonl [run.jsonl]`."""
+"""Train on a recording and run on a replay.
+
+Usage:
+
+    python -m $package EXAMPLES [RUN]
+"""
 
 import argparse
 from collections.abc import Sequence
@@ -11,7 +16,7 @@ from $package.model import EmptyModel
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m $package")
+    parser = argparse.ArgumentParser(prog=f"python -m {__package__}")
     parser.add_argument("examples", help="recording with example segments to train on")
     parser.add_argument("run", nargs="?", help="recording to run on (default: examples)")
     parser.add_argument("--osc", action="store_true", help="send /wek/inputs and /wek/outputs")

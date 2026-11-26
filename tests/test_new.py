@@ -16,7 +16,7 @@ import pytest
 
 import mpc_iml
 from mpc_iml import __version__
-from mpc_iml.new import create, main, package_name
+from mpc_iml.new import MAX_PACKAGE_LENGTH, create, main, package_name
 
 EXPECTED = {
     ".gitignore",
@@ -31,11 +31,26 @@ EXPECTED = {
 }
 
 
+# The longest allowed name: every rendered line must still fit the line length (#263).
+LONG_NAME = ("long-" * 13)[: MAX_PACKAGE_LENGTH - 1] + "x"
+
+
 @pytest.fixture(scope="module")
 def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("practice") / "my-practice"
     create(target)
     return target
+
+
+@pytest.fixture(scope="module", params=["short", "long"])
+def any_project(
+    request: pytest.FixtureRequest, project: Path, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, str]:
+    if request.param == "short":
+        return project, "my_practice"
+    target = tmp_path_factory.mktemp("practice") / LONG_NAME
+    create(target)
+    return target, LONG_NAME.replace("-", "_")
 
 
 def run(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -76,7 +91,7 @@ def test_no_copy_of_toolkit_code(project: Path) -> None:
 @pytest.mark.parametrize(
     "args",
     [
-        ("-m", "my_practice", "tests/data/example.jsonl"),
+        ("-m", "{package}", "tests/data/example.jsonl"),
         ("-m", "pytest", "-q", "-p", "no:cacheprovider"),
         ("-m", "ruff", "check", "--no-cache"),
         ("-m", "ruff", "format", "--check", "--no-cache"),
@@ -84,9 +99,16 @@ def test_no_copy_of_toolkit_code(project: Path) -> None:
     ],
     ids=["run", "pytest", "ruff-check", "ruff-format", "mypy"],
 )
-def test_generated_project_passes(project: Path, args: tuple[str, ...]) -> None:
-    result = run(project, *args)
+def test_generated_project_passes(any_project: tuple[Path, str], args: tuple[str, ...]) -> None:
+    project, package = any_project
+    result = run(project, *(arg.format(package=package) for arg in args))
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_long_name_is_the_longest_allowed() -> None:
+    assert len(package_name(LONG_NAME)) == MAX_PACKAGE_LENGTH
+    with pytest.raises(ValueError, match="longer than"):
+        package_name(LONG_NAME + "x")
 
 
 def test_run_trains_and_replays(project: Path) -> None:

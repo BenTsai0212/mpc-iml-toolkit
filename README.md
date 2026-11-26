@@ -851,7 +851,8 @@ kit's training examples; `tests/plugins/mpc_iml_example_content/` is an example.
 copying it: a `pyproject.toml` pinning `mpc-iml-toolkit` to the git tag of the
 running version, an empty model (`src/<package>/model.py`) to replace, a script that
 trains on a recording and runs on a replay, a test, a sample recording and a short
-README. The package name comes from the directory name (`--name` overrides it).
+README. The package name comes from the directory name (`--name` overrides it) and
+has at most 60 characters.
 
 ```bash
 uv run python -m mpc_iml.new ../my-practice
