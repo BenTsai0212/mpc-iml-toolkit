@@ -1,0 +1,16 @@
+{
+  "format": "mpc-iml-progression",
+  "format_version": 1,
+  "name": "haze",
+  "title": "Haze",
+  "description": "Fmaj7, Em7 and Dm7, 2 bars each, then Gm7 and C7, 1 bar each: an 8-bar lo-fi descent that turns back to the top through a two-five.",
+  "preset": "ensemble",
+  "tonic": "C",
+  "chords": [
+    {"root": 5, "quality": "maj7", "bars": 2},
+    {"root": 4, "quality": "m7", "bars": 2},
+    {"root": 2, "quality": "m7", "bars": 2},
+    {"root": 7, "quality": "m7", "bars": 1},
+    {"root": 0, "quality": "7", "bars": 1}
+  ]
+}

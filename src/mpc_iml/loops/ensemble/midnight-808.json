@@ -1,0 +1,57 @@
+{
+  "format": "mpc-iml-loop",
+  "format_version": 1,
+  "name": "midnight-808",
+  "title": "Midnight 808",
+  "description": "A 4-bar 808 line: long roots on 1, the 'and' of 2 and the 'and' of 3, an octave jump in bars 2 and 4. home holds one long root a bar; drive adds hits for busy kicks.",
+  "preset": "ensemble",
+  "part": "bass",
+  "bars": 4,
+  "variations": {
+    "home": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 12, "skeleton": true},
+      {"bar": 1, "step": 0, "tone": 0, "length": 12, "skeleton": true},
+      {"bar": 2, "step": 0, "tone": 0, "length": 12, "skeleton": true},
+      {"bar": 3, "step": 0, "tone": 0, "length": 10, "skeleton": true},
+      {"bar": 3, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1, "skeleton": true}
+    ],
+    "push": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 5},
+      {"bar": 0, "step": 6, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 0, "step": 10, "tone": 0, "length": 5},
+      {"bar": 1, "step": 0, "tone": 0, "length": 5},
+      {"bar": 1, "step": 6, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 1, "step": 10, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 13, "tone": 3, "length": 3, "octave": -1, "velocity": 0.9},
+      {"bar": 2, "step": 0, "tone": 0, "length": 5},
+      {"bar": 2, "step": 6, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 2, "step": 10, "tone": 0, "length": 5},
+      {"bar": 3, "step": 0, "tone": 0, "length": 5},
+      {"bar": 3, "step": 6, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 3, "step": 10, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 3, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ],
+    "drive": [
+      {"bar": 0, "step": 0, "tone": 0, "length": 3},
+      {"bar": 0, "step": 3, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 0, "step": 6, "tone": 0, "length": 3},
+      {"bar": 0, "step": 10, "tone": 0, "length": 3},
+      {"bar": 0, "step": 14, "tone": 0, "length": 2, "octave": 1, "velocity": 0.9},
+      {"bar": 1, "step": 0, "tone": 0, "length": 3},
+      {"bar": 1, "step": 3, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 1, "step": 6, "tone": 0, "length": 3},
+      {"bar": 1, "step": 10, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 1, "step": 13, "tone": 3, "length": 3, "octave": -1, "velocity": 0.9},
+      {"bar": 2, "step": 0, "tone": 0, "length": 3},
+      {"bar": 2, "step": 3, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 2, "step": 6, "tone": 0, "length": 3},
+      {"bar": 2, "step": 10, "tone": 0, "length": 3},
+      {"bar": 2, "step": 14, "tone": 0, "length": 2, "octave": 1, "velocity": 0.9},
+      {"bar": 3, "step": 0, "tone": 0, "length": 3},
+      {"bar": 3, "step": 3, "tone": 0, "length": 3, "velocity": 0.9},
+      {"bar": 3, "step": 6, "tone": 0, "length": 3},
+      {"bar": 3, "step": 10, "tone": 0, "length": 2, "octave": 1},
+      {"bar": 3, "step": 14, "tone": 0, "length": 2, "chord": 1, "semitones": -1}
+    ]
+  }
+}

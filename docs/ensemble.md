@@ -57,12 +57,15 @@ them:
 
 The chords come from a chord progression: `minor-two` (default: Am7 for
 2 bars, then Fmaj7 for 2 bars) or `minor-four` (Dm7, Gm7, Bbmaj7, A7, one bar
-each), or one of five hip-hop progressions (#236):
+each), or one of five hip-hop progressions (#236) and the two 8-bar progressions of
+the [lo-fi and trap sets](#the-lo-fi-and-trap-sets) (#262):
 
 | Progression | Chords (bars) |
 | --- | --- |
 | `dark-minor` | Cm7 (2), Dbmaj7 (2): a dark i–♭II loop |
+| `haze` | Fmaj7, Em7, Dm7 (2 each), Gm7 (1), C7 (1): a lo-fi descent that turns back to the top through a ii–V (the lo-fi set) |
 | `lofi-descent` | Fmaj7, Em7, Dm7, Cmaj7 (1 each): a lo-fi descent |
+| `midnight` | Bm7, Gmaj7, Em7, F#7 (2 each): a dark minor loop whose roots stay in the range of an 808, E1 to B1 (the trap set) |
 | `minor-turn` | Bm7b5 (1), E7 (1), Am7 (2): a minor ii–V–i |
 | `soul-minor` | Am7 (2), Dm7 (2): a soul i–iv |
 | `two-five-one` | Dm7 (1), G7 (1), Cmaj7 (2): a ii–V–I |
@@ -115,7 +118,7 @@ With `--clock` and Live playing, the bass in loop mode plays a loop written in
 chord tones, like the melody ([below](#the-melody-loop)), so it follows each chord of
 the progression. Its approach and passing notes aim at the **next** bar's chord: a
 half step or a whole step below the next root, leading into the chord change. There
-are six loops:
+are eight loops:
 
 - `boom` (default): a 1-bar boom-bap line with rests: the root on beat 1 and the
   fifth on beat 3, a ghost note, the root an octave up and an approach note into
@@ -125,6 +128,10 @@ are six loops:
 - `lazy`: a 2-bar lo-fi line that sits a little behind the beat (#232).
 - `soul`: a 2-bar melodic line up to the octave and back, with a chromatic walk up (#232).
 - `sub`: a 2-bar half-time line of long roots with an octave pop, like an 808 (#232).
+- `haze-bass`: a sparse 4-bar lo-fi line a little behind the beat, with long roots;
+  `home` holds one root through some bars (the lo-fi set, #262).
+- `midnight-808`: a 4-bar 808 line of long roots with octave jumps; `home` holds one
+  root a bar in bars 1 to 3 (the trap set, #262).
 
 Each loop has three **variations**, each a complete bass line (#158): `home` (the
 loop as described above), `push` (anticipations: notes a 16th early that answer
@@ -159,7 +166,7 @@ With `--clock` and Live playing, `ensemble` loops a short melody over the chord
 progression, as MIDI notes on **channel 3** of `mpc-iml`
 (`src/mpc_iml/melody.py`). The notes are written as chord tones (root, third,
 fifth, seventh), so the loop follows each chord, also when it changes from minor to
-major. There are six loops:
+major. There are eight loops:
 
 - `keys` (default): a sparse 2-bar keys riff.
 - `pluck`: a 1-bar 8th-note arpeggio.
@@ -167,12 +174,17 @@ major. There are six loops:
 - `flute`: a 2-bar lead motif of third, ninth and root (#232).
 - `horns`: short soul horn hits, two notes at a time (#232).
 - `bells`: a high, sparse lo-fi bell figure, a little behind the beat (#232).
+- `haze-keys`: 4 bars of lo-fi electric piano, rolled ninth chords and a short answer
+  on top (the lo-fi set, #262).
+- `midnight-keys`: 4 bars for two sounds on one channel, a held chord below C5 and a
+  bell motif above it in a 3+3+2 rhythm (the trap set, #262).
 
-The hip-hop loops (`knock` to `bells`) also play notes outside the chord tones: a
-ninth (the root a whole step up) and approach notes; the variations below describe
-`keys` and `pluck`, the others are described in their loop files. In `rhodes` and
-`horns` several notes start together; they all sound, and the surprise `passing`
-moves every note of a chord on the last step.
+The hip-hop loops (`knock` to `bells`) and the loops of the sets also play notes
+outside the chord tones: a ninth (the root a whole step up) and approach notes; the
+variations below describe `keys` and `pluck`, the others are described in their loop
+files. In `rhodes`, `horns`, `haze-keys` and `midnight-keys` several notes start
+together; they all sound, and the surprise `passing` moves every note of a chord on
+the last step.
 
 The melody starts in octave 4 (A4 is MIDI note 69). As the bass, each loop has three
 variations, each a complete line with ornaments on top (#158): `home` (the loop as
@@ -238,6 +250,22 @@ so MIDI Map Mode would catch a note instead:
 
 Then start Live and play `hat` pads: the filter moves at the next bar line. While
 Live plays, `learn-cc` gets `/mpciml/error bad_arguments`.
+
+### The lo-fi and trap sets
+
+Two sets are a bass loop, a melody loop and an 8-bar progression written to go
+together (#262). Choose the three by name (`bass-loop`, `loop` and `progression`,
+[OSC controls](#ensemble-controls)) or with the step controls; the defaults stay `boom`,
+`keys` and `minor-two`.
+
+| Set | Bass loop | Melody loop | Progression | Written for |
+| --- | --- | --- | --- | --- |
+| lo-fi | `haze-bass` | `haze-keys` | `haze` | about 76 BPM |
+| trap | `midnight-808` | `midnight-keys` | `midnight` | about 140 BPM |
+
+`midnight-808` is written for an 808 sound in its own octave: play it on the bass
+track without an octave shift (the bass plays in octave 1, and the roots of
+`midnight` stay between E1 and B1).
 
 ### When the drums stop
 

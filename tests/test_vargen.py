@@ -25,8 +25,8 @@ from mpc_iml.vargen import (
 
 A, B, C = (0, 0, 0, 0), (2, 0, 0, 0), (0, 1, -1, 0)
 
-BASS = ["boom", "knock", "lazy", "soul", "sub", "walk"]
-"""The built-in bass loops, by name (#232)."""
+BASS = ["boom", "haze-bass", "knock", "lazy", "midnight-808", "soul", "sub", "walk"]
+"""The built-in bass loops, by name (#232, #262)."""
 TINY = [
     {"bar": 0, "step": 0, "tone": 0, "length": 4},
     {"bar": 0, "step": 8, "tone": 2, "length": 2, "velocity": 0.7},

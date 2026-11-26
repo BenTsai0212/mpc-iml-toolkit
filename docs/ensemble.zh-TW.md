@@ -47,12 +47,15 @@ rule bass 有兩層，可以用控制項 `immediate` 與 `bar`（見 [ensemble �
   immediate 層；省略某個 kick 的地方，由上一小節的 kick 補上。
 
 和弦取自一個和弦進行：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）或 `minor-four`
-（Dm7、Gm7、Bbmaj7、A7，各一小節），或五個 hip-hop 和弦進行之一（#236）：
+（Dm7、Gm7、Bbmaj7、A7，各一小節），或五個 hip-hop 和弦進行（#236）與
+[lo-fi 與 trap 組合](#lo-fi-與-trap-組合)的兩個八小節和弦進行（#262）之一：
 
 | 和弦進行 | 和弦（小節數） |
 | --- | --- |
 | `dark-minor` | Cm7（2）、Dbmaj7（2）：陰暗的 i–♭II 循環 |
+| `haze` | Fmaj7、Em7、Dm7（各 2）、Gm7（1）、C7（1）：lo-fi 的下行，經 ii–V 回到開頭（lo-fi 組合） |
 | `lofi-descent` | Fmaj7、Em7、Dm7、Cmaj7（各 1）：lo-fi 的下行 |
+| `midnight` | Bm7、Gmaj7、Em7、F#7（各 2）：陰暗的小調循環，根音留在 808 的音域 E1 到 B1（trap 組合） |
 | `minor-turn` | Bm7b5（1）、E7（1）、Am7（2）：小調的 ii–V–i |
 | `soul-minor` | Am7（2）、Dm7（2）：soul 的 i–iv |
 | `two-five-one` | Dm7（1）、G7（1）、Cmaj7（2）：ii–V–I |
@@ -96,7 +99,7 @@ preset 從 loop 開始。
 
 有 `--clock` 且 Live 正在播放時，loop 模式的 bass 演奏以和弦音寫成的 loop（與旋律相同，見
 [下文](#旋律-loop)），所以會跟著和弦進行的每個和弦走。它的趨近音與經過音瞄準**下一個**小節的
-和弦：在下一個根音的半音或全音之下，帶進和弦的轉換。有六個 loop：
+和弦：在下一個根音的半音或全音之下，帶進和弦的轉換。有八個 loop：
 
 - `boom`（預設）：一小節、有休止的 boom-bap 線條：第 1 拍的根音與第 3 拍的五度、一個 ghost
   note、高八度的根音，以及進入下一小節的趨近音。
@@ -105,6 +108,10 @@ preset 從 loop 開始。
 - `lazy`：兩小節的 lo-fi 線條，稍微落在拍子後面（#232）。
 - `soul`：兩小節、有旋律的線條，上到八度再下來，以半音往上走進下一小節（#232）。
 - `sub`：兩小節的 half-time 線條，長的根音加上一個八度的跳音，像 808（#232）。
+- `haze-bass`：稀疏的四小節 lo-fi 線條，稍微落在拍子後面，有長的根音；`home` 在幾個小節中
+  只持續一個根音（lo-fi 組合，#262）。
+- `midnight-808`：四小節的 808 線條，長的根音加上八度的跳音；`home` 在第 1 到 3 小節每小節
+  只持續一個根音（trap 組合，#262）。
 
 每個 loop 有三個**變奏**，每個都是完整的 bass 線條（#158）：`home`（上面描述的 loop）、`push`
 （提前一個 16 分音符的音，回應往前推的 kick）與 `drive`（`boom` 是 8 分音符，`walk` 是四分音符的
@@ -133,7 +140,7 @@ fixed，直到再按一次 pad 15 回到 follow。
 
 有 `--clock` 且 Live 正在播放時，`ensemble` 在和弦進行上循環一段短旋律，以 MIDI 音符送到
 `mpc-iml` 的 **channel 3**（`src/mpc_iml/melody.py`）。音符以和弦音（根音、三度、五度、七度）
-寫成，所以 loop 會跟著每個和弦走，和弦從小調換成大調時也一樣。有六個 loop：
+寫成，所以 loop 會跟著每個和弦走，和弦從小調換成大調時也一樣。有八個 loop：
 
 - `keys`（預設）：稀疏的兩小節鍵盤 riff。
 - `pluck`：一小節的 8 分音符琶音。
@@ -141,10 +148,14 @@ fixed，直到再按一次 pad 15 回到 follow。
 - `flute`：兩小節的主奏動機，由三度、九度與根音組成（#232）。
 - `horns`：短促的 soul 銅管，一次兩個音（#232）。
 - `bells`：高音、稀疏的 lo-fi 鐘聲，稍微落在拍子後面（#232）。
+- `haze-keys`：四小節的 lo-fi 電鋼琴，分解進入的九和弦，上面一個短的回應（lo-fi 組合，#262）。
+- `midnight-keys`：四小節、一個 channel 上的兩種聲音：C5 以下持續的和弦，與其上以 3+3+2 節奏
+  演奏的鐘聲動機（trap 組合，#262）。
 
-hip-hop 的 loop（`knock` 到 `bells`）也會奏和弦音以外的音：九度（根音往上一個全音）與趨近音；
-下文的變奏描述的是 `keys` 與 `pluck`，其他 loop 的描述在它們的 loop 檔案中。`rhodes` 與 `horns`
-有幾個音同時開始，它們全部都會發聲；surprise `passing` 會移動最後一個 step 上和弦的每一個音。
+hip-hop 的 loop（`knock` 到 `bells`）與組合的 loop 也會奏和弦音以外的音：九度（根音往上一個
+全音）與趨近音；下文的變奏描述的是 `keys` 與 `pluck`，其他 loop 的描述在它們的 loop 檔案中。
+`rhodes`、`horns`、`haze-keys` 與 `midnight-keys` 有幾個音同時開始，它們全部都會發聲；surprise
+`passing` 會移動最後一個 step 上和弦的每一個音。
 
 旋律從第 4 八度開始（A4 是 MIDI 音符 69）。與 bass 相同，每個 loop 有三個變奏，每個都是完整的
 線條，上面再加裝飾音（#158）：`home`（上面描述的 loop）、`open`（較長的音：`keys` 在第一小節
@@ -195,6 +206,20 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 
 接著啟動 Live 並打 `hat` pad：濾波器在下一個小節線改變。Live 播放時，`learn-cc` 得到
 `/mpciml/error bad_arguments`。
+
+### lo-fi 與 trap 組合
+
+兩個組合各是一個 bass loop、一個旋律 loop 與一個八小節的和弦進行，彼此是一起寫成的（#262）。
+以名稱（`bass-loop`、`loop` 與 `progression`，見 [ensemble 的控制項](#ensemble-的控制項)）或以
+step 控制項選擇這三者；預設仍是 `boom`、`keys` 與 `minor-two`。
+
+| 組合 | bass loop | 旋律 loop | 和弦進行 | 寫給的速度 |
+| --- | --- | --- | --- | --- |
+| lo-fi | `haze-bass` | `haze-keys` | `haze` | 約 76 BPM |
+| trap | `midnight-808` | `midnight-keys` | `midnight` | 約 140 BPM |
+
+`midnight-808` 是寫給在自己八度上的 808 聲音：在 bass 的音軌上不做八度移調（bass 在第 1 八度
+演奏，`midnight` 的根音留在 E1 到 B1 之間）。
 
 ### 鼓停下時
 

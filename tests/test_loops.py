@@ -115,10 +115,10 @@ def played(loop: Loop, progression: str, part: str, level: int) -> list[list[Any
 
 
 BUILT_IN = (
-    ["boom", "knock", "lazy", "soul", "sub", "walk"],
-    ["bells", "flute", "horns", "keys", "pluck", "rhodes"],
+    ["boom", "haze-bass", "knock", "lazy", "midnight-808", "soul", "sub", "walk"],
+    ["bells", "flute", "haze-keys", "horns", "keys", "midnight-keys", "pluck", "rhodes"],
 )
-"""The built-in bass and melody loops, by name (#173, #232)."""
+"""The built-in bass and melody loops, by name (#173, #232, #262)."""
 
 
 def test_the_built_in_loop_files_play_the_notes_of_158() -> None:
