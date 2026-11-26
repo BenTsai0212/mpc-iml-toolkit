@@ -1,8 +1,10 @@
-"""A small WAV reader: the standard library and `numpy`, no audio library (#268).
+"""A small WAV reader and writer: the standard library and `numpy`, no audio library
+(#268, #270).
 
 Reads PCM of 16, 24 and 32 bits and 32-bit float (format tags 1 and 3, also when
 written as `WAVE_FORMAT_EXTENSIBLE`), mono or stereo. Chunks it does not know, such as
-`fact`, `PEAK`, `LIST` or `bext`, are skipped wherever they are.
+`fact`, `PEAK`, `LIST` or `bext`, are skipped wherever they are. Writes 24-bit PCM,
+mono or stereo.
 """
 
 import struct
@@ -91,3 +93,29 @@ def read(path: Path) -> tuple[Samples, int]:
     if rate <= 0:
         raise WavError(f"{path.name} has no sample rate")
     return _decode(data, tag, channels, bits), rate
+
+
+def write(path: Path, samples: Samples, rate: int) -> None:
+    """Write `samples` (frames, channels) as a 24-bit PCM WAV file, mono or stereo.
+
+    Each sample is rounded to the nearest 24-bit step and clipped to the range."""
+    if samples.ndim != 2 or samples.shape[1] not in (1, 2):
+        raise WavError("only mono or stereo samples as (frames, channels) can be written")
+    channels = samples.shape[1]
+    scale = float(1 << 23)
+    numbers = np.clip(np.round(samples.astype(np.float64) * scale), -scale, scale - 1)
+    data = numbers.astype("<i4").reshape(-1, 1).view(np.uint8)[:, :3].tobytes()
+    block = channels * 3
+    fmt = struct.pack("<HHIIHH", PCM, channels, rate, rate * block, block, 24)
+    pad = b"\0" * (len(data) % 2)
+    body = (
+        b"WAVE"
+        + b"fmt "
+        + struct.pack("<I", len(fmt))
+        + fmt
+        + b"data"
+        + struct.pack("<I", len(data))
+        + data
+        + pad
+    )
+    path.write_bytes(b"RIFF" + struct.pack("<I", len(body)) + body)
