@@ -5,6 +5,11 @@ pitch, the silence before the note is cut, the levels are evened out, and one re
 written for each note with its measured pitch. Key ranges split halfway between
 neighbouring notes. Any SFZ player can load the result.
 
+An instrument can play only some of the notes the band sends (#274): the notes of a
+range of keys, the notes hit at least so hard, and it can sound some octaves above the
+notes it is sent (`soundset.Plays`). The SFZ file does that with basic opcodes only, so
+it plays its share of the part without key or velocity filters in front of it.
+
 `python -m mpc_iml.sounds.instrument <name> <file>... --out <folder>` writes
 `<folder>/<name>.sfz` and the notes it uses in `<folder>/samples/`, and records the
 instrument in `<folder>/sound-set.json` (#272, `mpc_iml.sounds.soundset`).
@@ -20,7 +25,7 @@ import numpy as np
 
 from mpc_iml.sounds import soundset, wav
 from mpc_iml.sounds.notes import Measurement, measure, note_name, note_number
-from mpc_iml.sounds.soundset import Origin
+from mpc_iml.sounds.soundset import Origin, Plays
 from mpc_iml.sounds.wav import Samples
 
 CLEAN = 0.985
@@ -81,6 +86,8 @@ class Instrument:
     """The stretches of keys in the span that no kept note reaches."""
     notes: tuple[Note, ...]
     """What was measured in each file that could be measured."""
+    plays: Plays = Plays()
+    """Which notes of the band it plays."""
 
 
 def choose(
@@ -153,12 +160,36 @@ def trim(samples: Samples, rate: int, start: int) -> Samples:
     return cut
 
 
-def sfz_text(name: str, regions: Sequence[Region], release: float) -> str:
-    """The SFZ file for `regions`."""
+def describe(plays: Plays) -> str:
+    """What an instrument plays, in words; empty with the defaults."""
+    said = []
+    if plays.part is not None:
+        said.append(f"the {plays.part} part")
+    if plays.keys != (0, 127):
+        low, high = plays.keys
+        said.append(f"keys {note_name(low)} to {note_name(high)} ({low}-{high})")
+    if plays.min_velocity > 1:
+        said.append(f"notes hit at velocity {plays.min_velocity} or more")
+    if plays.octave:
+        count = abs(plays.octave)
+        way = "above" if plays.octave > 0 else "below"
+        said.append(f"{count} octave{'s' if count > 1 else ''} {way} the notes it is sent")
+    return ", ".join(said)
+
+
+def sfz_text(
+    name: str, regions: Sequence[Region], release: float, plays: Plays | None = None
+) -> str:
+    """The SFZ file for `regions`. With `plays.min_velocity` above 1 the `<global>` line
+    holds `lovel`; the keys and the octave are already in `regions`."""
+    plays = plays or Plays()
+    lovel = f" lovel={plays.min_velocity}" if plays.min_velocity > 1 else ""
+    said = describe(plays)
     lines = [
         f"// {name}: one region for each recorded note.",
         "// pitch_keycenter and tune come from the measured pitch of each note.",
-        f"<global> ampeg_attack=0.002 ampeg_release={release:.2f} amp_veltrack=85",
+        *([f"// plays {said}."] if said else []),
+        f"<global> ampeg_attack=0.002 ampeg_release={release:.2f} amp_veltrack=85{lovel}",
         "",
     ]
     lines += [
@@ -179,17 +210,28 @@ def build(
     clean: float = CLEAN,
     span: tuple[int, int] | None = None,
     origins: Mapping[Path, Origin] | None = None,
+    part: Literal["bass", "melody"] | None = None,
+    keys: tuple[int, int] = (0, 127),
+    min_velocity: int = 1,
+    octave: int = 0,
 ) -> Instrument:
     """Write the instrument `name` from the recordings in `files` into the folder `out`,
     and record it in `out/sound-set.json`.
 
-    `span` is the lowest and highest key the part plays; the result lists the keys in it
-    that no kept note reaches. `origins` gives where a recording came from, by its path
-    in `files`. The entry of an instrument built before under `name` is replaced, and
-    the samples it listed that the new one does not use are removed. Raises `ValueError`
-    when `name` is not a name or no recording can be used, and `SoundSetError` when the
-    folder's `sound-set.json` cannot be accepted; nothing is written then."""
+    `part`, `keys`, `min_velocity` and `octave` say which notes of the band it plays
+    (`soundset.Plays`). Each kept note's centre is moved down by `octave` octaves, the
+    key ranges are split between the moved centres and then cut to `keys`; a note whose
+    range falls outside `keys` is left out with the reason. `span` is the lowest and
+    highest key the part plays, in notes the band sends; the result lists the keys in
+    both `span` and `keys` that no note with a region reaches. `origins` gives where a
+    recording came from, by its path in `files`. The entry of an instrument built before
+    under `name` is replaced, and the samples it listed that the new one does not use
+    are removed. Raises `ValueError` when `name` is not a name, a value of what it plays
+    is out of range, `octave` moves a kept note off the keyboard or no recording can be
+    used, and `SoundSetError` when the folder's `sound-set.json` cannot be accepted;
+    nothing is written then."""
     soundset.check_name(name)
+    plays = Plays(part, keys, min_velocity, octave).check()
     document = soundset.read_document(out)
     notes: list[Note] = []
     unreadable: list[tuple[Path, str]] = []
@@ -203,20 +245,46 @@ def build(
     kept, dropped = choose(notes, prefer, clean)
     if not kept:
         raise ValueError(f"{name}: none of the {len(files)} recordings can be used")
+    shift = 12 * octave
+    for note in kept:
+        if not 0 <= note.measured.note - shift <= 127:
+            raise ValueError(
+                f"{name}: octave {octave:+d} moves {note.measured.name} "
+                f"({note.measured.note}) to {note.measured.note - shift}, off the keyboard"
+            )
+    lowest, highest = keys
+    ranges: list[tuple[int, int]] = []
+    playing: list[Note] = []
+    cut: list[tuple[Note, str]] = []
+    for note, (low, high) in zip(
+        kept, key_ranges([n.measured.note - shift for n in kept]), strict=True
+    ):
+        if high < lowest or low > highest:
+            cut.append(
+                (
+                    note,
+                    f"it would play keys {low} to {high}, outside the keys the "
+                    f"instrument plays, {note_name(lowest)} to {note_name(highest)} "
+                    f"({lowest}-{highest})",
+                )
+            )
+            continue
+        playing.append(note)
+        ranges.append((max(low, lowest), min(high, highest)))
+    dropped += cut
+    kept = playing  # never empty: the ranges together cover every key
 
     trimmed = [trim(audio[n.path][0], audio[n.path][1], n.measured.start) for n in kept]
     rates = [audio[n.path][1] for n in kept]
     levels = [_body_level(x, rate) for x, rate in zip(trimmed, rates, strict=True)]
     target = float(np.median(levels))
-    centres = [n.measured.note for n in kept]
+    centres = [n.measured.note - shift for n in kept]
     samples_dir = out / "samples"
     samples_dir.mkdir(parents=True, exist_ok=True)
     most = 10 ** (MAX_GAIN_DB / 20)
     ceiling = 10 ** (CEILING_DB / 20)
     regions = []
-    for note, x, rate, level, (low, high) in zip(
-        kept, trimmed, rates, levels, key_ranges(centres), strict=True
-    ):
+    for note, x, rate, level, (low, high) in zip(kept, trimmed, rates, levels, ranges, strict=True):
         gain = float(np.clip(target / max(level, 1e-9), 1 / most, most))
         x = x * np.float32(gain)
         peak = float(np.abs(x).max())
@@ -229,21 +297,23 @@ def build(
                 sample=f"samples/{file_name}",
                 low=low,
                 high=high,
-                centre=note.measured.note,
+                centre=note.measured.note - shift,
                 tune=-round(note.measured.cents),
                 source=note.path,
                 gain_db=20 * float(np.log10(gain)),
             )
         )
     path = out / f"{name}.sfz"
-    path.write_text(sfz_text(name, regions, release), encoding="utf-8")
+    path.write_text(sfz_text(name, regions, release, plays), encoding="utf-8")
+    reach = (max(span[0], lowest), min(span[1], highest)) if span else None
     instrument = Instrument(
         name=name,
         path=path,
         regions=tuple(regions),
         dropped=tuple([(n.path, why) for n, why in dropped] + unreadable),
-        uncovered=tuple(uncovered(centres, *span) if span else []),
+        uncovered=tuple(uncovered(centres, *reach) if reach and reach[0] <= reach[1] else []),
         notes=tuple(notes),
+        plays=plays,
     )
     settings = {"prefer": prefer, "release": release, "clean": clean}
     _record(out, document, instrument, files, settings, span, origins or {})
@@ -288,6 +358,7 @@ def set_entry(
     return {
         "sfz": instrument.path.name,
         "settings": dict(settings),
+        "plays": instrument.plays.to_json(),
         "span": list(span) if span else None,
         "uncovered": [list(gap) for gap in instrument.uncovered],
         "files": entries,
@@ -326,8 +397,11 @@ def _record(
 
 
 def report(instrument: Instrument) -> str:
-    """What `build` did, one line for each region, file left out and stretch of keys."""
-    lines = [
+    """What `build` did: what it plays when that is not every note, then one line for
+    each region, file left out and stretch of keys."""
+    said = describe(instrument.plays)
+    lines = [f"{instrument.name}: plays {said}"] if said else []
+    lines += [
         f"{instrument.name}: {r.sample:<24} keys {r.low:>3}-{r.high:<3} centre {r.centre:>3} "
         f"({note_name(r.centre)})  tune {r.tune:+d}  level {r.gain_db:+.1f} dB  "
         f"from {r.source.name}"
@@ -359,16 +433,48 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--release", type=float, default=0.25, help="release time in seconds")
     parser.add_argument("--low", help="the lowest note the part plays, for example E1")
     parser.add_argument("--high", help="the highest note the part plays, for example G3")
+    parser.add_argument(
+        "--part", choices=["bass", "melody"], help="the part of the band the instrument plays"
+    )
+    parser.add_argument(
+        "--keys",
+        nargs=2,
+        metavar=("LOW", "HIGH"),
+        help="play only the notes from LOW to HIGH, for example C5 G9 (default: all keys)",
+    )
+    parser.add_argument(
+        "--min-velocity",
+        type=int,
+        default=1,
+        help="play only the notes hit at least this hard, 1 to 127 (default 1)",
+    )
+    parser.add_argument(
+        "--octave",
+        type=int,
+        default=0,
+        help="sound this many octaves above the notes sent, -4 to 4 (default 0)",
+    )
     args = parser.parse_args(argv)
     if (args.low is None) != (args.high is None):
         parser.error("give both --low and --high, or neither")
     try:
         span = (note_number(args.low), note_number(args.high)) if args.low else None
+        keys = (note_number(args.keys[0]), note_number(args.keys[1])) if args.keys else (0, 127)
+        Plays(args.part, keys, args.min_velocity, args.octave).check()
     except ValueError as error:
         parser.error(str(error))
     try:
         instrument = build(
-            args.name, args.files, args.out, prefer=args.prefer, release=args.release, span=span
+            args.name,
+            args.files,
+            args.out,
+            prefer=args.prefer,
+            release=args.release,
+            span=span,
+            part=args.part,
+            keys=keys,
+            min_velocity=args.min_velocity,
+            octave=args.octave,
         )
     except ValueError as error:
         print(error)

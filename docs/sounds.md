@@ -104,6 +104,54 @@ The rules:
 
 When no recording can be used, the command prints the reason and ends with status 1.
 
+### What an instrument plays
+
+An instrument can play only its share of the band's notes (#274). Four options say
+which, all in the notes the band sends, before any shift:
+
+- `--part bass|melody`: the part of the band it plays. It is recorded in
+  `sound-set.json` only; the SFZ file does not filter MIDI channels.
+- `--keys <low> <high>`: the lowest and the highest note it plays, as note names
+  (for example `--keys C5 G9`). Default: all keys.
+- `--min-velocity <1-127>`: it plays only notes hit at least this hard. Default 1.
+- `--octave <-4..4>`: it sounds this many octaves above the notes it is sent.
+  Default 0.
+
+The SFZ file does it with basic opcodes, so any SFZ player plays it:
+
+- Octave: each note's `pitch_keycenter` is moved down by 12 semitones for each
+  octave, and the keys are split halfway between the moved notes. With `--octave 1`,
+  a note sent at A1 plays the sample of A2 at its own pitch. An octave that moves a
+  note off the keyboard is refused before anything is written.
+- Keys: each region's keys are cut to `--keys`. A note whose keys fall outside them
+  gets no region and no sample, and is left out with the reason.
+- Velocity: with `--min-velocity` above 1, the `<global>` line holds `lovel`.
+- With the defaults, the SFZ file and the samples are what they were without these
+  options.
+
+`--low` and `--high` are in notes the band sends too, and only the keys inside both
+the span and `--keys` are checked for a note within 6 semitones. When the options
+are not the defaults, the first printed line says what the instrument plays:
+
+```text
+bell: plays the melody part, keys C5 to G9 (72-127)
+```
+
+For example, a melody part shared by three instruments, as in the sets played on
+2026-11-25: the keys for the notes under C5, a bell from C5 up, and a pad only for
+the notes hit hard:
+
+```bash
+uv run python -m mpc_iml.sounds.instrument keys keys-*.wav --out band-set --part melody --keys C-1 B4
+uv run python -m mpc_iml.sounds.instrument bell bell-*.wav --out band-set --part melody --keys C5 G9
+uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out band-set --part melody --min-velocity 86
+```
+
+A bass that should sound an octave above the notes it is sent takes `--part bass
+--octave 1`. Put each instrument on its own track that receives its part (the three
+melody instruments all receive the melody channel), with no key or velocity filter
+and no octave shift in front of it.
+
 ## Sound sets
 
 The last part of step 1 (#272, [ADR 0013](adr/0013-sound-set-folders.md)): a folder
@@ -118,8 +166,8 @@ that holds the instruments and drum hits made for one band is a **sound set**:
 ```
 
 `sound-set.json` records what the set holds. For each instrument: its SFZ file, the
-settings it was built with (`prefer`, `release`, `clean`), the span and the keys no
-note reaches, and for every source recording what was measured in it and its region,
+settings it was built with (`prefer`, `release`, `clean`), what it plays (`plays`:
+`part`, `keys`, `min_velocity`, `octave`), the span and the keys no note reaches, and for every source recording what was measured in it and its region,
 or why it was left out. For each hit: its sample, the recording it was cut from, its
 length and how much its level was moved. Source recordings are named by file name
 only and are not copied into the set, so the folder can be moved or shared.
