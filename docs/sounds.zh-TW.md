@@ -150,6 +150,28 @@ uv run python -m mpc_iml.sounds.soundset check band-set
 
 列出找到的每個問題（格式，以及檔案提到但資料夾裡沒有的 SFZ 檔、sample 與鼓聲），有問題時以狀態 1 結束。`sound-set.json` 無法接受時，建立樂器與鼓聲的指令在寫入任何檔案之前以狀態 1 結束。
 
+## 試聽
+
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 的第 2 步（#278）：不開 DAW 就聽到一個樂團配上一個 sound set 的聲音。
+
+```bash
+uv run python -m mpc_iml.sounds.audition lofi lofi-set --out lofi-audition
+```
+
+樂團是內建樂團（`python -m mpc_iml.bands list`）。它的試聽 pattern 像網頁 demo 一樣離線經過 `ensemble`，使用樂團的內容與速度；`--bars 8` 只演奏前 8 小節。指令把 24 bit WAV 寫到 `--out`：set 中演奏某個聲部的每個樂器一個 `<樂器>.wav`，以及 `drums.wav` 與 `band.wav`。每個檔案的長度是整首（各小節再加一小節，即樂團回應最後一小節的那一小節）加上最長的 release。每寫一個檔案印一行，並說明：樂團中哪些演奏者在 set 裡沒有同名的樂器、哪些樂器不演奏任何聲部（`part` 為 `null`）而被略過、每個聲部有幾個音沒有樂器演奏、哪些鼓沒有鼓聲。
+
+它做的事：
+
+- 哪個樂器演奏哪個音由 set 決定，不由樂團決定：音落在樂器某個 region 的鍵內、且力度不低於它的 `min_velocity`（即 SFZ 檔所寫）時，該樂器演奏它所屬聲部的這個音。樂團的 `bass` 音是 bass 聲部，`keys` 音是旋律聲部；一個音可以由好幾個樂器演奏。
+- 一個音播放其 region 的 sample，以線性內插重新取樣，移動「音減 `pitch_keycenter`」個半音加 `tune` cents。2 ms 的起音，播到音結束後在樂器的 release 內淡出；sample 較早結束時就結束（不循環）。同一樂器中同音高的新音會結束前一個。
+- 音量在力度 127 時為全音量，0 時低 16 dB，以 dB 成直線。樂團的 `kick`、`snare` 與 `hat` 以同樣的規則播放 set 中同名的鼓聲，落在格點上；沒有鼓聲的鼓不發聲。
+- 不做混音：每個樂器與鼓直接相加，一個共同的 gain 讓 `band.wav` 的峰值比 full scale 低 1 dB。各個檔案使用同一個 gain，所以相加就是 `band.wav`。檔案是 stereo；mono 的 sample 在兩個聲道播放。
+- set 的所有 sample 必須是同一個取樣率，也就是輸出檔的取樣率；有兩種取樣率的 set 會被拒絕。
+
+它接近 SFZ player 在樂團的 track 上播放的聲音，但不相同。力度規則是 2026-11-25 聽過的 render 所用的規則；SFZ player 在 `amp_veltrack=85` 時的規則接近但不相同。沒有效果器、沒有亮度控制（CC 74）、沒有各演奏者的音量與聲像，鼓都在格點上，沒有 swing。它寫出的檔案不放進 repository。
+
+指令背後的函式接受音符與載入的 set 並回傳陣列，所以網頁 demo 可以不寫檔就呼叫：`play(band, bars)` 執行試聽，`played(song)` 以秒給出音符，`audition(song, set)` 演奏全部，`render_notes(instrument, notes, rate, frames)` 以一個樂器演奏一串音符。
+
 ## 已知的缺口
 
 在低音（約 E2 以下）旁，分析窗的旁瓣可能被算成一個不在泛音上的弱峰，約比最強峰低 30 dB。這讓乾淨的低音的 `clean` 最多少半個百分點，`other` 會指出這個旁瓣。方法保持不變，讓結果能與已演奏過的 sound set 比較。
