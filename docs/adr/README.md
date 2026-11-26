@@ -53,3 +53,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | [0012](0012-groove-group-files.md) | Groove group files | Proposed |
 | [0013](0013-sound-set-folders.md) | Sound set folders | Proposed |
 | [0014](0014-band-files.md) | Band files | Proposed |
+| [0015](0015-generator-files.md) | Generator files | Proposed |

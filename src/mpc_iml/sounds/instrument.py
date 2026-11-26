@@ -229,11 +229,12 @@ def build(
     under `name` is replaced, and the samples it listed that the new one does not use
     are removed. Raises `ValueError` when `name` is not a name, a value of what it plays
     is out of range, `octave` moves a kept note off the keyboard or no recording can be
-    used, and `SoundSetError` when the folder's `sound-set.json` cannot be accepted;
-    nothing is written then."""
+    used, and `SoundSetError` when the folder's `sound-set.json` or one of `origins`
+    cannot be accepted; nothing is written then."""
     soundset.check_name(name)
     plays = Plays(part, keys, min_velocity, octave).check()
     document = soundset.read_document(out)
+    soundset.check_origins(list((origins or {}).values()))
     notes: list[Note] = []
     unreadable: list[tuple[Path, str]] = []
     audio: dict[Path, tuple[Samples, int]] = {}

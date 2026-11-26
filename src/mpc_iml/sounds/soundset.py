@@ -6,12 +6,15 @@ A sound set is a folder with the instruments and drum hits made for one band:
     <folder>/<instrument>.sfz
     <folder>/samples/<instrument>-<note>.wav
     <folder>/hits/<hit>.wav
+    <folder>/takes/<take>.wav
 
 `sound-set.json` records each instrument (its SFZ file, the settings it was built
 with, which notes of the band it plays (#274), and for every source recording what
 was measured in it and its region or why it was left out) and each hit. Source
 recordings are named by file name only and are not copied into the set; the files the
-set holds are named by a path relative to the folder.
+set holds are named by a path relative to the folder. A take a model generated for the
+set (#284, `mpc_iml.sounds.generate`) is kept in `takes/`: the `file` of an entry whose
+origin is `generated` names a file there, which may have been deleted to save space.
 
 `python -m mpc_iml.sounds.soundset check <folder>` reports every problem and ends with
 status 1 when there is one.
@@ -32,6 +35,8 @@ from mpc_iml.plays import Plays, key_pair_problems
 from mpc_iml.plays import problems as plays_problems
 
 FILE = "sound-set.json"
+TAKES = "takes"
+"""The folder of generated takes (#284)."""
 FORMAT = "mpc-iml-sound-set"
 VERSION = 1
 
@@ -387,6 +392,52 @@ def validate(data: object, folder: Path | None = None) -> list[str]:
     return checker.problems
 
 
+def origin_problems(origin: Origin, where: str = "origin") -> list[str]:
+    """Every problem the format finds in `origin`, as it would be written."""
+    try:
+        data = origin.to_json()
+    except ValueError as error:
+        return [f"{where}: {error}"]
+    checker = _Checker(None)
+    checker.origin(data, where)
+    if not checker.problems:
+        try:
+            json.dumps(data, allow_nan=False)
+        except (TypeError, ValueError) as error:
+            checker.say(where, f"cannot be written as JSON: {error}")
+    return checker.problems
+
+
+def check_origins(origins: Sequence[Origin]) -> None:
+    """Raise `SoundSetError` naming every problem of `origins`, before anything is written."""
+    found = [problem for origin in origins for problem in origin_problems(origin)]
+    if found:
+        raise SoundSetError("an origin cannot be accepted: " + "; ".join(found))
+
+
+def generated_takes(entry: Mapping[str, Any]) -> set[str]:
+    """The takes an instrument or hit entry names: `takes/<file>` of each part whose
+    origin is `generated`."""
+    parts = entry.get("files", [entry]) if isinstance(entry, Mapping) else []
+    found = set()
+    for part in parts if isinstance(parts, list) else []:
+        origin = part.get("origin") if isinstance(part, Mapping) else None
+        if isinstance(origin, Mapping) and origin.get("kind") == "generated":
+            if isinstance(part.get("file"), str):
+                found.add(f"{TAKES}/{part['file']}")
+    return found
+
+
+def all_takes(document: Mapping[str, Any]) -> set[str]:
+    """The takes every instrument and hit of `document` names."""
+    found: set[str] = set()
+    for group in ("instruments", "hits"):
+        entries = document.get(group, {})
+        for entry in entries.values() if isinstance(entries, Mapping) else []:
+            found |= generated_takes(entry)
+    return found
+
+
 def _parse(folder: Path) -> tuple[object, list[str]]:
     path = folder / FILE
     try:
@@ -503,9 +554,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     loaded = load(args.folder)
     regions = sum(len(i.regions) for i in loaded.instruments.values())
+    data, _ = _parse(args.folder)
+    assert isinstance(data, dict)
+    takes = all_takes(data)
+    missing = sum(1 for take in takes if not (args.folder / take).is_file())
+    said = f", {len(takes)} generated take(s), {missing} missing from {TAKES}/" if takes else ""
     print(
         f"{args.folder}: ok, {len(loaded.instruments)} instrument(s) with {regions} "
-        f"region(s), {len(loaded.hits)} hit(s)"
+        f"region(s), {len(loaded.hits)} hit(s){said}"
     )
     return 0
 
