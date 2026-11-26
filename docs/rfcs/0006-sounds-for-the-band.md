@@ -124,5 +124,5 @@ This RFC stays within the phase of RFC 0005 (Epic #113).
 - How to loop sustained sounds (pads, keys held over a bar or more).
 - How to check that the notes of one instrument sound alike (level, brightness,
   attack), beyond pitch and harmonics.
-- Whether drum hits are an SFZ file as well, and how they map to pads.
+- Drum hits are WAV files, not an SFZ file ([ADR 0013](../adr/0013-sound-set-folders.md)); how they map to pads is still open.
 - Which other models, and how to add them without changing the rules above.

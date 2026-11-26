@@ -2,7 +2,7 @@
 
 [English](sounds.md) | 繁體中文
 
-[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 1 步的前半（#268）：一個單音的錄音在放進 sound set 之前，先確認它實際上是什麼。產生單音的模型不一定奏出要求的音高：在最初以這種方式產生的音中，音名都對，但有幾個音的八度錯了，另有兩個音不乾淨。第 1 步的後半（#270）以量測過的音建立樂器，見[建立樂器](#建立樂器)。
+[RFC 0006](rfcs/0006-sounds-for-the-band.md) 第 1 步的前半（#268）：一個單音的錄音在放進 sound set 之前，先確認它實際上是什麼。產生單音的模型不一定奏出要求的音高：在最初以這種方式產生的音中，音名都對，但有幾個音的八度錯了，另有兩個音不乾淨。第 1 步的後半（#270）以量測過的音建立樂器，見[建立樂器](#建立樂器)；最後一部分（#272）把樂器與鼓聲整理成 [sound set](#sound-set)。
 
 ## 執行
 
@@ -64,6 +64,46 @@ bass: no note within 6 semitones of D3 to G3
 - 加 `--low` 與 `--high`（這個聲部演奏的最低與最高音；兩個都給或都不給）時，列出這個範圍內離每個留下的音都超過 6 個半音的鍵。
 
 沒有任何錄音能用時，指令印出原因並以狀態 1 結束。
+
+## Sound set
+
+第 1 步的最後一部分（#272，[ADR 0013](adr/0013-sound-set-folders.md)）：放著為一個樂團做的樂器與鼓聲的資料夾就是一個 **sound set**：
+
+```text
+<資料夾>/
+  sound-set.json
+  <樂器>.sfz
+  samples/<樂器>-<音名>.wav
+  hits/<鼓聲>.wav
+```
+
+`sound-set.json` 記錄這個 set 有什麼。每個樂器：SFZ 檔、建立時的設定（`prefer`、`release`、`clean`）、音域與沒有音到得了的鍵，以及每個來源錄音量到了什麼、用在哪個 region 或為什麼被排除。每個鼓聲：sample、從哪個錄音切出來、長度與音量調了多少。來源錄音只記檔名，不複製進 set，所以資料夾可以搬移或分享。
+
+把樂器建到資料夾時，會把它加進 `sound-set.json`（同名的樂器則取代其項目），其他樂器與鼓聲保持不變。再建一次時刪除不再使用的 sample，其他檔案不刪。名稱只用小寫字母、數字與連字號。
+
+### 鼓聲
+
+每個鼓聲是一個 WAV 檔，從一個錄音切出：
+
+```bash
+uv run python -m mpc_iml.sounds.hits kick kick-take-2.wav --out band-set --seconds 0.6
+```
+
+寫出 `band-set/hits/kick.wav`、記錄這個鼓聲並印一行：
+
+```text
+kick: hits/kick.wav  0.60 s  level -2.1 dB  from kick-take-2.wav
+```
+
+鼓聲從聲音開始前 32 個 frame 起（第一個距峰值 40 dB 內的樣本），長度是 `--seconds`（預設 0.5 s），結尾 30 ms 淡出，峰值比 full scale 低 3 dB；寫成 24 bit WAV，取樣率與聲道數與原錄音相同。靜音的錄音會被拒絕。set 不把鼓聲對應到 pad：請放到你自己的 pad 上。
+
+### 檢查 set
+
+```bash
+uv run python -m mpc_iml.sounds.soundset check band-set
+```
+
+列出找到的每個問題（格式，以及檔案提到但資料夾裡沒有的 SFZ 檔、sample 與鼓聲），有問題時以狀態 1 結束。`sound-set.json` 無法接受時，建立樂器與鼓聲的指令在寫入任何檔案之前以狀態 1 結束。
 
 ## 已知的缺口
 

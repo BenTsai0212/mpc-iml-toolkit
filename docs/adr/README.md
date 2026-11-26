@@ -51,3 +51,4 @@ ADR（Architecture Decision Record）記錄「決定了什麼、為什麼、放�
 | [0010](0010-loop-files-for-ensemble.md) | Loop files for `ensemble` | Accepted |
 | [0011](0011-progression-files-for-ensemble.md) | Progression files for `ensemble` | Proposed |
 | [0012](0012-groove-group-files.md) | Groove group files | Proposed |
+| [0013](0013-sound-set-folders.md) | Sound set folders | Proposed |
