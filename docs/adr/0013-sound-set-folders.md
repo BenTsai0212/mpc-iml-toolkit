@@ -2,7 +2,15 @@
 
 - Status: Proposed
 - Date: 2026-11-26
-- Related: RFC 0006, ADR 0010, #268, #270, #272
+- Related: RFC 0006, ADR 0010, #268, #270, #272, #274
+- Amended: 2026-11-26 (#274)
+
+> **Amendment (2026-11-26, #274).** Each instrument records which notes of the band
+> it plays (`plays`: its part, its keys, the softest note it plays and its octave),
+> and its SFZ file plays only those notes. Format 1 is amended in place, without a new
+> format version: this ADR is still Proposed and no set has been made with it outside
+> tests. A `sound-set.json` whose instruments have no `plays` is refused. See option 5
+> and "What an instrument plays".
 
 ## Context
 
@@ -41,6 +49,17 @@ drum hits as WAV files that the musician put on their own pads.
   0006) sets it without a new format.
 - Add it in a later format version: every set made before would need converting.
 
+### 5. Who plays which notes (#274)
+- **The instrument (chosen; the decision maker chose this on 2026-11-26)**: each
+  instrument records its part, its keys, the softest note it plays and its octave,
+  and its SFZ file plays only those notes. The musician puts each instrument on its
+  own track that receives its part, with no key or velocity filter, and the audition
+  and the web demo read the same facts from `sound-set.json`.
+- Devices in the DAW and flags of the audition, as in the sets played on
+  2026-11-25 (the keys under C5 and a bell from C5 up, a pad only for notes hit hard,
+  one bass an octave above the notes it was sent): nothing in the set says how it was
+  meant to be played, and the audition would need the same settings again.
+
 ## Decision
 
 ### Layout
@@ -63,6 +82,7 @@ drum hits as WAV files that the musician put on their own pads.
     "bass": {
       "sfz": "bass.sfz",
       "settings": {"prefer": "clean", "release": 0.12, "clean": 0.985},
+      "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 0},
       "span": [28, 55],
       "uncovered": [[50, 55]],
       "files": [
@@ -93,8 +113,9 @@ drum hits as WAV files that the musician put on their own pads.
   and `hits` are objects keyed by name; either may be empty. A name is lower case
   letters, digits and hyphens, as `name` in ADR 0010.
 - An instrument has `sfz`, `settings` (`prefer`, `release`, `clean`: what `build`
-  was given), `span` (the lowest and the highest key the part plays, or `null`),
-  `uncovered` (the stretches `build` returns) and `files`.
+  was given), `plays` (see below), `span` (the lowest and the highest key the part
+  plays, in notes the band sends, or `null`), `uncovered` (the stretches `build`
+  returns) and `files`.
 - Each entry of `files` has `file` and exactly one of `region` and `left_out`.
   `measured` holds the fields of `notes.Measurement` and is absent only when the
   file could not be measured.
@@ -105,8 +126,34 @@ drum hits as WAV files that the musician put on their own pads.
 - Each entry of `files` and each hit may have an `origin`: `{"kind": "recorded"}`, or
   `{"kind": "generated", "model": …, "prompt": …, "seed": …, "settings": {…}}` with
   `model`, `prompt` and `seed` required and `settings` an optional free object.
+- A region's `low`, `high` and `centre` are the values written in the SFZ file.
 - Other fields are errors, at every level except inside `settings` of an `origin`.
   A new field means a new format version.
+
+### What an instrument plays (#274)
+
+`plays` holds four values, all about the notes the band sends, before any shift:
+
+- `part`: `"bass"`, `"melody"` or `null` (not said). It is recorded here only; the
+  SFZ file does not filter MIDI channels.
+- `keys`: `[low, high]`, the lowest and the highest note it plays, 0 to 127. Default
+  `[0, 127]`.
+- `min_velocity`: it plays only notes hit at least this hard, 1 to 127. Default 1.
+- `octave`: it sounds this many octaves above the notes it is sent, -4 to 4. Default 0.
+
+The SFZ file uses only basic opcodes. Each kept note's `pitch_keycenter` is moved
+down by 12 times `octave`, the key ranges are split between the moved centres (the
+lowest and the highest still reach to the ends of the keyboard), and each region's
+`lokey` and `hikey` are then cut to `keys`. A note whose range falls outside `keys`
+gets no region and no sample, and is left out with a reason. An `octave` that moves
+a kept note off the keyboard is refused before anything is written. With
+`min_velocity` above 1 the `<global>` line holds `lovel`. With the defaults the SFZ
+file and the samples are what they were before this amendment.
+
+A reader that plays the regions as written, and skips notes under `min_velocity`,
+plays what an SFZ player plays. `uncovered` lists the keys in both `span` and `keys`
+that are more than 6 semitones from every note with a region, counted in notes the
+band sends.
 
 ### Writing and reading
 
@@ -123,5 +170,7 @@ drum hits as WAV files that the musician put on their own pads.
 
 - The later steps of RFC 0006 read one file for a whole set, and the reasons a
   recording was left out are kept with the set.
+- The musician puts each instrument on its own track that receives its part; no key
+  or velocity filter and no octave shift go in front of it.
 - Hits have no pad mapping; how hits map to pads stays an open question of RFC 0006.
 - A set does not hold its source recordings: building an instrument again needs them.

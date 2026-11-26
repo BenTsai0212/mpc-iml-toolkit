@@ -65,6 +65,38 @@ bass: no note within 6 semitones of D3 to G3
 
 沒有任何錄音能用時，指令印出原因並以狀態 1 結束。
 
+### 樂器演奏哪些音
+
+樂器可以只演奏樂團的音中屬於它的部分（#274）。以四個選項指定，都以樂團送出的音（任何移調之前）計：
+
+- `--part bass|melody`：它演奏樂團的哪個聲部。只記在 `sound-set.json`，SFZ 檔不過濾 MIDI channel。
+- `--keys <低> <高>`：它演奏的最低與最高音，以音名表示（例如 `--keys C5 G9`）。預設：所有鍵。
+- `--min-velocity <1-127>`：只演奏力度至少這麼大的音。預設 1。
+- `--octave <-4..4>`：比收到的音高這麼多個八度發聲。預設 0。
+
+SFZ 檔只用基本的 opcode 做到這些，任何 SFZ 播放器都能播放：
+
+- 八度：每個音的 `pitch_keycenter` 每個八度往下移 12 個半音，鍵在移動後的音之間的中點分界。加 `--octave 1` 時，送到 A1 的音以 A2 的 sample 原音高播放。會把音移出鍵盤的八度在寫入任何檔案之前拒絕。
+- 鍵：每個 region 的鍵截到 `--keys` 之內。負責的鍵完全在範圍外的音沒有 region 也沒有 sample，附原因排除。
+- 力度：`--min-velocity` 大於 1 時，`<global>` 行加上 `lovel`。
+- 使用預設值時，SFZ 檔與 sample 與不加這些選項時相同。
+
+`--low` 與 `--high` 也以樂團送出的音計，只檢查同時在音域與 `--keys` 內的鍵是否有 6 個半音內的音。選項不是預設值時，印出的第一行說明樂器演奏哪些音：
+
+```text
+bell: plays the melody part, keys C5 to G9 (72-127)
+```
+
+例如 2026-11-25 演奏的 set 中，三個樂器分擔一個旋律聲部：keys 負責 C5 以下的音、bell 負責 C5 以上、pad 只負責力度大的音：
+
+```bash
+uv run python -m mpc_iml.sounds.instrument keys keys-*.wav --out band-set --part melody --keys C-1 B4
+uv run python -m mpc_iml.sounds.instrument bell bell-*.wav --out band-set --part melody --keys C5 G9
+uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out band-set --part melody --min-velocity 86
+```
+
+要比收到的音高一個八度發聲的 bass 加 `--part bass --octave 1`。每個樂器放在自己的軌道上，接收它的聲部（三個旋律樂器都接收旋律的 channel），前面不加鍵、力度過濾，也不移八度。
+
 ## Sound set
 
 第 1 步的最後一部分（#272，[ADR 0013](adr/0013-sound-set-folders.md)）：放著為一個樂團做的樂器與鼓聲的資料夾就是一個 **sound set**：
@@ -77,7 +109,7 @@ bass: no note within 6 semitones of D3 to G3
   hits/<鼓聲>.wav
 ```
 
-`sound-set.json` 記錄這個 set 有什麼。每個樂器：SFZ 檔、建立時的設定（`prefer`、`release`、`clean`）、音域與沒有音到得了的鍵，以及每個來源錄音量到了什麼、用在哪個 region 或為什麼被排除。每個鼓聲：sample、從哪個錄音切出來、長度與音量調了多少。來源錄音只記檔名，不複製進 set，所以資料夾可以搬移或分享。
+`sound-set.json` 記錄這個 set 有什麼。每個樂器：SFZ 檔、建立時的設定（`prefer`、`release`、`clean`）、演奏哪些音（`plays`：`part`、`keys`、`min_velocity`、`octave`）、音域與沒有音到得了的鍵，以及每個來源錄音量到了什麼、用在哪個 region 或為什麼被排除。每個鼓聲：sample、從哪個錄音切出來、長度與音量調了多少。來源錄音只記檔名，不複製進 set，所以資料夾可以搬移或分享。
 
 把樂器建到資料夾時，會把它加進 `sound-set.json`（同名的樂器則取代其項目），其他樂器與鼓聲保持不變。再建一次時刪除不再使用的 sample，其他檔案不刪。名稱只用小寫字母、數字與連字號。
 
