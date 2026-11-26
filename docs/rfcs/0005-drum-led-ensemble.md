@@ -202,6 +202,7 @@ extras, as in RFC 0004.
 
 - No new front ends, protocol versions or interfaces unless one of the steps above
   needs them. The decision maker lifts this rule.
+- RFC 0006 lifts the first rule for two interfaces: a web demo tab and a command.
 - The repository contains only content the project owns or that has a clear
   licence. Samples and clips a musician imports stay on their machine and are
   never committed or uploaded.
