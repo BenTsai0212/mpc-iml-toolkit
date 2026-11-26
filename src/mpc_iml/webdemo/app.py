@@ -25,6 +25,10 @@ named groups and saves them in the data folder; it is left out under `--share`.
 The `band` tab (`webdemo.bandtab`, #280) plays a built-in band with a sound set of the
 `--sounds` folder and sets the engine to the band; it is left out under `--share` too.
 
+Each tab shows only what it uses (#282): `visible` says, for a tab's name, whether the
+settings above the tabs and the outputs below them are shown, and selecting a tab
+hides or shows them; what they hold is kept while they are hidden.
+
 Gradio is imported only in `build`, so the functions the page calls (`resize`,
 `play`, `upload`) work, and are tested, without the `demo` extra.
 
@@ -35,9 +39,9 @@ so the demo sends nothing unless a person asks (#172).
 
 import os
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import numpy as np
 import numpy.typing as npt
@@ -76,6 +80,7 @@ __all__ = [
     "HEADERS",
     "HIT_HEADERS",
     "TABLE_HEADERS",
+    "SHOWN_BY_TAB",
     "Shown",
     "Uploaded",
     "analytics_default_off",
@@ -90,6 +95,7 @@ __all__ = [
     "show",
     "to_table",
     "upload",
+    "visible",
 ]
 
 ANALYTICS_ENV = "GRADIO_ANALYTICS_ENABLED"
@@ -105,6 +111,23 @@ def analytics_default_off() -> bool:
 
 BARS = (4, 8)
 """The fewest and most bars of the grid on the page."""
+
+SHOWN_BY_TAB: dict[str, tuple[bool, bool]] = {
+    "step grid": (True, True),
+    "recording": (True, True),
+    "variations": (True, False),
+    "grooves": (False, False),
+    "band": (False, False),
+}
+"""For each tab, whether the settings above the tabs and the outputs below them are
+shown (#282)."""
+
+
+def visible(tab: str) -> tuple[bool, bool]:
+    """Whether the settings and the outputs are shown with the tab `tab`. Raises
+    `KeyError` for a name that is not a tab of the page."""
+    return SHOWN_BY_TAB[tab]
+
 
 HEADERS = ["drum", *(str(s + 1) for s in range(STEPS))]
 """The grid's columns: the row's bar and drum, then one column per step."""
@@ -305,41 +328,47 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
     library = load_loops()
     page = gr.Blocks(title="mpc-iml ensemble demo", analytics_enabled=analytics)
     with page:
-        gr.Markdown(
-            "# ensemble without hardware\n"
-            "Place drum hits (0 is no hit, 1-127 the velocity) and press **Play**. "
-            "The band answers each bar in the bar after it."
-        )
-        with gr.Row():
-            bars = gr.Slider(*BARS, value=BARS[1], step=1, label="bars")
-            tempo = gr.Slider(*TEMPO_RANGE, value=default.tempo, step=1, label="tempo")
-            progression = gr.Dropdown(
-                list(progressions()), value=default.progression, label="progression"
+        gr.Markdown("# ensemble without hardware")
+        settings_box = gr.Column(visible=True)
+        with settings_box:
+            gr.Markdown(
+                "Place drum hits (0 is no hit, 1-127 the velocity) and press **Play**. "
+                "The band answers each bar in the bar after it."
             )
-            bass_loop = gr.Dropdown(
-                library.names("bass"), value=default.bass_loop, label="bass loop"
-            )
-            loop = gr.Dropdown(library.names("melody"), value=default.loop, label="melody loop")
-        with gr.Row():
-            mode = gr.Radio(list(MELODY_SETTINGS), value=default.melody_mode, label="melody mode")
-            no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")
-            fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
-            surprise = gr.Checkbox(value=bool(default.surprise), label="surprise")
-            rhythm = gr.Radio(
-                [("off", 0), ("bass", 1), ("bass and melody", 2)],
-                value=default.rhythm,
-                label="rhythm",
-            )
-            seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
-        with gr.Row():
-            learn = gr.Radio(list(LEARN_MODES), value=default.learn, label="learn")
-            likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
-            wants = gr.Textbox(label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto")
-            presses = gr.Textbox(label="presses (learn demo): pads 16 and 15, 3 bass, 9 melody")
-        with gr.Row():
-            follow_by = gr.Radio(list(FOLLOW_BY), value=default.follow_by, label="follow-by")
-            nods = gr.Textbox(label="nods (learn nod): bars nodded to, 8 16")
-        with gr.Tab("step grid"):
+            with gr.Row():
+                bars = gr.Slider(*BARS, value=BARS[1], step=1, label="bars")
+                tempo = gr.Slider(*TEMPO_RANGE, value=default.tempo, step=1, label="tempo")
+                progression = gr.Dropdown(
+                    list(progressions()), value=default.progression, label="progression"
+                )
+                bass_loop = gr.Dropdown(
+                    library.names("bass"), value=default.bass_loop, label="bass loop"
+                )
+                loop = gr.Dropdown(library.names("melody"), value=default.loop, label="melody loop")
+            with gr.Row():
+                mode = gr.Radio(
+                    list(MELODY_SETTINGS), value=default.melody_mode, label="melody mode"
+                )
+                no_drums = gr.Dropdown(list(NO_DRUMS), value=default.no_drums, label="no-drums")
+                fade = gr.Slider(0, 32, value=default.fade_bars, step=1, label="fade-bars")
+                surprise = gr.Checkbox(value=bool(default.surprise), label="surprise")
+                rhythm = gr.Radio(
+                    [("off", 0), ("bass", 1), ("bass and melody", 2)],
+                    value=default.rhythm,
+                    label="rhythm",
+                )
+                seed = gr.Number(value=default.seed, precision=0, minimum=0, label="seed")
+            with gr.Row():
+                learn = gr.Radio(list(LEARN_MODES), value=default.learn, label="learn")
+                likes = gr.Textbox(label="likes (learn likes): bars whose answer is liked, 2 3 7")
+                wants = gr.Textbox(
+                    label="wants (learn demo): 1 bass push, 6 bass home, 10 bass auto"
+                )
+                presses = gr.Textbox(label="presses (learn demo): pads 16 and 15, 3 bass, 9 melody")
+            with gr.Row():
+                follow_by = gr.Radio(list(FOLLOW_BY), value=default.follow_by, label="follow-by")
+                nods = gr.Textbox(label="nods (learn nod): bars nodded to, 8 16")
+        with gr.Tab("step grid") as grid_tab:
             grid = gr.Dataframe(
                 to_table(EXAMPLES["sparse"]),
                 headers=HEADERS,
@@ -354,7 +383,7 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
                 example_labels=list(EXAMPLES),
             )
             button = gr.Button("Play", variant="primary")
-        with gr.Tab("recording"):
+        with gr.Tab("recording") as recording_tab:
             gr.Markdown(
                 "A recording made with `python -m mpc_iml.record --clock`, played at its "
                 "own tempo. Pads 1 and 5 are kicks, 2 and 6 snares, 3, 4 and 7 hats."
@@ -362,7 +391,7 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
             recording = gr.File(label="recording (.jsonl)", file_types=[".jsonl"], type="filepath")
             upload_button = gr.Button("Play the recording", variant="primary")
             hits = gr.Dataframe(headers=HIT_HEADERS, type="array", interactive=False)
-        with gr.Tab("variations"):
+        with gr.Tab("variations") as variations_tab:
             gr.Markdown(
                 "New variations grown from a line (`python -m mpc_iml.vargen`), played next "
                 "to their source over the progression and tempo above. Nothing is written."
@@ -405,14 +434,19 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
                 headers=variations.PROVENANCE_HEADERS, type="array", interactive=False
             )
             listed = gr.State(None)
+        tabs = {"step grid": grid_tab, "recording": recording_tab, "variations": variations_tab}
         if not share:
-            groovetab.tab(gr, data)
-            bandtab.tab(gr, sounds)
-        audio = gr.Audio(label="the band", type="numpy", interactive=False)
-        table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
-        image = gr.Image(label="piano roll", type="numpy", interactive=False)
-        midi = gr.File(label="MIDI file", interactive=False)
-        log = gr.Textbox(label="learning", lines=4, interactive=False)
+            tabs["grooves"] = groovetab.tab(gr, data)
+            tabs["band"] = bandtab.tab(gr, sounds)
+        outputs_box = gr.Column(visible=True)
+        with outputs_box:
+            audio = gr.Audio(label="the band", type="numpy", interactive=False)
+            table = gr.Dataframe(headers=TABLE_HEADERS, type="array", interactive=False)
+            image = gr.Image(label="piano roll", type="numpy", interactive=False)
+            midi = gr.File(label="MIDI file", interactive=False)
+            log = gr.Textbox(label="learning", lines=4, interactive=False)
+        for name, page_tab in tabs.items():
+            page_tab.select(_shower(gr, name), None, [settings_box, outputs_box])
         controls = [
             progression,
             bass_loop,
@@ -522,6 +556,17 @@ def build(data: Path | None = None, share: bool = False, sounds: Path | None = N
         button.click(on_play, [grid, tempo, *controls], results)
         upload_button.click(on_upload, [recording, *controls], [*results, hits])
     return page
+
+
+def _shower(gr: Any, tab: str) -> Callable[[], tuple[object, object]]:
+    """The handler of selecting `tab`: shows or hides the settings and the outputs
+    (`visible`), and changes nothing else."""
+    settings, outputs = visible(tab)
+
+    def show_tab() -> tuple[object, object]:
+        return gr.update(visible=settings), gr.update(visible=outputs)
+
+    return show_tab
 
 
 def _grid(table: Sequence[Sequence[object]]) -> list[dict[str, list[int]]]:

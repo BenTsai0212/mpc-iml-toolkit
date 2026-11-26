@@ -268,9 +268,10 @@ def reopen(text: str, data: Path | None) -> tuple[Sort, str]:
     return Sort(groups, many, path), f"Opened {path.name} with its recordings."
 
 
-def tab(gr: Any, data: Path | None) -> None:
-    """The grooves tab, inside the page's `gr.Blocks` (module docstring)."""
-    with gr.Tab("grooves"):
+def tab(gr: Any, data: Path | None) -> Any:
+    """The grooves tab, inside the page's `gr.Blocks` (module docstring); returns the
+    `gr.Tab`, so the page can wire its selection (#282)."""
+    with gr.Tab("grooves") as grooves:
         gr.Markdown(
             "Listen to the grooves you played, put each in a group or in *not sure*, "
             "and name the groups. Recordings: a folder or files, one per line"
@@ -415,3 +416,4 @@ def tab(gr: Any, data: Path | None) -> None:
                 note.change(on_note, [sort_state, note], sort_state)
 
         gr.render(inputs=shown)(show_cards)
+    return grooves

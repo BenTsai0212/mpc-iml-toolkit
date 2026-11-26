@@ -596,6 +596,10 @@ engine 當時的回應完全相同，速度依錄音，範圍從 clock 的 Start
 pad 1 與 5 是 kick，2 與 6 是 snare，3、4 與 7 是 hat（任何 bank）。第二張表列出格子上的
 每一次 pad 敲擊，與 `python -m mpc_iml.grid` 印出的相同。
 
+每個分頁只顯示它用到的部分（#282）：頁面上方的設定與分頁下方的輸出（樂團、表、鋼琴捲簾、
+MIDI 檔、learning）在 **step grid** 與 **recording** 時顯示，**variations** 只顯示設定，
+**grooves** 與 **band** 兩者都不顯示；隱藏的設定保留原本的值。
+
 **band** 分頁（#280）以你的 sound set 演奏內建樂團，並把 engine 設成這個樂團：以 `--sounds <資料夾>`
 啟動 demo，資料夾的子資料夾是各個 sound set。說明見
 [docs/sounds.zh-TW.md](sounds.zh-TW.md#網頁-demo-的-band-分頁)。在 `--share` 時它不在頁面上。

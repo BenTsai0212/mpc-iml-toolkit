@@ -5,6 +5,8 @@ The functions before `tab` hold the page's logic without Gradio and take and ret
 plain values: `list_sets` lists the sound sets under the `--sounds` folder (a subfolder
 whose `sound-set.json` is refused is listed with the reason, one without the file is
 not listed), `match_lines` says which instrument of a set plays each player of a band,
+`choose_set` picks the set that has an instrument for the most players of a band
+(#282) and `pick_set` reads the sets to choose from,
 `listen` renders the band's audition with a set (`sounds.audition`), `messages` are the
 band's three controls as the existing `ensemble` preset messages, `send` sends them to
 the engine's control port on this machine, and `todo_lines` say what is left to do by
@@ -44,12 +46,15 @@ __all__ = [
     "Listing",
     "SetChoice",
     "band_lines",
+    "choose_set",
     "list_sets",
     "listen",
     "load_set",
     "match_lines",
     "match_text",
     "messages",
+    "pick_set",
+    "players_matched",
     "play_with",
     "player_rows",
     "send",
@@ -177,6 +182,43 @@ def match_lines(band: Band, sound_set: SoundSet) -> list[str]:
     return lines
 
 
+def players_matched(band: Band, sound_set: SoundSet) -> int:
+    """How many players of `band` have an instrument of their name in `sound_set` that
+    plays their part."""
+    return sum(
+        1
+        for p in band.players
+        if (i := sound_set.instruments.get(p.name)) is not None and i.plays.part == p.plays.part
+    )
+
+
+def choose_set(band: Band, sets: Mapping[str, SoundSet], chosen: str | None) -> str | None:
+    """The set of `sets` in which the most players of `band` have an instrument of their
+    name that plays their part (`players_matched`); `chosen` when it is among the best
+    or when no set has any player of the band; of several best, the first by name."""
+    scores = {name: players_matched(band, s) for name, s in sets.items()}
+    best = max(scores.values(), default=0)
+    if best == 0 or scores.get(chosen or "") == best:
+        return chosen
+    return min(name for name, score in scores.items() if score == best)
+
+
+def pick_set(
+    band: Band, sounds: Path | None, names: Sequence[str], chosen: str | None
+) -> str | None:
+    """`choose_set` over the sets `names` under `sounds`, read again from the disk (a
+    set that cannot be read is left out); `chosen` when it is in `names`, else the
+    first of `names`, when no set has a player of the band."""
+    sets = {}
+    for name in names:
+        try:
+            sets[name] = load_set(sounds, name)
+        except _ERRORS:
+            continue
+    fallback = chosen if chosen in names else (names[0] if names else None)
+    return choose_set(band, sets, fallback)
+
+
 def match_text(band: Band, sounds: Path | None, name: str | None) -> str:
     """`match_lines` for the set `name`, read again from the disk, or why it cannot be
     read; empty when no set is chosen."""
@@ -267,8 +309,11 @@ def play_with(
     return lines + todo_lines(band, sound_set)
 
 
-def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
-    """The band tab, inside the page's `gr.Blocks` (module docstring)."""
+def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> Any:
+    """The band tab, inside the page's `gr.Blocks` (module docstring); returns the
+    `gr.Tab`, so the page can wire its selection (#282). The set is chosen with
+    `pick_set` when the page opens, when the band changes and when the folder is read
+    again and the chosen set is gone."""
     bands = load_bands()
     first = next(iter(bands.values()))
     listing = list_sets(sounds)
@@ -281,7 +326,10 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
         refused = [f"- {s.name}: cannot be chosen: {s.problem}" for s in found.sets if s.problem]
         return f"Sound sets in `{sounds}`." + ("\n\n" + "\n".join(refused) if refused else "")
 
-    with gr.Tab("band"):
+    choices = listing.choices()
+    first_set = pick_set(first, sounds, choices, None)
+
+    with gr.Tab("band") as band_tab:
         gr.Markdown("### 1. Choose a band")
         band_name = gr.Dropdown(list(bands), value=first.name, label="band")
         about = gr.Markdown("\n\n".join(band_lines(first)))
@@ -290,14 +338,11 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
         )
         gr.Markdown("### 2. Choose a sound set")
         with gr.Row():
-            choices = listing.choices()
-            set_name = gr.Dropdown(
-                choices, value=choices[0] if choices else None, label="sound set"
-            )
+            set_name = gr.Dropdown(choices, value=first_set, label="sound set")
             reload_button = gr.Button("Read the folder again", interactive=sounds is not None)
         sets_info = gr.Markdown(listing_text(listing))
         matched = gr.Textbox(
-            match_text(first, sounds, choices[0] if choices else None),
+            match_text(first, sounds, first_set),
             label="players and instruments",
             lines=6,
             interactive=False,
@@ -319,20 +364,22 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
 
         def on_band(name: str, chosen: str | None) -> tuple[object, ...]:
             band = bands[name]
+            picked = pick_set(band, sounds, list_sets(sounds).choices(), chosen)
             return (
                 "\n\n".join(band_lines(band)),
                 player_rows(band),
                 gr.update(maximum=len(band.audition), value=len(band.audition)),
-                match_text(band, sounds, chosen),
+                gr.update(value=picked),
+                match_text(band, sounds, picked),
             )
 
         def on_set(name: str, chosen: str | None) -> str:
             return match_text(bands[name], sounds, chosen)
 
-        def on_reload(chosen: str | None) -> tuple[object, ...]:
+        def on_reload(name: str, chosen: str | None) -> tuple[object, ...]:
             found = list_sets(sounds)
             names = found.choices()
-            value = chosen if chosen in names else (names[0] if names else None)
+            value = chosen if chosen in names else pick_set(bands[name], sounds, names, None)
             return gr.update(choices=names, value=value), listing_text(found)
 
         def on_listen(name: str, chosen: str | None, count: float) -> list[object]:
@@ -356,10 +403,11 @@ def tab(gr: Any, sounds: Path | None, port: int = CONTROL_PORT) -> None:
         def on_play(name: str, chosen: str | None) -> str:
             return "\n".join(play_with(bands[name], sounds, chosen, port))
 
-        band_name.change(on_band, [band_name, set_name], [about, players, bars, matched])
+        band_name.change(on_band, [band_name, set_name], [about, players, bars, set_name, matched])
         set_name.change(on_set, [band_name, set_name], matched)
-        reload_button.click(on_reload, set_name, [set_name, sets_info])
+        reload_button.click(on_reload, [band_name, set_name], [set_name, sets_info])
         listen_button.click(
             on_listen, [band_name, set_name, bars], [band_audio, *slots, heard_lines]
         )
         play_button.click(on_play, [band_name, set_name], todo)
+    return band_tab

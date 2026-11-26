@@ -935,6 +935,11 @@ tempo, from the clock's Start to the next Stop, at most 64 bars. Pads 1 and 5 ar
 kicks, 2 and 6 snares, 3, 4 and 7 hats (any bank). A second table lists each pad hit
 on the grid, as `python -m mpc_iml.grid` prints it.
 
+Each tab shows only what it uses (#282): the settings at the top and the outputs below
+the tabs (the band, the table, the piano roll, the MIDI file, learning) are on screen
+with **step grid** and **recording**, **variations** shows the settings only, and
+**grooves** and **band** show neither; hidden settings keep their values.
+
 To let a teammate open it from another computer, add `--share`: Gradio makes a
 temporary public link (valid for 72 hours, while the demo runs) through its share
 servers. Only share when you mean to; the default is local only.
