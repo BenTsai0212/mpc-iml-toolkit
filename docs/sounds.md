@@ -152,6 +152,25 @@ A bass that should sound an octave above the notes it is sent takes `--part bass
 melody instruments all receive the melody channel), with no key or velocity filter
 and no octave shift in front of it.
 
+### The players of a band
+
+A band file (ADR 0014, `python -m mpc_iml.bands list`) gives each player its line:
+its `plays` (part, keys, `min_velocity`, octave) and the defaults for building its
+instrument (`release`, `prefer`). Build each player with `--part`, `--keys`,
+`--min-velocity` and `--octave` from its `plays`, and `--release` and `--prefer` from
+its line. Keys are written as note names: 0 is C-1, 71 is B4, 72 is C5 and 127 is G9.
+For the `trap` band (`src/mpc_iml/bands/ensemble/trap.json`):
+
+```bash
+uv run python -m mpc_iml.sounds.instrument 808 808-*.wav --out trap-set --part bass --keys C-1 G9 --min-velocity 1 --octave 0 --release 0.08 --prefer rich
+uv run python -m mpc_iml.sounds.instrument keys keys-*.wav --out trap-set --part melody --keys C-1 B4 --min-velocity 1 --octave 0 --release 0.25 --prefer clean
+uv run python -m mpc_iml.sounds.instrument bell bell-*.wav --out trap-set --part melody --keys C5 G9 --min-velocity 1 --octave 0 --release 0.3 --prefer clean
+uv run python -m mpc_iml.sounds.instrument pad pad-*.wav --out trap-set --part melody --keys C-1 B4 --min-velocity 86 --octave 0 --release 0.5 --prefer clean
+```
+
+The `lofi` band's `bass` takes `--octave 1`: it sounds an octave above the notes the
+band sends.
+
 ## Sound sets
 
 The last part of step 1 (#272, [ADR 0013](adr/0013-sound-set-folders.md)): a folder

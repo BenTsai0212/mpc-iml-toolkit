@@ -1,0 +1,66 @@
+{
+  "format": "mpc-iml-band",
+  "format_version": 1,
+  "name": "lofi",
+  "title": "Lo-fi",
+  "description": "A lazy lo-fi band at about 76 BPM: long roots a little behind the beat, rolled ninth chords and short answers above them.",
+  "preset": "ensemble",
+  "tempo": 76,
+  "content": {"bass_loop": "haze-bass", "loop": "haze-keys", "progression": "haze"},
+  "players": [
+    {"name": "bass", "title": "Bass", "description": "The bass line, an octave above the notes the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 1}, "release": 0.12, "prefer": "clean"},
+    {"name": "keys", "title": "Keys", "description": "Every note of the melody part: the chords and the answers.", "plays": {"part": "melody", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean"},
+    {"name": "vibes", "title": "Vibes", "description": "The answers above the chords: the notes from C5 up, doubling the keys.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.4, "prefer": "clean"},
+    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean"}
+  ],
+  "patterns": {
+    "groove-1": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0],
+      "hat": [46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0]
+    },
+    "groove-2": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 44, 0, 0, 64, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0],
+      "hat": [46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0]
+    },
+    "groove-2-lift": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 44, 0, 0, 64, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0],
+      "hat": [46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 52, 0]
+    },
+    "busy": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 46, 0, 0, 66, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 0],
+      "hat": [46, 0, 36, 0, 46, 28, 36, 30, 46, 0, 36, 0, 46, 28, 36, 32]
+    },
+    "busy-fill": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 46, 0, 0, 66, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0, 76, 0, 0, 50],
+      "hat": [46, 0, 36, 0, 46, 28, 36, 30, 46, 0, 36, 0, 46, 28, 36, 32]
+    },
+    "break-1": {
+      "kick": [118, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 116, 0, 0, 0],
+      "hat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "break-2": {
+      "kick": [118, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 112, 0, 0, 0, 0, 0, 0, 0, 116, 0, 0, 0],
+      "hat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "end": {
+      "kick": [70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 74, 0, 58, 70],
+      "hat": [46, 0, 36, 0, 46, 0, 36, 0, 46, 0, 36, 0, 0, 0, 0, 0]
+    }
+  },
+  "audition": [
+    "groove-1", "groove-2", "groove-1", "groove-2",
+    "groove-1", "groove-2", "groove-1", "groove-2-lift",
+    "busy", "busy", "busy", "busy-fill",
+    "break-1", "break-2", "break-1", "break-2",
+    "groove-1", "groove-2", "groove-1", "groove-2-lift",
+    "groove-1", "groove-2", "groove-1", "end"
+  ]
+}

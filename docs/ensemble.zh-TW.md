@@ -48,14 +48,14 @@ rule bass 有兩層，可以用控制項 `immediate` 與 `bar`（見 [ensemble �
 
 和弦取自一個和弦進行：`minor-two`（預設：Am7 兩小節，再 Fmaj7 兩小節）或 `minor-four`
 （Dm7、Gm7、Bbmaj7、A7，各一小節），或五個 hip-hop 和弦進行（#236）與
-[lo-fi 與 trap 組合](#lo-fi-與-trap-組合)的兩個八小節和弦進行（#262）之一：
+[lo-fi 與 trap 樂團](#lo-fi-與-trap-樂團)的兩個八小節和弦進行（#262）之一：
 
 | 和弦進行 | 和弦（小節數） |
 | --- | --- |
 | `dark-minor` | Cm7（2）、Dbmaj7（2）：陰暗的 i–♭II 循環 |
-| `haze` | Fmaj7、Em7、Dm7（各 2）、Gm7（1）、C7（1）：lo-fi 的下行，經 ii–V 回到開頭（lo-fi 組合） |
+| `haze` | Fmaj7、Em7、Dm7（各 2）、Gm7（1）、C7（1）：lo-fi 的下行，經 ii–V 回到開頭（lo-fi 樂團） |
 | `lofi-descent` | Fmaj7、Em7、Dm7、Cmaj7（各 1）：lo-fi 的下行 |
-| `midnight` | Bm7、Gmaj7、Em7、F#7（各 2）：陰暗的小調循環，根音留在 808 的音域 E1 到 B1（trap 組合） |
+| `midnight` | Bm7、Gmaj7、Em7、F#7（各 2）：陰暗的小調循環，根音留在 808 的音域 E1 到 B1（trap 樂團） |
 | `minor-turn` | Bm7b5（1）、E7（1）、Am7（2）：小調的 ii–V–i |
 | `soul-minor` | Am7（2）、Dm7（2）：soul 的 i–iv |
 | `two-five-one` | Dm7（1）、G7（1）、Cmaj7（2）：ii–V–I |
@@ -109,9 +109,9 @@ preset 從 loop 開始。
 - `soul`：兩小節、有旋律的線條，上到八度再下來，以半音往上走進下一小節（#232）。
 - `sub`：兩小節的 half-time 線條，長的根音加上一個八度的跳音，像 808（#232）。
 - `haze-bass`：稀疏的四小節 lo-fi 線條，稍微落在拍子後面，有長的根音；`home` 在幾個小節中
-  只持續一個根音（lo-fi 組合，#262）。
+  只持續一個根音（lo-fi 樂團，#262）。
 - `midnight-808`：四小節的 808 線條，長的根音加上八度的跳音；`home` 在第 1 到 3 小節每小節
-  只持續一個根音（trap 組合，#262）。
+  只持續一個根音（trap 樂團，#262）。
 
 每個 loop 有三個**變奏**，每個都是完整的 bass 線條（#158）：`home`（上面描述的 loop）、`push`
 （提前一個 16 分音符的音，回應往前推的 kick）與 `drive`（`boom` 是 8 分音符，`walk` 是四分音符的
@@ -148,9 +148,9 @@ fixed，直到再按一次 pad 15 回到 follow。
 - `flute`：兩小節的主奏動機，由三度、九度與根音組成（#232）。
 - `horns`：短促的 soul 銅管，一次兩個音（#232）。
 - `bells`：高音、稀疏的 lo-fi 鐘聲，稍微落在拍子後面（#232）。
-- `haze-keys`：四小節的 lo-fi 電鋼琴，分解進入的九和弦，上面一個短的回應（lo-fi 組合，#262）。
+- `haze-keys`：四小節的 lo-fi 電鋼琴，分解進入的九和弦，上面一個短的回應（lo-fi 樂團，#262）。
 - `midnight-keys`：四小節、一個 channel 上的兩種聲音：C5 以下持續的和弦，與其上以 3+3+2 節奏
-  演奏的鐘聲動機（trap 組合，#262）。
+  演奏的鐘聲動機（trap 樂團，#262）。
 
 hip-hop 的 loop（`knock` 到 `bells`）與組合的 loop 也會奏和弦音以外的音：九度（根音往上一個
 全音）與趨近音；下文的變奏描述的是 `keys` 與 `pluck`，其他 loop 的描述在它們的 loop 檔案中。
@@ -207,19 +207,37 @@ MIDI From 設為 `mpc-iml`，channel 設為 **Ch. 3**，Monitor 設為 **In**。
 接著啟動 Live 並打 `hat` pad：濾波器在下一個小節線改變。Live 播放時，`learn-cc` 得到
 `/mpciml/error bad_arguments`。
 
-### lo-fi 與 trap 組合
+### lo-fi 與 trap 樂團
 
-兩個組合各是一個 bass loop、一個旋律 loop 與一個八小節的和弦進行，彼此是一起寫成的（#262）。
-以名稱（`bass-loop`、`loop` 與 `progression`，見 [ensemble 的控制項](#ensemble-的控制項)）或以
-step 控制項選擇這三者；預設仍是 `boom`、`keys` 與 `minor-two`。
+兩個樂團各是一起寫成的一個 bass loop、一個旋律 loop 與一個八小節的和弦進行（#262），加上寫給的速度、
+演奏者與試聽用的鼓的 pattern。每個樂團是 `src/mpc_iml/bands/ensemble/` 中的一個樂團檔（ADR 0014）；
+`uv run python -m mpc_iml.bands list` 列出它們，`check <檔案>` 檢查一個檔案。以名稱（`bass-loop`、
+`loop` 與 `progression`，見 [ensemble 的控制項](#ensemble-的控制項)）或以 step 控制項選擇樂團的這三者，
+速度在 DAW 設定；預設仍是 `boom`、`keys` 與 `minor-two`。
 
-| 組合 | bass loop | 旋律 loop | 和弦進行 | 寫給的速度 |
+| 樂團 | bass loop | 旋律 loop | 和弦進行 | 速度 |
 | --- | --- | --- | --- | --- |
-| lo-fi | `haze-bass` | `haze-keys` | `haze` | 約 76 BPM |
-| trap | `midnight-808` | `midnight-keys` | `midnight` | 約 140 BPM |
+| `lofi` | `haze-bass` | `haze-keys` | `haze` | 76 BPM |
+| `trap` | `midnight-808` | `midnight-keys` | `midnight` | 140 BPM |
 
-`midnight-808` 是寫給在自己八度上的 808 聲音：在 bass 的音軌上不做八度移調（bass 在第 1 八度
-演奏，`midnight` 的根音留在 E1 到 B1 之間）。
+演奏者以它演奏的音描述（聲部、鍵、它演奏的最弱的音與八度，與 sound set 的樂器相同，ADR 0013），
+不以聲音描述：
+
+| 樂團 | 演奏者 | 聲部 | 演奏 |
+| --- | --- | --- | --- |
+| `lofi` | `bass` | bass | 每個音，比樂團送出的音高一個八度 |
+| `lofi` | `keys` | 旋律 | 每個音：和弦與回應 |
+| `lofi` | `vibes` | 旋律 | C5 以上的音，與 keys 重疊 |
+| `lofi` | `pad` | 旋律 | C5 以下、velocity 86 以上的音 |
+| `trap` | `808` | bass | 每個音，在樂團送出的八度 |
+| `trap` | `keys` | 旋律 | C5 以下持續的和弦 |
+| `trap` | `bell` | 旋律 | C5 以上的動機 |
+| `trap` | `pad` | 旋律 | C5 以下、velocity 86 以上的音 |
+
+試聽 pattern 是每個樂團寫給的打法，由具名的 pattern 逐小節組成：`lofi` 24 小節（groove、較密的段落、
+break 再回來），`trap` 32 小節（groove、roll 與 rush、break 再回來）。兩者的 bass 與旋律都在鼓改變時
+換變奏。`midnight-808` 是寫給在自己八度上的 808 聲音：`trap` 樂團的 `808` 不做八度移調（bass 在第 1
+八度演奏，`midnight` 的根音留在 E1 到 B1 之間）。
 
 ### 鼓停下時
 

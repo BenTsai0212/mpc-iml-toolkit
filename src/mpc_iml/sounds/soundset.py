@@ -28,6 +28,9 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+from mpc_iml.plays import Plays, key_pair_problems
+from mpc_iml.plays import problems as plays_problems
+
 FILE = "sound-set.json"
 FORMAT = "mpc-iml-sound-set"
 VERSION = 1
@@ -49,11 +52,6 @@ MEASURED = (
     "peak_db",
 )
 """The fields of `notes.Measurement`, in its order."""
-
-PARTS = ("bass", "melody")
-"""The parts of the band an instrument can play."""
-OCTAVES = 4
-"""An instrument sounds at most this many octaves above or below the notes it is sent."""
 
 
 class SoundSetError(ValueError):
@@ -98,48 +96,6 @@ class Origin:
         if data["kind"] == "recorded":
             return cls()
         return cls("generated", data["model"], data["prompt"], data["seed"], data.get("settings"))
-
-
-@dataclass(frozen=True)
-class Plays:
-    """Which notes of the band an instrument plays (#274), all in notes the band sends.
-
-    `part` is the part of the band (`bass`, `melody` or `None`: not said); `keys` the
-    lowest and the highest note it plays; `min_velocity` how hard a note must be hit
-    for it to play; `octave` how many octaves above the notes it is sent it sounds."""
-
-    part: Literal["bass", "melody"] | None = None
-    keys: tuple[int, int] = (0, 127)
-    min_velocity: int = 1
-    octave: int = 0
-
-    def check(self) -> "Plays":
-        """`self`, or `ValueError` naming the first value out of range."""
-        if self.part is not None and self.part not in PARTS:
-            raise ValueError(f"part must be 'bass', 'melody' or none, not {self.part!r}")
-        low, high = self.keys
-        if not (0 <= low <= 127 and 0 <= high <= 127):
-            raise ValueError(f"keys must be from 0 to 127, not {low} to {high}")
-        if low > high:
-            raise ValueError(f"keys: the low key {low} is above the high key {high}")
-        if not 1 <= self.min_velocity <= 127:
-            raise ValueError(f"min_velocity must be from 1 to 127, not {self.min_velocity}")
-        if not -OCTAVES <= self.octave <= OCTAVES:
-            raise ValueError(f"octave must be from -{OCTAVES} to {OCTAVES}, not {self.octave}")
-        return self
-
-    def to_json(self) -> dict[str, Any]:
-        return {
-            "part": self.part,
-            "keys": list(self.keys),
-            "min_velocity": self.min_velocity,
-            "octave": self.octave,
-        }
-
-    @classmethod
-    def from_json(cls, data: Mapping[str, Any]) -> "Plays":
-        low, high = data["keys"]
-        return cls(data["part"], (low, high), data["min_velocity"], data["octave"])
 
 
 @dataclass(frozen=True)
@@ -310,25 +266,10 @@ class _Checker:
                 self.number(data[key], here)
 
     def key_pair(self, value: object, where: str) -> None:
-        if not (isinstance(value, list) and len(value) == 2):
-            self.say(where, "must be [low, high]")
-            return
-        if self.integer(value[0], where, 0, 127) and self.integer(value[1], where, 0, 127):
-            if value[0] > value[1]:
-                self.say(where, "low is above high")
+        self.problems += key_pair_problems(value, where)
 
     def plays(self, value: object, where: str) -> None:
-        data = self.fields(value, where, ["part", "keys", "min_velocity", "octave"])
-        if data is None:
-            return
-        if "part" in data and data["part"] is not None and data["part"] not in PARTS:
-            self.say(f"{where}.part", f"must be 'bass', 'melody' or null, not {data['part']!r}")
-        if "keys" in data:
-            self.key_pair(data["keys"], f"{where}.keys")
-        if "min_velocity" in data:
-            self.integer(data["min_velocity"], f"{where}.min_velocity", 1, 127)
-        if "octave" in data:
-            self.integer(data["octave"], f"{where}.octave", -OCTAVES, OCTAVES)
+        self.problems += plays_problems(value, where)
 
     def region(self, value: object, where: str) -> None:
         data = self.fields(value, where, ["sample", "low", "high", "centre", "tune", "gain_db"])

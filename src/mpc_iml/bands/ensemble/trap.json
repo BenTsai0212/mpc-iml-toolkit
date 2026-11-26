@@ -1,0 +1,73 @@
+{
+  "format": "mpc-iml-band",
+  "format_version": 1,
+  "name": "trap",
+  "title": "Trap",
+  "description": "A dark trap band at about 140 BPM: a long 808 that lands with the kicks, held chords and a bell motif above them.",
+  "preset": "ensemble",
+  "tempo": 140,
+  "content": {"bass_loop": "midnight-808", "loop": "midnight-keys", "progression": "midnight"},
+  "players": [
+    {"name": "808", "title": "808", "description": "The bass line, in the octave the band sends.", "plays": {"part": "bass", "keys": [0, 127], "min_velocity": 1, "octave": 0}, "release": 0.08, "prefer": "rich"},
+    {"name": "keys", "title": "Keys", "description": "The held chords: the notes under C5.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 1, "octave": 0}, "release": 0.25, "prefer": "clean"},
+    {"name": "bell", "title": "Bell", "description": "The motif above the chords: the notes from C5 up.", "plays": {"part": "melody", "keys": [72, 127], "min_velocity": 1, "octave": 0}, "release": 0.3, "prefer": "clean"},
+    {"name": "pad", "title": "Pad", "description": "Comes in under C5 when the drums are hit hard.", "plays": {"part": "melody", "keys": [0, 71], "min_velocity": 86, "octave": 0}, "release": 0.5, "prefer": "clean"}
+  ],
+  "patterns": {
+    "groove-1": {
+      "kick": [74, 0, 0, 0, 0, 0, 66, 0, 0, 0, 70, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0]
+    },
+    "groove-2": {
+      "kick": [74, 0, 0, 60, 0, 0, 0, 0, 0, 0, 70, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0]
+    },
+    "groove-2-lift": {
+      "kick": [74, 0, 0, 60, 0, 0, 0, 0, 0, 0, 70, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 58, 0]
+    },
+    "roll": {
+      "kick": [74, 0, 0, 0, 0, 0, 66, 0, 0, 0, 70, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0, 52, 34, 40, 44]
+    },
+    "rush": {
+      "kick": [76, 0, 0, 60, 0, 0, 66, 0, 0, 0, 72, 0, 0, 0, 60, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 52, 34, 40, 40, 52, 0, 40, 0, 52, 36, 40, 46]
+    },
+    "rush-lift": {
+      "kick": [76, 0, 0, 60, 0, 0, 66, 0, 0, 0, 72, 0, 0, 0, 60, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [52, 0, 40, 0, 58, 34, 40, 40, 52, 0, 40, 0, 52, 36, 40, 46]
+    },
+    "break": {
+      "kick": [122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0, 0, 0, 0, 0, 0],
+      "hat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "break-fill": {
+      "kick": [122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 120, 0, 0, 0, 84, 92, 100, 110],
+      "hat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "end": {
+      "kick": [76, 0, 0, 0, 0, 0, 66, 0, 0, 0, 72, 0, 0, 0, 0, 0],
+      "snare": [0, 0, 0, 0, 0, 0, 0, 0, 82, 0, 0, 0, 70, 80, 92, 104],
+      "hat": [52, 0, 40, 0, 52, 0, 40, 0, 52, 0, 40, 0, 0, 0, 0, 0]
+    }
+  },
+  "audition": [
+    "groove-1", "groove-2", "groove-1", "groove-2",
+    "groove-1", "groove-2", "groove-1", "groove-2-lift",
+    "roll", "rush", "roll", "rush",
+    "roll", "rush", "roll", "rush-lift",
+    "break", "break", "break", "break-fill",
+    "groove-1", "rush", "groove-1", "groove-2-lift",
+    "roll", "rush", "roll", "rush-lift",
+    "groove-1", "rush", "groove-1", "end"
+  ]
+}

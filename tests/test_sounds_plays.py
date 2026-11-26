@@ -10,9 +10,10 @@ from test_sounds_instrument import measured, notes_for_a_bass
 from test_sounds_soundset import document, snapshot, two_instruments
 from tones import tone, write
 
+from mpc_iml.plays import Plays
 from mpc_iml.sounds import instrument, soundset
 from mpc_iml.sounds.instrument import build, describe, main, report
-from mpc_iml.sounds.soundset import FILE, Plays, SoundSetError, load
+from mpc_iml.sounds.soundset import FILE, SoundSetError, load
 
 DEFAULT = {"part": None, "keys": [0, 127], "min_velocity": 1, "octave": 0}
 
