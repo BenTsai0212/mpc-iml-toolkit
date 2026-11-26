@@ -36,7 +36,15 @@ def _format(chunk: bytes) -> tuple[int, int, int, int]:
     return tag, channels, rate, bits
 
 
+SUPPORTED = {(FLOAT, 32), (PCM, 16), (PCM, 24), (PCM, 32)}
+
+
 def _decode(data: bytes, tag: int, channels: int, bits: int) -> Samples:
+    if (tag, bits) not in SUPPORTED:
+        kind = {PCM: "PCM", FLOAT: "float"}.get(tag, f"format tag {tag}")
+        raise WavError(
+            f"cannot read {bits}-bit {kind}: only 16, 24 and 32-bit PCM and 32-bit float"
+        )
     width = bits // 8
     usable = len(data) - len(data) % (width * channels)
     data = data[:usable]
@@ -49,13 +57,8 @@ def _decode(data: bytes, tag: int, channels: int, bits: int) -> Samples:
         number = raw[:, 0] | (raw[:, 1] << 8) | (raw[:, 2] << 16)
         number = np.where(number >= 1 << 23, number - (1 << 24), number)
         values = (number / float(1 << 23)).astype(np.float32)
-    elif tag == PCM and bits == 32:
-        values = (np.frombuffer(data, dtype="<i4") / float(1 << 31)).astype(np.float32)
     else:
-        kind = {PCM: "PCM", FLOAT: "float"}.get(tag, f"format tag {tag}")
-        raise WavError(
-            f"cannot read {bits}-bit {kind}: only 16, 24 and 32-bit PCM and 32-bit float"
-        )
+        values = (np.frombuffer(data, dtype="<i4") / float(1 << 31)).astype(np.float32)
     return values.reshape(-1, channels)
 
 

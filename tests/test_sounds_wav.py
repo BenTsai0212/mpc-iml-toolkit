@@ -48,7 +48,7 @@ def test_extensible_float(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("bits", "tag", "message"),
-    [(8, 1, "8-bit PCM"), (64, 3, "64-bit float"), (16, 2, "format tag 2")],
+    [(8, 1, "8-bit PCM"), (4, 1, "4-bit PCM"), (64, 3, "64-bit float"), (16, 2, "format tag 2")],
 )
 def test_other_formats_are_refused(tmp_path: Path, bits: int, tag: int, message: str) -> None:
     fmt = struct.pack("<HHIIHH", tag, 1, RATE, RATE * bits // 8, bits // 8, bits)

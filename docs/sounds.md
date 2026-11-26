@@ -4,9 +4,9 @@ English | [繁體中文](sounds.zh-TW.md)
 
 The first part of step 1 of [RFC 0006](rfcs/0006-sounds-for-the-band.md) (#268):
 find out what a recording of a single note really holds before it becomes part of a
-kit. A model that generates single notes cannot be trusted to play the pitch it was
-asked for: the note name is usually right, but the octave is often wrong, and some
-notes are not clean. Building an instrument from the measured notes is a later Issue.
+sound set. A model that generates single notes cannot be trusted to play the pitch it
+was asked for: in the first notes made this way the note name was always right, but
+the octave was wrong for several of them, and two notes were not clean. Building an instrument from the measured notes is a later Issue.
 
 ## Run it
 
@@ -62,9 +62,4 @@ refused.
 Next to a low note (under about E2), a side lobe of the analysis window can count as a
 weak peak off the harmonics, about 30 dB under the strongest. It costs a clean low note
 up to half a percent of `clean`, and `other` names that side lobe. The method is kept as
-it is, so results stay comparable with the kits already played.
-
-## Notes
-
-RFC 0006 names `soundfile` as an optional dependency for reading audio. This step reads
-WAV files without it, so no dependency is added.
+it is, so results stay comparable with the sound sets already played.
