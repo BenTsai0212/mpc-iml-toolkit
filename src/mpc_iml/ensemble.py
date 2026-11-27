@@ -251,6 +251,21 @@ nodded bar has its `nod` (`{"bar", "groove", "variation", "from"}`).
 
 The replies `follow-by`, `learn-group`, `new-groove` and `answer-after` follow
 `progression-errors`, and the learn log's header has these settings.
+
+The catch (#290, `catch 0|1|2`, default 0, a setting): when the drummer leaves a
+groove they held, the keys answer in the next bar with the rhythm the drummer just
+played (`catch.answers`: the tracker's decision on the bar that just ended is a fill
+of a groove, the `catch.CATCH_HOLD` bars before it bars of that groove, and it has
+`catch.CATCH_MIN` hits on pads other than 15 and 16), with the clock running and the
+melody following. The melody's notes of that bar are `catch.catch_notes`: the
+rhythm of those hits (`catch.drummed`; with `catch 2`, the comparison for trials,
+the steps of the next variation instead, `catch.written`), an accent on step 0 and
+the pitches of the variation the melody would play. That bar draws no surprise,
+the bass plays no fill (`follow-by groove`) and `rhythm 2` does not move the
+melody. The melody's `chose` is `catch`, `ensemble: catch bar 12 answers bar 11,
+steps 0 3 6 10` is logged, and the learn log's line has `catch` (`null`, or
+`{"bar", "steps"}`). `catch 0` runs none of this. The reply `catch` follows
+`answer-after`, and the learn log's header has it.
 """
 
 import contextlib
@@ -271,6 +286,8 @@ from mpc_iml.bass import (
     bass_ornaments,
     bass_variation,
 )
+from mpc_iml.catch import answers as catch_answers
+from mpc_iml.catch import catch_notes, drummed, written
 from mpc_iml.clock import (
     SIXTEENTHS,
     TICKS_PER_BEAT,
@@ -601,6 +618,10 @@ class Ensemble:
         """`learn-group` (#250): a groove with no nod may play the nod of its group."""
         self.new_groove = "rules"
         """`new-groove` (#250): what a groove with no nod plays with `learn nod`."""
+        self.catch = 0
+        """`catch` (#290): 1 the keys answer a groove's fill, 2 the comparison."""
+        self._caught: dict[str, object] | None = None
+        """The catch of the bar that started at the last bar line (`{"bar", "steps"}`)."""
         self._nods = NodMemory(seed=seed)
         """The nods kept (`learn nod`, #250)."""
         self._invite_random = random.Random(None if seed is None else f"invite {seed}")
@@ -886,14 +907,21 @@ class Ensemble:
             )
             if self._still():
                 melody_plan = replace(melody_plan, cc=STILL_BRIGHTNESS)
-            fill = answer == "fill" and bass_plan.surprise and "bass" not in chose
-            # A fill answer is the bar's change: it draws no surprise (#250).
-            extra = None if answer == "fill" else self._surprise(start.bar, bass_plan, melody_plan)
+            caught = bool(self.catch) and self._catches(start, melody_plan)
+            fill = answer == "fill" and bass_plan.surprise and "bass" not in chose and not caught
+            # A fill answer or a catch is the bar's change: it draws no surprise (#250, #290).
+            extra = (
+                None
+                if answer == "fill" or caught
+                else self._surprise(start.bar, bass_plan, melody_plan)
+            )
             heard = motif(drums, self.roles)
             bass = self._plan_bass(start, bass_plan, kicks, heard, fill or extra == "fill")
             if fill and bass != "-":
                 source = {**source, "bass": "fill"}
-            melody = self._plan_melody(start, melody_plan, heard, extra)
+            melody = self._plan_melody(start, melody_plan, heard, extra, caught)
+            if caught and melody != "-":
+                source = {**source, "melody": "catch"}
             self._variations = (bass, melody)
             self._bar_line = start.bar
             self._bass_played[start.bar] = bass
@@ -955,6 +983,19 @@ class Ensemble:
         else:
             self._grooves.stop()
             self._groove = None
+
+    def _catches(self, start: BarStart, plan: BarPlan) -> bool:
+        """Whether the melody plays a catch in the bar that starts now (#290): with the
+        clock running and the melody on and following a playing variation, after a
+        bar that left a groove held for `catch.CATCH_HOLD` bars."""
+        if self._access is None or self._access.scheduler is None:
+            return False
+        if not self.melody or not self._melody_follows():
+            return False
+        if plan.variation is None or plan.skeleton:
+            return False
+        before = [self._decisions.get(start.bar - i) for i in (2, 3)]
+        return catch_answers(self._groove, before, start.hits)
 
     def _groove_answer(self) -> str | None:
         """How the bar that starts now answers the groove with `follow-by groove`
@@ -1126,6 +1167,7 @@ class Ensemble:
             "rule": rules,
             "want": dict(self.wants),
             "groove": groove_record(self._groove),
+            "catch": self._caught,
         }
         try:
             self._bar_log.bar(record)
@@ -1360,10 +1402,14 @@ class Ensemble:
             self._log(f"ensemble: surprise {chosen} in bar {bar}")
         return chosen
 
-    def _plan_melody(self, start: BarStart, plan: BarPlan, heard: Motif, extra: str | None) -> str:
+    def _plan_melody(
+        self, start: BarStart, plan: BarPlan, heard: Motif, extra: str | None, caught: bool
+    ) -> str:
         """Schedule the melody's notes of the bar that starts now, reshaped by the
         last bar's snares and hats `heard` with `rhythm 2` (#189) and with the
-        surprise `extra` if it is the melody's; the variation it plays (`-`: none)."""
+        surprise `extra` if it is the melody's, or the catch when `caught` (#290);
+        the variation it plays (`-`: none)."""
+        self._caught = None
         scheduler = self._access.scheduler if self._access else None
         if scheduler is None or not self.melody:
             self._plans["melody"] = None
@@ -1380,7 +1426,10 @@ class Ensemble:
         notes = tuple(
             n for n in plan.notes(self._playing_loop("melody"), start.bar) if n.step < steps
         )
-        plan, notes = self._transform_melody(start.bar, plan, heard, notes, steps)
+        if caught:
+            notes = self._catch(start, plan, notes, steps)
+        else:
+            plan, notes = self._transform_melody(start.bar, plan, heard, notes, steps)
         self._plans["melody"] = plan
         if extra == "octave":
             notes = octave_up(notes)
@@ -1396,6 +1445,26 @@ class Ensemble:
                 )
             )
         return plan.variation or "-"
+
+    def _catch(
+        self, start: BarStart, plan: BarPlan, planned: tuple[LoopNote, ...], steps: int
+    ) -> tuple[LoopNote, ...]:
+        """The catch's notes in the bar that starts now (#290): the rhythm of the last
+        bar's hits (`catch 1`) or of the next variation (`catch 2`), the pitches of
+        `planned`; logged once."""
+        loop = self._playing_loop("melody")
+        if self.catch == 1:
+            rhythm = drummed(start.hits, steps)
+        else:
+            rhythm = written(loop, plan.variation, start.bar, steps)
+        notes = catch_notes(rhythm, planned, start.bar % loop.bars, steps)
+        played = [n.step for n in notes]
+        self._caught = {"bar": start.bar - 1, "steps": played}
+        self._log(
+            f"ensemble: catch bar {start.bar} answers bar {start.bar - 1}, "
+            f"steps {' '.join(map(str, played))}"
+        )
+        return notes
 
     def _transform_melody(
         self,
@@ -1733,6 +1802,7 @@ class Ensemble:
             "answer-after": lambda a: self._set(
                 lambda: setattr(self, "answer_after", _whole(a, *ANSWER_AFTER))
             ),
+            "catch": lambda a: self._set(lambda: setattr(self, "catch", _whole(a, 0, 2))),
         }
 
     def _set_learn_log(self, args: Sequence[float | int | str]) -> None:
@@ -1762,6 +1832,7 @@ class Ensemble:
                 "learn-group": str(int(self.learn_group)),
                 "new-groove": self.new_groove,
                 "answer-after": str(self.answer_after),
+                "catch": str(self.catch),
             }
             profile = PROFILE.as_posix() if self._profile.exists() else None
             path = log_path(self._data)
@@ -2095,6 +2166,7 @@ class Ensemble:
                 ("learn-group", [int(self.learn_group)]),
                 ("new-groove", [self.new_groove]),
                 ("answer-after", [self.answer_after]),
+                ("catch", [self.catch]),
             ]
 
     def data_folder(self, folder: Path) -> None:

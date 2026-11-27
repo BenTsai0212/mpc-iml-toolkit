@@ -1,0 +1,151 @@
+"""The catch's pure functions (#290, `mpc_iml.catch`): when it answers, its rhythm
+with `catch 1` and `catch 2`, and its notes."""
+
+from mpc_iml.catch import (
+    CATCH_NOTES,
+    MAX_LENGTH,
+    MIN_WEIGHT,
+    WRITTEN_VELOCITY,
+    Onset,
+    answers,
+    catch_notes,
+    drummed,
+    written,
+)
+from mpc_iml.clock import GridHit
+from mpc_iml.grooves import Decision
+from mpc_iml.melody import Loop, LoopNote
+from mpc_iml.rhythm import FEEL
+
+STEPS = 16
+
+
+def hit(step: int, velocity: int = 100, pad: int = 0, offset: float = 0.0) -> GridHit:
+    return GridHit(0.0, pad, 0, velocity, 3, step, offset, offset * 125)
+
+
+def groove(bar: int, fill: bool = False, id_: int | None = 1) -> Decision:
+    return Decision(bar=bar, groove=id_, position=bar, start=0, fill=fill)
+
+
+TWO = [hit(0), hit(8)]
+
+
+def test_a_fill_after_two_bars_of_its_groove_is_answered() -> None:
+    assert answers(groove(3, fill=True), [groove(2), groove(1)], TWO)
+
+
+def test_no_answer_without_the_held_groove_a_fill_or_hits() -> None:
+    held = [groove(2), groove(1)]
+    assert not answers(groove(3), held, TWO)
+    assert not answers(None, held, TWO)
+    assert not answers(groove(3, fill=True, id_=None), held, TWO)
+    assert not answers(groove(3, fill=True), [groove(2), None], TWO)
+    assert not answers(groove(3, fill=True), [groove(2)], TWO)
+    assert not answers(groove(3, fill=True), [groove(2, fill=True), groove(1)], TWO)
+    assert not answers(groove(3, fill=True), [groove(2), groove(1, id_=2)], TWO)
+    assert not answers(groove(3, fill=True), held, [hit(0)])
+    assert not answers(groove(3, fill=True), held, [hit(0), hit(4, pad=14), hit(8, pad=15)])
+
+
+def test_drummed_takes_the_loudest_hit_of_each_step_and_skips_pads_15_and_16() -> None:
+    hits = [
+        hit(0, 80, pad=0),
+        hit(0, 110, pad=1, offset=-0.2),
+        hit(4, 127, pad=14),
+        hit(6, 90, pad=15),
+        hit(10, 70, pad=12),
+    ]
+    assert drummed(hits, STEPS) == (Onset(0, 110, -0.2), Onset(10, 70, 0.0))
+
+
+def test_drummed_keeps_the_eight_loudest_onsets_earlier_first_on_a_tie() -> None:
+    hits = [hit(s, 100) for s in range(12)] + [hit(12, 120), hit(14, 60)]
+    rhythm = drummed(hits, STEPS)
+    assert len(rhythm) == CATCH_NOTES
+    assert [o.step for o in rhythm] == [0, 1, 2, 3, 4, 5, 6, 12]
+
+
+def line(name: str, steps: list[int], tone: int = 0) -> Loop:
+    notes = tuple(LoopNote(0, s, tone, 2, 1) for s in steps) + (LoopNote(0, 15, 1, 1, 2),)
+    return Loop(name, 1, notes)
+
+
+VARIED = Loop(
+    "varied",
+    1,
+    line("home", [0]).notes,
+    (line("home", [0, 4]), line("open", [2, 6, 10]), line("busy", [1, 3])),
+)
+
+
+def test_written_is_the_next_variation_level_1_wrapping() -> None:
+    assert [o.step for o in written(VARIED, "home", 0, STEPS)] == [2, 6, 10]
+    assert [o.step for o in written(VARIED, "busy", 0, STEPS)] == [0, 4]
+    assert all(
+        o.velocity == WRITTEN_VELOCITY and o.offset == 0 for o in written(VARIED, "open", 0, STEPS)
+    )
+
+
+def test_written_is_the_loops_own_notes_without_another_variation() -> None:
+    assert [o.step for o in written(line("plain", [0, 5]), "home", 0, STEPS)] == [0, 5]
+    single = Loop("single", 1, line("own", [3]).notes, (line("home", [7]),))
+    assert [o.step for o in written(single, "home", 0, STEPS)] == [3]
+
+
+def test_written_does_not_read_the_drums() -> None:
+    assert written(VARIED, "open", 0, STEPS) == written(VARIED, "open", 0, STEPS)
+
+
+PLANNED = (
+    LoopNote(0, 8, 2, 2, 1, octave=1),
+    LoopNote(0, 0, 0, 2, 1),
+    LoopNote(0, 4, 1, 2, 1, semitones=-1),
+    LoopNote(0, 12, 3, 2, 1, chord=1),
+)
+
+
+def test_the_accent_is_on_step_0_with_weight_1() -> None:
+    notes = catch_notes((Onset(3, 40), Onset(9, 127)), PLANNED, 0, STEPS)
+    assert notes[0].step == 0 and notes[0].velocity == 1.0 and notes[0].offset == 0
+    assert [n.velocity for n in notes[1:]] == [MIN_WEIGHT, 1.0]
+    played = catch_notes((Onset(0, 30, 0.3), Onset(5, 100)), PLANNED, 0, STEPS)
+    assert played[0].velocity == 1.0 and played[0].offset == FEEL * 0.3
+    assert played[1].velocity == 100 / 127
+
+
+def test_pitches_follow_the_chord_0_notes_in_step_order_and_start_again() -> None:
+    rhythm = tuple(Onset(s, 100) for s in (2, 5, 7, 9))
+    notes = catch_notes(rhythm, PLANNED, 0, STEPS)
+    assert [(n.tone, n.octave, n.semitones) for n in notes] == [
+        (0, 0, 0),
+        (1, 0, -1),
+        (2, 1, 0),
+        (0, 0, 0),
+        (1, 0, -1),
+    ]
+    assert all(n.chord == 0 and n.level == 1 for n in notes)
+
+
+def test_a_variation_without_chord_0_notes_gives_tone_0() -> None:
+    notes = catch_notes((Onset(4, 100),), (LoopNote(0, 0, 3, 2, 1, chord=1),), 0, STEPS)
+    assert [(n.tone, n.octave, n.semitones) for n in notes] == [(0, 0, 0)] * 2
+
+
+def test_lengths_reach_the_next_note_from_1_to_4_steps_inside_the_bar() -> None:
+    rhythm = tuple(Onset(s, 100) for s in (1, 2, 10, 15))
+    notes = catch_notes(rhythm, PLANNED, 0, STEPS)
+    assert [(n.step, n.length) for n in notes] == [
+        (0, 1),
+        (1, 1),
+        (2, MAX_LENGTH),
+        (10, 4),
+        (15, 1),
+    ]
+    assert all(n.step + n.length <= STEPS for n in notes)
+
+
+def test_offsets_are_the_hits_offsets_times_feel() -> None:
+    rhythm = drummed([hit(4, offset=0.4), hit(9, offset=-0.5)], STEPS)
+    notes = catch_notes(rhythm, PLANNED, 0, STEPS)
+    assert [n.offset for n in notes] == [0.0, FEEL * 0.4, FEEL * -0.5]

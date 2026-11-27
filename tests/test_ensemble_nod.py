@@ -230,7 +230,7 @@ def test_the_settings_replies_and_bad_values() -> None:
     assert NEW_GROOVE == ("rules", "invite")
     controls["learn-group"]([1])
     controls["new-groove"](["invite"])
-    assert played.ensemble.state()[-4:] == [
+    assert played.ensemble.state()[-5:-1] == [
         ("follow-by", ["bar"]),
         ("learn-group", [1]),
         ("new-groove", ["invite"]),

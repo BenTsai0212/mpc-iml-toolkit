@@ -17,7 +17,7 @@ per bar in bar order. It works with every `learn` mode, so a trial compares `off
      "like": false, "want": {"bass": "auto", "melody": "auto"},
      "example": {"bass": null, "melody": null},
      "groove": {"id": 2, "position": 5, "fill": false, "free": false},
-     "nod": null}
+     "catch": null, "nod": null}
 
 `bar` counts from song start, as the bars of a `record --clock` recording, so a
 trial joins the two files by bar; `t` is the time of the bar line's clock tick on
@@ -38,6 +38,9 @@ version 1 log, and `summary` adds its `grooves:` line only when the field is the
 (`grooves.nods.nod_groove`); `null` when no nod referred to the bar. It too was added
 without a version bump; `summary` adds its `nods:` line and the groove changes when
 the log has `nod` or `groove` fields.
+`catch` (#290) is the catch the melody played in the bar: `{"bar", "steps"}`, the
+bar it answered and the steps of its notes, or `null`; it too was added without a
+version bump, and a log without it still reads.
 A bar's line is written two bar lines later, once no like can
 refer to it, and the lines still waiting when the log stops (`learn-log 0`); when
 the engine quits, the last two bars are not written. The file is created at the

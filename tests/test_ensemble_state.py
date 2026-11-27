@@ -66,6 +66,7 @@ NAMES = [
     "learn-group",
     "new-groove",
     "answer-after",
+    "catch",
 ]
 """The replies, in the order of ADR 0009."""
 
@@ -152,6 +153,7 @@ def test_the_state_after_build() -> None:
         "learn-group": [0],
         "new-groove": ["rules"],
         "answer-after": [2],
+        "catch": [0],
     }
 
 
