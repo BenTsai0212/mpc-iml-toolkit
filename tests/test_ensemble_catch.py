@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_ensemble import BAR, KICK, SNARE, START, STEP, Rig
+from test_ensemble import BAR, KICK, SNARE, START, STEP, STOP, Rig
 from test_ensemble_grooves import FILL, ROLL, SILENT, A, play
 from test_melody import HAT
 
@@ -93,19 +93,58 @@ def pitches(played: Rig, bar: int) -> list[tuple[int, int]]:
     return [(t, n) for t, n, _ in notes(played, MELODY_ON, bar)]
 
 
-def test_catch_2_keeps_the_bars_pitches_and_accent_but_not_the_drums() -> None:
-    # With `follow-by groove` the melody's variation comes from the groove, so the
-    # two fills leave the planned variation alone and only the drums differ.
-    drums, written, other = (rig(c, follow_by="groove") for c in (1, 2, 2))
-    for played in (drums, written):
-        play(played, [A, A, A, FILL, A])
-    play(other, [A, A, A, ROLL, A])
-    assert caught(drums) == caught(written) == caught(other) == [4]
-    steps = [t // STEP for t, _ in pitches(written, 4)]
-    assert steps != FILL_STEPS and steps[0] == 0
-    assert pitches(written, 4) == pitches(other, 4)
-    assert pitches(drums, 4)[0] == pitches(written, 4)[0]
-    assert [n for _, n in pitches(drums, 4)][:3] == [n for _, n in pitches(written, 4)][:3]
+def steps_of(played: Rig) -> dict[int, list[int]]:
+    """Bar -> the steps of its catch, from the log line."""
+    found = {}
+    for line in played.log:
+        if line.startswith("ensemble: catch bar"):
+            words = line.split()
+            found[int(words[3])] = [int(w) for w in words[8:]]
+    return found
+
+
+A_STEPS = [0, 2, 4, 6, 8, 10, 12]
+"""The steps of `A`."""
+ROLL_STEPS = list(range(8))
+"""The steps `drummed` keeps of `ROLL` (16 equal kicks: the 8 earliest)."""
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [(FILL, FILL), (FILL, ROLL), (ROLL, FILL)],
+    ids=["FILL FILL", "FILL ROLL", "ROLL FILL"],
+)
+def test_catch_2_reads_the_bar_before_then_the_bar_the_last_catch_answered(
+    first: list[tuple[int, int]], second: list[tuple[int, int]]
+) -> None:
+    played = rig(2)
+    play(played, [A, A, A, first, A, A, second, A])
+    answered_first = FILL_STEPS if first is FILL else ROLL_STEPS
+    assert steps_of(played) == {4: A_STEPS, 7: answered_first}
+    assert fields(played, 4)[4].endswith("(catch)")
+    assert fields(played, 4)[7].endswith("(catch)")
+
+
+def test_catch_1_and_catch_2_answer_the_same_bars_with_other_rhythms() -> None:
+    drums, compared = rig(1), rig(2)
+    for played in (drums, compared):
+        play(played, [A, A, A, FILL, A, A, ROLL, A])
+    assert steps_of(drums) == {4: FILL_STEPS, 7: ROLL_STEPS}
+    assert steps_of(compared) == {4: A_STEPS, 7: FILL_STEPS}
+    assert pitches(drums, 4)[0] == pitches(compared, 4)[0]
+    assert [n for _, n in pitches(drums, 4)][:3] == [n for _, n in pitches(compared, 4)][:3]
+
+
+def test_catch_2_forgets_the_bar_answered_when_the_clock_starts() -> None:
+    played = rig(2)
+    play(played, [A, A, A, FILL, A])
+    assert steps_of(played) == {4: A_STEPS}
+    played.send(STOP)
+    played.send(START)
+    played.next_tick = 0
+    played.log.clear()
+    play(played, [A, A, A, ROLL, A])
+    assert steps_of(played) == {4: A_STEPS}
 
 
 @pytest.mark.parametrize(

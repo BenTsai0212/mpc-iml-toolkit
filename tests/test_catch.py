@@ -5,16 +5,15 @@ from mpc_iml.catch import (
     CATCH_NOTES,
     MAX_LENGTH,
     MIN_WEIGHT,
-    WRITTEN_VELOCITY,
     Onset,
     answers,
     catch_notes,
+    compared,
     drummed,
-    written,
 )
 from mpc_iml.clock import GridHit
 from mpc_iml.grooves import Decision
-from mpc_iml.melody import Loop, LoopNote
+from mpc_iml.melody import LoopNote
 from mpc_iml.rhythm import FEEL
 
 STEPS = 16
@@ -66,35 +65,27 @@ def test_drummed_keeps_the_eight_loudest_onsets_earlier_first_on_a_tie() -> None
     assert [o.step for o in rhythm] == [0, 1, 2, 3, 4, 5, 6, 12]
 
 
-def line(name: str, steps: list[int], tone: int = 0) -> Loop:
-    notes = tuple(LoopNote(0, s, tone, 2, 1) for s in steps) + (LoopNote(0, 15, 1, 1, 2),)
-    return Loop(name, 1, notes)
+EARLIER = [hit(2, 90, offset=0.1), hit(2, 60, pad=3), hit(7, 120), hit(9, 127, pad=15)]
+"""An earlier bar: two steps on counted pads (and pad 16, never read)."""
 
 
-VARIED = Loop(
-    "varied",
-    1,
-    line("home", [0]).notes,
-    (line("home", [0, 4]), line("open", [2, 6, 10]), line("busy", [1, 3])),
-)
+def test_compared_reads_the_earlier_bar_as_drummed_does() -> None:
+    assert compared(EARLIER, TWO, STEPS) == drummed(EARLIER, STEPS)
+    assert compared(EARLIER, TWO, STEPS) == (Onset(2, 90, 0.1), Onset(7, 120, 0.0))
+    many = [hit(s, 100) for s in range(12)] + [hit(12, 120)]
+    assert compared(many, TWO, STEPS) == drummed(many, STEPS)
+    assert len(compared(many, TWO, STEPS)) == CATCH_NOTES
 
 
-def test_written_is_the_next_variation_level_1_wrapping() -> None:
-    assert [o.step for o in written(VARIED, "home", 0, STEPS)] == [2, 6, 10]
-    assert [o.step for o in written(VARIED, "busy", 0, STEPS)] == [0, 4]
-    assert all(
-        o.velocity == WRITTEN_VELOCITY and o.offset == 0 for o in written(VARIED, "open", 0, STEPS)
-    )
+def test_compared_does_not_read_the_bar_it_answers() -> None:
+    assert compared(EARLIER, TWO, STEPS) == compared(EARLIER, [hit(5), hit(11)], STEPS)
 
 
-def test_written_is_the_loops_own_notes_without_another_variation() -> None:
-    assert [o.step for o in written(line("plain", [0, 5]), "home", 0, STEPS)] == [0, 5]
-    single = Loop("single", 1, line("own", [3]).notes, (line("home", [7]),))
-    assert [o.step for o in written(single, "home", 0, STEPS)] == [3]
-
-
-def test_written_does_not_read_the_drums() -> None:
-    assert written(VARIED, "open", 0, STEPS) == written(VARIED, "open", 0, STEPS)
+def test_compared_reads_the_bar_that_ended_without_an_earlier_bar_of_two_hits() -> None:
+    assert compared(None, TWO, STEPS) == drummed(TWO, STEPS)
+    assert compared([hit(3)], TWO, STEPS) == drummed(TWO, STEPS)
+    assert compared([hit(3), hit(5, pad=14), hit(6, pad=15)], TWO, STEPS) == drummed(TWO, STEPS)
+    assert compared([], TWO, STEPS) == drummed(TWO, STEPS)
 
 
 PLANNED = (

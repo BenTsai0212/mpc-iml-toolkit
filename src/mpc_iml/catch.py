@@ -3,16 +3,17 @@
 When the drummer leaves a groove they were holding (a fill, or the first bar of
 something new), `ensemble` with `catch 1` has the melody play, in the next bar, a
 short phrase with the rhythm the drummer just played; the bass holds its line.
-`catch 2` is the comparison for trials: the same bars get an answer with the same
-pitches, lengths and accent, but its rhythm comes from the loop, not the drums.
+`catch 2` is the comparison for trials: the same bars get an answer made in the same
+way, but its rhythm is read from an earlier bar the drummer played, not from the bar
+it answers.
 
 Pure functions, no I/O and no random numbers:
 
 - `answers`: whether the bar that starts answers the bar that just ended (the
   tracker's decision on it has a groove and `fill`, on the `CATCH_HOLD` bars before
   it the same groove without `fill`, and it has `CATCH_MIN` hits).
-- `drummed` (`catch 1`) and `written` (`catch 2`): the rhythm, at most
-  `CATCH_NOTES` onsets, one per 16th step.
+- `drummed` (`catch 1`) and `compared` (`catch 2`, from an earlier bar): the rhythm,
+  at most `CATCH_NOTES` onsets, one per 16th step.
 - `catch_notes`: the notes, with an accent on step 0, the pitches of the planned
   variation's `chord` 0 notes in turn, lengths to the next note (1 to `MAX_LENGTH`
   steps, inside the bar), velocity weights from the hits (`MIN_WEIGHT` to 1.0) and
@@ -25,7 +26,7 @@ from dataclasses import dataclass
 
 from mpc_iml.clock import GridHit
 from mpc_iml.grooves import Decision
-from mpc_iml.melody import Loop, LoopNote
+from mpc_iml.melody import LoopNote
 from mpc_iml.rhythm import FEEL
 
 __all__ = [
@@ -35,13 +36,12 @@ __all__ = [
     "IGNORED_PADS",
     "MAX_LENGTH",
     "MIN_WEIGHT",
-    "WRITTEN_VELOCITY",
     "Onset",
     "answers",
     "catch_notes",
+    "compared",
     "counted",
     "drummed",
-    "written",
 ]
 
 CATCH_HOLD = 2
@@ -61,9 +61,6 @@ MAX_LENGTH = 4
 
 MIN_WEIGHT = 0.5
 """The lowest velocity weight of a catch note other than the accent."""
-
-WRITTEN_VELOCITY = 100
-"""The velocity of each onset of `catch 2`'s rhythm (`written`)."""
 
 
 @dataclass(frozen=True)
@@ -118,17 +115,17 @@ def drummed(hits: Sequence[GridHit], steps: int) -> tuple[Onset, ...]:
     return _limit([Onset(h.step, h.velocity, h.offset) for h in loudest.values()])
 
 
-def written(loop: Loop, variation: str | None, bar: int, steps: int) -> tuple[Onset, ...]:
-    """`catch 2`'s rhythm: the steps of the level 1 notes in song bar `bar` of the
-    variation after `variation` in `loop`'s order (wrapping; the loop's own notes
-    when it has no other variation), each at `WRITTEN_VELOCITY` with no offset, at
-    most `CATCH_NOTES`. It reads nothing the drums played."""
-    names = [v.name for v in loop.variations]
-    source = loop
-    if variation in names and len(names) > 1:
-        source = loop.variations[(names.index(variation) + 1) % len(names)]
-    found = sorted({n.step for n in source.bar_notes(bar, 1) if 0 <= n.step < steps})
-    return _limit([Onset(s, WRITTEN_VELOCITY) for s in found])
+def compared(
+    earlier: Sequence[GridHit] | None, hits: Sequence[GridHit], steps: int
+) -> tuple[Onset, ...]:
+    """`catch 2`'s rhythm: read as `drummed` (pads, the loudest hit of each step, at
+    most `CATCH_NOTES`, velocities and offsets), but from `earlier`, another bar the
+    drummer played (the bar the previous catch answered, or the bar before the one
+    that just ended). When `earlier` is unknown or has fewer than `CATCH_MIN` hits,
+    `hits` (the bar that just ended) are read, as with `catch 1`."""
+    if earlier is not None and len(counted(earlier)) >= CATCH_MIN:
+        return drummed(earlier, steps)
+    return drummed(hits, steps)
 
 
 def _weight(velocity: int) -> float:

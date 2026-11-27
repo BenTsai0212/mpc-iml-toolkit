@@ -259,7 +259,9 @@ of a groove, the `catch.CATCH_HOLD` bars before it bars of that groove, and it h
 `catch.CATCH_MIN` hits on pads other than 15 and 16), with the clock running and the
 melody following. The melody's notes of that bar are `catch.catch_notes`: the
 rhythm of those hits (`catch.drummed`; with `catch 2`, the comparison for trials,
-the steps of the next variation instead, `catch.written`), an accent on step 0 and
+`catch.compared` reads it in the same way from an earlier bar instead: the bar the
+previous catch answered, for the first catch since the clock started the bar before
+the one that just ended), an accent on step 0 and
 the pitches of the variation the melody would play. That bar draws no surprise,
 the bass plays no fill (`follow-by groove`) and `rhythm 2` does not move the
 melody. The melody's `chose` is `catch`, `ensemble: catch bar 12 answers bar 11,
@@ -287,7 +289,7 @@ from mpc_iml.bass import (
     bass_variation,
 )
 from mpc_iml.catch import answers as catch_answers
-from mpc_iml.catch import catch_notes, drummed, written
+from mpc_iml.catch import catch_notes, compared, drummed
 from mpc_iml.clock import (
     SIXTEENTHS,
     TICKS_PER_BEAT,
@@ -622,6 +624,11 @@ class Ensemble:
         """`catch` (#290): 1 the keys answer a groove's fill, 2 the comparison."""
         self._caught: dict[str, object] | None = None
         """The catch of the bar that started at the last bar line (`{"bar", "steps"}`)."""
+        self._answered: tuple[GridHit, ...] | None = None
+        """`catch 2`: the hits of the bar the previous catch answered since the clock
+        started (`None`: no catch yet)."""
+        self._before: tuple[int, tuple[GridHit, ...]] | None = None
+        """`catch 2`: the bar that ended at the previous bar line and its hits."""
         self._nods = NodMemory(seed=seed)
         """The nods kept (`learn nod`, #250)."""
         self._invite_random = random.Random(None if seed is None else f"invite {seed}")
@@ -958,6 +965,8 @@ class Ensemble:
                     ),
                 }
             self._bar_wants = dict(self.wants)
+            if self.catch == 2:
+                self._remember_bar(start)
             if self._bar_log is not None:
                 self._log_bar(start, drums, rules)
             if self.learn != "off" and start.bar > 0 and start.bar % PHRASE == 0:
@@ -1427,7 +1436,7 @@ class Ensemble:
             n for n in plan.notes(self._playing_loop("melody"), start.bar) if n.step < steps
         )
         if caught:
-            notes = self._catch(start, plan, notes, steps)
+            notes = self._catch(start, notes, steps)
         else:
             plan, notes = self._transform_melody(start.bar, plan, heard, notes, steps)
         self._plans["melody"] = plan
@@ -1447,16 +1456,21 @@ class Ensemble:
         return plan.variation or "-"
 
     def _catch(
-        self, start: BarStart, plan: BarPlan, planned: tuple[LoopNote, ...], steps: int
+        self, start: BarStart, planned: tuple[LoopNote, ...], steps: int
     ) -> tuple[LoopNote, ...]:
         """The catch's notes in the bar that starts now (#290): the rhythm of the last
-        bar's hits (`catch 1`) or of the next variation (`catch 2`), the pitches of
-        `planned`; logged once."""
+        bar's hits (`catch 1`) or of an earlier bar (`catch 2`: the bar the previous
+        catch answered, for the first catch since the clock started the bar before the
+        last one), the pitches of `planned`; logged once."""
         loop = self._playing_loop("melody")
         if self.catch == 1:
             rhythm = drummed(start.hits, steps)
         else:
-            rhythm = written(loop, plan.variation, start.bar, steps)
+            earlier = self._answered
+            if earlier is None and self._before is not None and self._before[0] == start.bar - 2:
+                earlier = self._before[1]
+            rhythm = compared(earlier, start.hits, steps)
+            self._answered = start.hits
         notes = catch_notes(rhythm, planned, start.bar % loop.bars, steps)
         played = [n.step for n in notes]
         self._caught = {"bar": start.bar - 1, "steps": played}
@@ -1465,6 +1479,16 @@ class Ensemble:
             f"steps {' '.join(map(str, played))}"
         )
         return notes
+
+    def _remember_bar(self, start: BarStart) -> None:
+        """`catch 2` (#290): keep the hits of the bar that just ended for the next bar
+        line. A bar line after Start (or Continue, or a lost clock) forgets them and
+        the bar a catch answered, as the tracker forgets the groove."""
+        if start.complete:
+            self._before = (start.bar - 1, start.hits)
+        else:
+            self._before = None
+            self._answered = None
 
     def _transform_melody(
         self,
