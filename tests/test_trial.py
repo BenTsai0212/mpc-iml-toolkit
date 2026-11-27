@@ -196,7 +196,9 @@ def test_rhythm_trial_guide_has_no_pads_to_press() -> None:
     assert any("sparse to busy" in line for line in trial.guide.condition)
 
 
-@pytest.mark.parametrize("name", ["rhythm.json", "learn.json", "groove.json", "nod.json"])
+@pytest.mark.parametrize(
+    "name", ["rhythm.json", "learn.json", "groove.json", "nod.json", "catch.json"]
+)
 def test_example_trials_keep_the_modes_from_the_pads(name: str) -> None:
     trial, _ = load_trial(EXAMPLE.with_name(name))
     assert trial.base["mode-pads"] == (0,)
@@ -411,3 +413,25 @@ def test_nod_trial_compares_learning_off_and_nods_while_following_the_groove() -
         assert state["follow-by"] == ["groove"] and state["learn-group"] == [0]
         assert state["new-groove"] == ["rules"] and state["melody-mode"][0] == "still"
     assert any("pad 16" in line for line in trial.guide.start)
+
+
+def test_catch_trial_compares_no_catch_the_catch_and_its_comparison() -> None:
+    """#290: `catch` is the one difference; the melody follows, so it can catch."""
+    trial, _ = load_trial(EXAMPLE.with_name("catch.json"))
+    assert [c.name for c in trial.conditions] == ["catch-0", "catch-1", "catch-2"]
+    assert trial.min_bars is not None and trial.min_bars <= trial.bars
+    assert [(q.text, q.scale) for q in trial.questions] == [
+        ("The band answered what I had just played", "1-5"),
+        ("It sounded good", "1-5"),
+        ("What did you notice?", "text"),
+    ]
+    ensemble = Ensemble()
+    controls = ensemble.controls()
+    for condition in trial.conditions:
+        for control, args in trial.messages(condition):
+            if control != "learn-log":
+                controls[control](list(args))
+        state = dict(ensemble.state())
+        assert state["catch"] == [int(condition.name.removeprefix("catch-"))]
+        assert state["melody-mode"][0] == "follow" and state["learn"] == ["off"]
+    assert not any("pad 1" in line for line in trial.guide.start + trial.guide.condition)

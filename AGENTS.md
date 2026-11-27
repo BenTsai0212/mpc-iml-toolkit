@@ -39,7 +39,7 @@ Python 3.12，以 uv 管理環境（ADR 0001）。CI 的 `checks` job 在 Ubuntu
 | `src/mpc_iml/` | 工具包本體（import 名稱 `mpc_iml`）；每個 module 一行，見 `docs/modules.md`；格式見 ADR 0002；內建的 loop、和弦進行與樂團檔在 `loops/`、`progressions/`、`bands/` 的 `ensemble/`（樂團檔照 #276 寫入，不改音符、角色與 pattern） |
 | `assets/ableton/` | Ableton Live 12 入門 set（`mpc-iml-starter.als`，含 CC 20-27 對應）與 rack（`mpc-iml-starter.adg`）；作者在 Live 中建立的二進位檔，不要開啟、重新儲存或重新產生（#104） |
 | `examples/reference/` | 參考範例的選用 Pure Data 接收端（`receiver.pd`，CI 不測試） |
-| `examples/trial/` | 盲測比較的範例 trial 檔（`rhythm.json`：`rhythm 0` 對 `rhythm 1`，#197；`learn.json`：`learn off`、`likes`、`demo`，#196；`groove.json`：`follow-by bar` 對 `groove`，`nod.json`：`learn off` 對 `nod`，#250；`tests/test_trial.py` 讀取） |
+| `examples/trial/` | 盲測比較的範例 trial 檔（`rhythm.json`：`rhythm 0` 對 `rhythm 1`，#197；`learn.json`：`learn off`、`likes`、`demo`，#196；`groove.json`：`follow-by bar` 對 `groove`，`nod.json`：`learn off` 對 `nod`，#250；`catch.json`：`catch 0`、`1`、`2`，#290；`tests/test_trial.py` 讀取） |
 | `tests/` | pytest 測試；硬體測試加 `@pytest.mark.hardware`；手寫的合成錄音放在 `tests/data/`；`tests/plugins/` 是測試用的外部 preset 套件（含 `*.dist-info`）；`tests/pd.py` 讀取 Pure Data patch 並估計方塊位置（不需 Pure Data） |
 | `pyproject.toml`、`uv.lock`、`.python-version` | 套件設定（套件名 `mpc-iml-toolkit`、MIT）、ruff／mypy／pytest 設定、鎖定的相依套件 |
 | `docs/workflow/` | 憲法與 workflow 手冊（繁體中文） |

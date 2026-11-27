@@ -28,7 +28,9 @@ the learning log lines and the final `learned` reply. With `nod` (#250),
 `Settings.nods` sends the control `nod` in the first beat of the bar after each listed
 grid bar, so the nod counts for that bar, as pad 16 does live; a replayed recording's
 pad 16 is the nod itself. The groove settings `follow-by`, `answer-after`,
-`learn-group` and `new-groove` go through the controls of the same name. Nothing is
+`learn-group` and `new-groove` go through the controls of the same name, and so
+does `catch` (#290): each row then says which steps the keys' catch played in the bar
+after it (`BarRow.catch`). Nothing is
 saved: the demo has no data folder, so there is no profile and no learn log.
 """
 
@@ -87,6 +89,8 @@ _SURPRISE = re.compile(r"ensemble: surprise (\w+) in bar (\d+)")
 """The line `ensemble` logs for each surprise (#158): information, not a failure."""
 _MOTIF = re.compile(r"ensemble: rhythm motif (kick|snare)[\w ]*")
 """The line `ensemble` logs for the motif at a phrase start (#189): information."""
+_CATCH = re.compile(r"ensemble: catch bar (\d+) answers bar \d+, steps ([\d ]*)")
+"""The line `ensemble` logs for each catch (#290): information, kept in the rows."""
 _LEARNING = re.compile(r"ensemble: (like|learned|trained|want|nod|groove \d+) .*")
 """The lines `ensemble` logs while learning (#196, the nods and the grooves they play
 in, #250): kept in `Song.learning`."""
@@ -151,6 +155,10 @@ class Settings:
     nods: tuple[int, ...] = ()
     """With `learn nod`: the grid bars (from 0) the musician nods to, with the control
     `nod` in the first beat of the bar after each (`learn.liked_bar`)."""
+    catch: int = 0
+    """The setting `catch` (#290): 0 (the default, as in the instrument) off, 1 the
+    keys answer a bar that leaves a groove with its rhythm, 2 the comparison for
+    trials (the rhythm of an earlier bar)."""
 
 
 @dataclass(frozen=True)
@@ -199,6 +207,8 @@ class BarRow:
     pressed: tuple[str, ...] = ()
     """The parts whose pad the musician pressed in the bar after it
     (`Settings.presses`, #215)."""
+    catch: tuple[int, ...] | None = None
+    """The steps of the keys' catch in the bar after it (#290; `None`: no catch)."""
 
 
 @dataclass(frozen=True)
@@ -362,6 +372,7 @@ class _Run:
         self.log: list[str] = []
         self.learning: list[str] = []
         self.surprises: dict[int, str] = {}
+        self.catches: dict[int, tuple[int, ...]] = {}
         self.chose: dict[int, tuple[str, str]] = {}
         self._likes = {bar + 1 for bar in settings.likes}
         self._liked: set[int] = set()
@@ -398,6 +409,7 @@ class _Run:
         controls["answer-after"]([settings.answer_after])
         controls["learn-group"]([settings.learn_group])
         controls["new-groove"]([settings.new_groove])
+        controls["catch"]([settings.catch])
         controls["status"]([0])  # the page shows the bars in its table (#230)
         self.ensemble, self._like, self._nod = ensemble, controls["like"], controls["nod"]
         self.chords = ensemble.progression
@@ -420,8 +432,11 @@ class _Run:
 
     def _ensemble_log(self, line: str) -> None:
         match = _SURPRISE.fullmatch(line)
+        caught = _CATCH.fullmatch(line)
         if match:
             self.surprises[int(match[2])] = match[1]
+        elif caught:
+            self.catches[int(caught[1])] = tuple(int(s) for s in caught[2].split())
         elif _LEARNING.fullmatch(line):
             self.learning.append(line)
         elif not _MOTIF.fullmatch(line):
@@ -489,6 +504,7 @@ class _Run:
                 chose=self.chose[b + 1],
                 liked=b + 1 in self._liked,
                 pressed=self.pressed.get(b + 1, ()),
+                catch=self.catches.get(b + 1),
             )
             for b in range(grid_bars)
         )

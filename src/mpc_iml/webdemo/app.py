@@ -12,7 +12,9 @@ bars whose answer is liked, with `demo` the wanted variations and the presses of
 pads 16 and 15 (`parse_likes`, `parse_wants`, `parse_presses`, #215), with `nod`
 the bars nodded to (`parse_nods`, #250); the table gains the contexts and where each
 choice came from, and the page shows the learning log and what was learned. The
-`follow-by` setting (#250) makes the band follow each bar or the groove.
+`follow-by` setting (#250) makes the band follow each bar or the groove. The `catch`
+setting (#290) lets the keys answer a bar that leaves a groove; the table's melody
+column shows the steps of each catch.
 
 The `variations` tab (#221) plays the variation generator's candidates next to their
 source loop (`webdemo.variations.listen`), each with its audio and piano roll, over
@@ -158,7 +160,9 @@ the drums each moved line took and the steps its notes moved to (next to `bar` s
 they show without scrolling, #189); then the drums of a bar (as the rules read them)
 and what the band plays in the bar after it; `context` is the bass's and the melody's
 learning context of the bar and `chose` where their choice came from, `liked` when
-the answer was liked (#196) and `pressed` the pads pressed in it (#215)."""
+the answer was liked (#196) and `pressed` the pads pressed in it (#215); `melody`
+ends with `catch` and its steps in a bar where the keys play a catch (#290, and
+`chose` names `catch` for the melody)."""
 
 Table = list[list[str | int]]
 
@@ -375,6 +379,11 @@ def build(
             with gr.Row():
                 follow_by = gr.Radio(list(FOLLOW_BY), value=default.follow_by, label="follow-by")
                 nods = gr.Textbox(label="nods (learn nod): bars nodded to, 8 16")
+                catch = gr.Radio(
+                    [("off", 0), ("catch", 1), ("comparison (trials only)", 2)],
+                    value=default.catch,
+                    label="catch",
+                )
         with gr.Tab("step grid") as grid_tab:
             grid = gr.Dataframe(
                 to_table(EXAMPLES["sparse"]),
@@ -470,11 +479,13 @@ def build(
             presses,
             follow_by,
             nods,
+            catch,
         ]
 
         def settings_of(tempo: float, *values: object) -> Settings:
             progression, bass_loop, loop, mode, no_drums, fade, surprise, rhythm, seed = values[:9]
-            learn, likes, wants, presses, follow_by, nods = (str(v or "") for v in values[9:])
+            learn, likes, wants, presses, follow_by, nods = (str(v or "") for v in values[9:15])
+            catch = values[15]
             return Settings(
                 tempo,
                 str(progression),
@@ -492,6 +503,7 @@ def build(
                 presses=parse_presses(presses) if learn == "demo" else (),
                 follow_by=follow_by or default.follow_by,
                 nods=parse_nods(nods) if learn == "nod" else (),
+                catch=int(float(str(catch or 0))),
             )
 
         def outputs(shown: Shown) -> tuple[object, ...]:
@@ -617,7 +629,8 @@ def _table_row(row: BarRow) -> list[str | int]:
         row.chord,
         _plan(row.bass, row.bass_rule),
         _plan_velocity(row.bass),
-        _plan(row.melody, row.melody_rule),
+        _plan(row.melody, row.melody_rule)
+        + ("" if row.catch is None else f", catch {_steps(row.catch)}"),
         _plan_velocity(row.melody),
         "-" if row.melody is None or row.melody.cc is None else row.melody.cc,
         row.surprise or "-",

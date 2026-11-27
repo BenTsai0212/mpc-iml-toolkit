@@ -39,7 +39,7 @@ file's `condition` record has `ended_early: true` for a condition ended before
 `min_bars`; sessions written before this field read as `false`. Without
 `min_bars`, Enter ends a condition at once. Other values, or more than `bars`, are
 errors that name it. `learn.json` and `nod.json` set 100 (of 240 bars), `groove.json`
-64 (of 160), `rhythm.json` 32 (of 32).
+and `catch.json` 64 (of 160), `rhythm.json` 32 (of 32).
 
 **Why**: in the learning trial of 2026-11-23 the musician skipped the second
 condition (0 bars) and played the third for 25: he did not know in advance how many
@@ -203,6 +203,31 @@ uv run python -m mpc_iml.trial run examples/trial/nod.json ~/mpc-iml-trials
 
 `measures --trial` replays a recording with the condition's `follow-by` and, with
 `learn nod`, plays its pad 16 as the nod, as the engine did (`webdemo.sim.replay`).
+
+## The keys catching a fill
+
+[`examples/trial/catch.json`](../examples/trial/catch.json) is the trial of #290:
+`catch-0`, `catch-1` and `catch-2`, 160 bars each, at least 64:
+
+```bash
+uv run python -m mpc_iml.trial run examples/trial/catch.json ~/mpc-iml-trials
+```
+
+- `base` sets every control the conditions set: `melody-mode follow` (the keys must
+  follow to catch), `follow-by bar`, `surprise 1`, `rhythm 0`, `learn off` and
+  `catch 0`, so the three conditions differ only in `catch`. `catch-2` is the
+  comparison: it answers the same bars in the same way, with the rhythm of an earlier
+  bar, so it changes as much as `catch-1` without taking what was just played.
+- The guide asks the musician to hold a groove for a few bars, leave it for a bar
+  (a fill, or the first bar of something new), and listen to the bar after it. There
+  are no pads to press.
+- The questions are "The band answered what I had just played" and "It sounded good"
+  (1-5), asked separately because a partner that responds is not always the one
+  players enjoy most, and "What did you notice?".
+- `base` sends `learn-log 0` and each condition `learn-log 1`: each catch is in the
+  learn log's `catch` field, so the answered bars can be listed against the scores.
+
+`measures --trial` replays a recording with the condition's `catch`.
 
 ## Reports
 

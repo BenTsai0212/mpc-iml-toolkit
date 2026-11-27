@@ -388,7 +388,8 @@ ensemble: bar 12  Am7  bass drive (rule)  melody home (rule)  16: keep drive  15
 - the bass and melody variation playing in it and where each choice came from:
   `rule`, `bandit` (`learn likes`), `model` or `want` (`learn demo`), `still` for the
   melody in `melody-mode still` (#233), `fill` for the bass's answer to a fill with
-  `follow-by groove` (#250); `-` when that loop is silent;
+  `follow-by groove` (#250), `catch` for the keys' catch (#290); `-` when that loop
+  is silent;
 - what pad 16 and pad 15 do if you press them now: `keep <variation>` and
   `next <variation>` with `learn demo`, `like` with `learn likes`, the mode they
   switch to (`bass rule`, `melody fixed`) with `mode-pads 1`, and `-` when the pad
@@ -422,6 +423,59 @@ The loudness and the rhythm still follow each bar you play.
 `answer-after 1` (default 2, a setting to try later) answers a bar that differs from
 the groove at once, with the rules for that bar and no fill, and goes back to the
 groove's variation a bar later if the groove goes on.
+
+### The keys catch a fill
+
+With `catch 1` (#290, a setting, default 0), when you leave a groove you held, the
+keys answer in the next bar with a short phrase in the rhythm you just played: the
+**catch**. The bass holds its line.
+
+- **When:** the bar you just played is a fill of a groove (the `fill` of the status
+  line), the two bars before it were bars of that groove, and it has at least 2 hits
+  on pads other than 15 and 16. The clock must run and the melody must follow
+  (`melody-mode follow`). It does not depend on `follow-by`. After a catch, the next
+  one needs two bars of a groove again, so each departure gets at most one.
+- **What:** one note on each 16th step you hit (the loudest hit of the step, at most
+  the 8 loudest), plus an accent on the first beat. The pitches are the chord tones
+  of the variation the keys would have played in that bar, in turn, so the phrase
+  fits the chord. Each note lasts to the next one (1 to 4 steps), its loudness
+  follows your hit, and it sits off its step half as far as your hit did (as a
+  note `rhythm` moves).
+- **What else changes in that bar:** no surprise is drawn; with `follow-by groove`
+  the bass plays the groove's variation without its fill; `rhythm 2` does not move
+  the keys. The next bar is played as usual.
+- **What you see:** the status line and the reply `chose` show `catch` for the
+  melody (`melody home (catch)`), `engine.log` has `ensemble: catch bar 12 answers
+  bar 11, steps 0 3 6 10`, and the learn log's line for that bar has `catch`
+  (`{"bar", "steps"}`, else `null`).
+
+`catch 2` is the comparison for trials only, not for playing: the same bars get an
+answer made in the same way, but its rhythm is read from an earlier bar (the bar the
+previous catch answered; for the first catch since Start, the bar before your fill).
+It changes as much as `catch 1` without taking what you just played
+([Blind comparison trials](trials.md), `examples/trial/catch.json`). The catch stays
+off by default until that comparison says it helps.
+
+**Design basis.** Taking the other player's rhythm and playing it with the band's own
+chord tones follows Biles's *Interactive GenJam* (ICMC 1998), which maps a soloist's
+last bars to chord-scale indices and plays them back over the next chords; the paper
+reports no evaluation with players or listeners. The accent on the first beat follows
+a drum-accompaniment app's description of answering a fill that ends in a crash
+(Bashery tester notes; a vendor's description, not a published method). One part
+answering while the others keep the line follows Michaelsen's analysis of the Miles
+Davis Quintet (*Making "Anti-Music"*, Music Theory Online 2019); which part answers
+(here the keys) is our choice. Answers are occasional because an accompanist who
+keeps their role is often what a soloist wants (Givan, *Rethinking Interaction in
+Jazz Improvisation*, Music Theory Online 2016). The catch keeps your rhythm and
+changes the pitches, an "augmentation" in Wilson and MacDonald's terms (Psychology of
+Music 2016). The comparison `catch 2` follows Setzler and Goldstone (CogSci 2019),
+whose pianists played with a live partner or a recording that could not respond
+without knowing which; the trial asks "it answered me" and "it sounded good"
+separately because a partner that responds is not always the one players enjoy most
+(Sjerps, TU Delft 2025; Dotov et al. 2024). When it plays comes from 1,152 bars of
+trial recordings: a bar that leaves a groove held for two bars came about once in
+eight bars, and the drummer went back to the same groove after it only 23% of the
+time, so the catch does not assume the groove returns.
 
 ### Nod to what you like
 
@@ -682,6 +736,7 @@ sends the most used ones; send the others from any OSC client:
 | `/mpciml/preset/ensemble/mode-pads` | 0 or 1 | 1 | 1: pads 15 and 16 cycle the melody and bass modes; 0: they keep the modes (still like in `learn likes` and want in `learn demo`), as trials send ([Blind comparison trials](trials.md)) |
 | `/mpciml/preset/ensemble/follow-by` | `bar` or `groove` | `bar` | `groove`: the variations follow your groove, with an answer to fills ([Follow the groove](#follow-the-groove)); `bar`: each bar (#250) |
 | `/mpciml/preset/ensemble/answer-after` | 1 or 2 | 2 | With `follow-by groove`: 1 answers a bar that differs from the groove at once, with the rules for that bar; 2 waits for the groove tracker (a fill, or a new groove at its second bar) |
+| `/mpciml/preset/ensemble/catch` | 0, 1 or 2 | 0 | 1: the keys answer a fill of a held groove with its rhythm in the next bar ([The keys catch a fill](#the-keys-catch-a-fill)); 2: the comparison for trials only (the rhythm of an earlier bar); 0: off (#290) |
 | `/mpciml/preset/ensemble/status` | 0 or 1 | 1 | 1: a status line in the terminal at each bar line, with the variations playing, their source and what pads 16 and 15 do now ([See what the band plays and what the pads do](#see-what-the-band-plays-and-what-the-pads-do)); 0: none, as trials send. Presses ignored without a running clock are shown either way |
 
 The settings go back to the defaults when `ensemble` is loaded again or the engine
@@ -711,7 +766,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `transform` | the bass and the melody transformation playing (`plain`, `lock`, `answer`, `backbeat`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learn` | the learning mode (`off`, `likes`, `demo`, `nod`) |
 | `likes` | the likes that credited a choice, or with `learn nod` the nods that kept a variation, since `ensemble` was loaded |
-| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`, `nod`, `group` or `invite` for the bass with `learn nod`; `-` when that loop is silent, not a loop, or there is no `--clock`) |
+| `chose` | where the bass and the melody variation playing came from (`rule`, `bandit`, `model`, `want`, `still` for the melody in `melody-mode still`, `fill` for the bass with `follow-by groove`, `nod`, `group` or `invite` for the bass with `learn nod`, `catch` for the melody's catch; `-` when that loop is silent, not a loop, or there is no `--clock`) |
 | `learned` | up to 4 `<part>:<context>><variation>` whose learned top choice differs from the rules, or with `learn nod` up to 4 `bass:groove <id>><variation>` for the nodded grooves of the session (`-` for none) |
 | `want` | the bass and the melody variation you want with `learn demo` (`auto` for none) |
 | `examples` | the bass and the melody examples shown with `learn demo`, with those of the profile |
@@ -724,6 +779,7 @@ melody mode, a playing variation or a playing transformation changes:
 | `learn-group` | the value (0 or 1) |
 | `new-groove` | the value (`rules`, `invite`) |
 | `answer-after` | the value (1 or 2) |
+| `catch` | the value (0, 1 or 2) |
 
 The names and arguments are versioned by the preset version (ADR 0004).
 
@@ -872,6 +928,12 @@ In the piano roll, moved notes are a lighter shade of their part's colour. Play 
 same grid with `bass` to hear the moved line next to the plain one.
 The **melody mode** setting also offers `still` (#233): the keys play `home` every
 bar while the bass follows, and the table shows the melody as `(still)`.
+The **catch** setting is the instrument's `catch` (#290, [The keys catch a
+fill](#the-keys-catch-a-fill)): with `catch` (or `comparison (trials only)`) the
+table's `melody` column ends with `catch` and the steps of its notes (from 1) in a bar
+where the keys catch, and `chose` shows `catch` for the melody. It works on the grid
+and on a recording; a grid catches when a pattern held for two bars or more is left
+for a bar.
 The same grid and seed always sound the same. Below the table, a piano roll shows
 the drums, bass and keys, and **MIDI file** downloads the song (drums on channel 10,
 bass on 2, keys on 3 with the brightness CC 74) to open in a DAW.
