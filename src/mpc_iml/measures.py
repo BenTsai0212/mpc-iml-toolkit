@@ -74,6 +74,7 @@ _FIELDS = {
     "answer-after": "answer_after",
     "learn-group": "learn_group",
     "new-groove": "new_groove",
+    "catch": "catch",
 }
 """`ensemble` controls the replay takes, and their `Settings` fields."""
 _SAME = {

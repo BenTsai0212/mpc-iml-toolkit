@@ -1,0 +1,43 @@
+{
+  "format": "mpc-iml-trial",
+  "format_version": 1,
+  "title": "The keys answering a fill, or not",
+  "bars": 160,
+  "min_bars": 64,
+  "guide": {
+    "start": [
+      "You will play with three bands, one after another. Give each one a full go; they may sound alike, and that is fine. Play each the same way.",
+      "You lead a band with your drums. The bass and keys follow you.",
+      "Play a groove for a few bars, then leave it for a bar: a fill, or the first bar of something new. Then go on, back to the groove or somewhere else.",
+      "Do this often, with different fills, and listen to what the band plays in the bar after your fill.",
+      "No pads to press: just play. To rest, stop drumming; the band keeps playing. Do not press Stop in Live."
+    ],
+    "condition": [
+      "A new band. Play the same way: hold a groove for a few bars, then a fill, and listen to the bar after it."
+    ]
+  },
+  "base": {
+    "bass": ["loop"],
+    "melody-mode": ["follow"],
+    "surprise": [1],
+    "rhythm": [0],
+    "learn": ["off"],
+    "follow-by": ["bar"],
+    "answer-after": [2],
+    "new-groove": ["rules"],
+    "catch": [0],
+    "learn-log": [0],
+    "mode-pads": [0],
+    "status": [0]
+  },
+  "conditions": [
+    {"name": "catch-0", "settings": {"catch": [0], "learn-log": [1]}},
+    {"name": "catch-1", "settings": {"catch": [1], "learn-log": [1]}},
+    {"name": "catch-2", "settings": {"catch": [2], "learn-log": [1]}}
+  ],
+  "questions": [
+    {"id": "answered", "text": "The band answered what I had just played", "scale": "1-5"},
+    {"id": "sounds-good", "text": "It sounded good", "scale": "1-5"},
+    {"id": "noticed", "text": "What did you notice?", "scale": "text"}
+  ]
+}

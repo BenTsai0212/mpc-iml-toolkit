@@ -699,6 +699,33 @@ the pull requests of #250 build it in steps, and the last one removes the old mo
 - Group 8 and the Max for Live device do not change. No core message, error code or
   protocol version changes; the protocol stays 1.5.
 
+## Amendment: the catch (#290)
+
+`ensemble` gains the control `catch` (preset version, a setting): `catch 0|1|2`,
+default 0, refused with `bad_arguments` outside 0-2. `0` plays as before and runs no
+code of the catch, so the golden files do not change. `1`: when the groove tracker's
+decision on the bar that just ended is a fill of a groove held for two bars and that
+bar has at least 2 hits on pads other than 15 and 16, the melody's notes of the next
+bar are the catch (`mpc_iml.catch`): that bar's rhythm with the chord tones of the
+planned variation and an accent on step 0. `2` is the comparison for trials: the same
+bars, the rhythm read from an earlier bar. In a catch bar no surprise is drawn, the
+bass plays no fill answer and `rhythm 2` does not move the melody.
+
+- Replies: a new reply `catch` (`i`, the value) follows `answer-after`. It changes
+  only with its control, so the bar line reports are as before. `chose` gives
+  `catch` for the melody in a catch bar.
+- The status line shows `catch` as the melody's source, for example `melody home
+  (catch)`.
+- `engine.log` has one line per catch: `ensemble: catch bar <N> answers bar <N-1>,
+  steps <s> <s> …` (not for the musician, so a trial stays blind).
+- The learn log (`mpc-iml-ensemble-log`) adds `catch` to the header settings and a
+  `catch` field to each bar's line (`{"bar", "steps"}` or `null`) without a version
+  change; logs without it still read.
+- The web demo (`webdemo.sim.Settings.catch`) and `measures --trial` send the control;
+  `examples/trial/catch.json` compares `catch 0`, `1` and `2`.
+
+No core message, error code or protocol version changes; the protocol stays 1.5.
+
 ## Consequences
 
 - A front end can show any preset's state, including changes made on the MPC, with

@@ -413,6 +413,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `/mpciml/preset/ensemble/learn-group` | 0 或 1 | 0 | `learn nod` 時：1 讓沒有點頭的 groove 在每段以一半的機率演奏相近 groove 的點頭 |
 | `/mpciml/preset/ensemble/new-groove` | `rules` 或 `invite` | `rules` | `learn nod` 時，沒有點頭的 groove 演奏什麼；`invite` 每個 groove 抽一次與規則不同的 bass 變奏，邀請點頭 |
 | `/mpciml/preset/ensemble/answer-after` | 1 或 2 | 2 | `follow-by groove` 時：1 對與 groove 不同的小節立即以該小節的規則回應；2 等 groove tracker 判斷（fill，或新 groove 的第二小節） |
+| `/mpciml/preset/ensemble/catch` | 0、1 或 2 | 0 | 1：鼓手離開維持中的 groove 時，鍵盤在下一小節以鼓手剛打的節奏回應（catch，見下文「鍵盤接住 fill」）；2：只供盲測的對照（節奏取自較早的一小節）；0：關閉（#290） |
 | `/mpciml/preset/ensemble/status` | 0 或 1 | 1 | 1：clock 執行時，每個小節線與每次按 pad 16、15 後在終端機印出一行狀態（見下文）；0：不印，盲測比較時送出（[盲測比較](trials.md)）。clock 未執行時被忽略的按壓兩種設定都會印出 |
 
 再次載入 `ensemble` 或重新啟動 engine 時，設定回到預設值。值不正確時得到
@@ -440,7 +441,7 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `transform` | 正在演奏的 bass 與旋律的轉換（`plain`、`lock`、`answer`、`backbeat`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learn` | 學習模式（`off`、`likes`、`demo`、`nod`） |
 | `likes` | 載入 `ensemble` 之後計入選擇的「喜歡」次數；`learn nod` 時為記住變奏的點頭次數 |
-| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`，`follow-by groove` 時 bass 回應 fill 為 `fill`，`learn nod` 時 bass 為 `nod`、`group` 或 `invite`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
+| `chose` | 正在演奏的 bass 與旋律變奏的來源（`rule`、`bandit`、`model`、`want`，`melody-mode still` 時旋律為 `still`，`follow-by groove` 時 bass 回應 fill 為 `fill`，`learn nod` 時 bass 為 `nod`、`group` 或 `invite`，catch 時旋律為 `catch`；該 loop 靜音、不是 loop 或沒有 `--clock` 時為 `-`） |
 | `learned` | 最多 4 個 `<部分>:<情境>><變奏>`，學到的最高選擇與規則不同的情境；`learn nod` 時為本次點頭過的 groove，最多 4 個 `bass:groove <id>><變奏>`（沒有時為 `-`） |
 | `want` | `learn demo` 時你要的 bass 與旋律變奏（沒有時為 `auto`） |
 | `examples` | 以 `learn demo` 示範的 bass 與旋律範例數（含 profile 中的範例） |
@@ -453,8 +454,42 @@ channel、`length`、`immediate`、`bar`、`filter-cc`、切換模式的 pad、`
 | `learn-group` | 設定值（0 或 1） |
 | `new-groove` | 設定值（`rules`、`invite`） |
 | `answer-after` | 設定值（1 或 2） |
+| `catch` | 設定值（0、1 或 2） |
 
 名稱與參數依 preset 的版本管理（ADR 0004）。
+
+**鍵盤接住 fill**（catch，#290）：`catch 1`（設定，預設 0）時，你離開維持中的 groove，鍵盤在
+下一小節以你剛打的節奏奏一個短樂句，bass 保持它的線條。
+
+- **何時**：剛打完的小節是某個 groove 的 fill（狀態行的 `fill`），之前兩小節是該 groove 的小節，
+  而且有至少 2 下 pad 15、16 以外的打擊；clock 必須執行，旋律必須跟隨（`melody-mode follow`）。
+  與 `follow-by` 無關。catch 之後要再有兩小節 groove 才會有下一個，所以每次離開最多一個。
+- **奏什麼**：你打的每個 16 分音符 step 一個音（取該 step 最大聲的打擊，最多 8 個最大聲的），
+  加上第一拍的重音。音高依序取鍵盤在該小節本來要奏的變奏的和弦音，所以樂句合於和弦。每個音持續到
+  下一個音（1～4 step），力度跟隨你的打擊，偏離 step 的距離是你的打擊的一半（同 `rhythm` 移動的音）。
+- **該小節還有什麼不同**：不抽 surprise；`follow-by groove` 時 bass 奏 groove 的變奏、不奏過門；
+  `rhythm 2` 不移動鍵盤。下一小節照常演奏。
+- **看得到什麼**：狀態行與回覆 `chose` 中旋律的來源為 `catch`（`melody home (catch)`），
+  `engine.log` 有 `ensemble: catch bar 12 answers bar 11, steps 0 3 6 10`，learn log 該小節的那一行
+  有 `catch`（`{"bar", "steps"}`，沒有時為 `null`）。
+
+`catch 2` 只供盲測對照，不是用來演奏的：同樣的小節以同樣的方式回應，但節奏取自較早的一小節（上一個
+catch 回應的小節；Start 之後第一個 catch 則是你的 fill 的前一小節）。它的變化與 `catch 1` 一樣多，
+但不取你剛打的內容（[盲測比較](trials.md)，`examples/trial/catch.json`）。在這個比較說明它有幫助
+之前，catch 預設關閉。
+
+**設計依據**：取對方的節奏、以樂團自己的和弦音演奏，依 Biles 的 *Interactive GenJam*（ICMC
+1998）：它把獨奏者最後幾小節對應到和弦音階的索引，在下一段和弦上奏回；論文沒有演奏者或聽者的評估。
+第一拍的重音依一個鼓伴奏 app 對回應以 crash 結尾的 fill 的描述（Bashery 測試者說明；廠商的描述，
+方法未公開）。一個聲部回應、其他聲部保持線條，依 Michaelsen 對 Miles Davis Quintet 的分析
+（*Making "Anti-Music"*，Music Theory Online 2019）；由哪個聲部回應（這裡是鍵盤）是我們的選擇。
+回應是偶爾的，因為保持角色的伴奏者常常正是獨奏者想要的（Givan，*Rethinking Interaction in Jazz
+Improvisation*，Music Theory Online 2016）。catch 保留你的節奏、改變音高，即 Wilson 與 MacDonald
+所說的 "augmentation"（Psychology of Music 2016）。對照 `catch 2` 依 Setzler 與 Goldstone
+（CogSci 2019）：鋼琴家在不知情下與會回應的夥伴或不能回應的錄音合奏；盲測把「它回應了我」與
+「好聽」分開問，因為會回應的夥伴不一定是演奏者最喜歡的（Sjerps，TU Delft 2025；Dotov 等，2024）。
+何時回應取自 1,152 個盲測錄音的小節：離開維持兩小節以上的 groove 的小節約每 8 小節一次，之後鼓手
+回到同一個 groove 的只有 23%，所以 catch 不假設 groove 會回來。
 
 **狀態行**（#230）：`status 1`（預設）時，終端機在 Live 演奏中的每個小節線，以及每次按
 pad 16、15 之後印出一行，例如：
@@ -592,6 +627,9 @@ bass 線條的音移向上一小節的 kick；`bass and melody` 時旋律的音�
 原樣的線條對照來聽。
 設定 **melody mode** 也有 `still`（#233）：鍵盤每小節奏 `home`、bass 照常跟隨，表中旋律標示
 `(still)`。
+設定 **catch** 就是樂器的 `catch`（#290）：選 `catch`（或 `comparison (trials only)`）時，鍵盤
+接住 fill 的小節，表的 `melody` 欄最後加上 `catch` 與其音的 step（從 1 起算），`chose` 中旋律為
+`catch`。格子與錄音都適用；格子中維持兩小節以上的節奏型被離開一小節時就會接住。
 相同的格子與 seed 一定發出相同的聲音。表的下方有鋼琴捲簾顯示鼓、bass 與鍵盤，**MIDI file**
 下載這首曲子（鼓在 channel 10，bass 在 2，鍵盤在 3，附亮度 CC 74），可在 DAW 中開啟。
 

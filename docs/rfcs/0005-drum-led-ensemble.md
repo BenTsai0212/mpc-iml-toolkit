@@ -181,6 +181,10 @@ style — and its freedom has to sit inside that framework.
 
 Steps 5–9 are ordered by dependency, not by date.
 
+As part of step 6, the catch (#290) is being tried: when the drummer leaves a groove,
+the keys answer in the next bar with the rhythm just played and the chord tones of
+the bar (the setting `catch`, off by default until a blind trial compares it).
+
 Each step is played by the decision maker for at least 10 minutes, with a note on
 how it felt, and kept, changed or dropped, as in RFC 0004.
 
