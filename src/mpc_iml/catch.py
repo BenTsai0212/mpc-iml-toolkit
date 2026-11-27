@@ -16,7 +16,8 @@ Pure functions, no I/O and no random numbers:
 - `catch_notes`: the notes, with an accent on step 0, the pitches of the planned
   variation's `chord` 0 notes in turn, lengths to the next note (1 to `MAX_LENGTH`
   steps, inside the bar), velocity weights from the hits (`MIN_WEIGHT` to 1.0) and
-  `rhythm.FEEL` of the hits' offsets.
+  `rhythm.FEEL` of the hits' offsets (none on a late note that ends on the bar
+  line, so no catch note sounds past its bar).
 """
 
 from collections.abc import Sequence
@@ -143,7 +144,9 @@ def catch_notes(
     `tone`, `octave` and `semitones` of the `chord` 0 notes of `planned` (the
     variation the melody would play) in step order, in turn (`tone` 0 when there
     are none). Each note lasts to the next one, 1 to `MAX_LENGTH` steps, inside the
-    bar; its weight is the hit's velocity / 127, from `MIN_WEIGHT` to 1.0."""
+    bar; its weight is the hit's velocity / 127, from `MIN_WEIGHT` to 1.0. A note
+    that a late offset would carry past the bar line gets no offset, so it never
+    cuts a note of the next bar."""
     onsets = {o.step: o for o in rhythm if 0 <= o.step < steps}
     accent = onsets.get(0, Onset(0, 127))
     onsets[0] = accent
@@ -157,6 +160,9 @@ def catch_notes(
         following = order[i + 1] if i + 1 < len(order) else steps
         length = min(max(following - step, 1), MAX_LENGTH, steps - step)
         weight = 1.0 if step == 0 else _weight(onset.velocity)
+        offset = FEEL * onset.offset
+        if step + length >= steps and offset > 0:
+            offset = 0.0
         notes.append(
             LoopNote(
                 bar=bar,
@@ -168,7 +174,7 @@ def catch_notes(
                 velocity=weight,
                 chord=0,
                 semitones=semitones,
-                offset=FEEL * onset.offset,
+                offset=offset,
             )
         )
     return tuple(notes)

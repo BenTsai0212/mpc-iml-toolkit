@@ -251,3 +251,68 @@ def test_a_learn_log_without_catch_still_reads(tmp_path: Path) -> None:
     )
     header, bars = read_log(path)
     assert "catch" not in header["settings"] and "catch" not in bars[0]
+
+
+def play_timed(played: Rig, bars: list[list[tuple[int, int, int, float]]]) -> None:
+    """Play `bars` of (step, note, velocity, ticks late) from bar 0."""
+    for bar, hits in enumerate(bars):
+        for step, note, velocity, late in sorted(hits):
+            played.until(bar * BAR + step * STEP)
+            played.hit(note, velocity, late)
+        played.until((bar + 1) * BAR)
+    played.until(len(bars) * BAR + STEP)
+
+
+def timed(hits: list[tuple[int, int]]) -> list[tuple[int, int, int, float]]:
+    return [(s, n, 100, 0.0) for s, n in hits]
+
+
+def held(played: Rig, bar: int) -> list[tuple[int, int, int]]:
+    """(tick in the bar, note, length in ticks) of each melody note starting in
+    `bar`, the length up to its Note Off (or a Note On of the same pitch)."""
+    started: dict[int, int] = {}
+    found = []
+    for t, m in played.sent:
+        if m[0] & 0x0F != MELODY_ON & 0x0F or m[0] & 0xF0 not in (0x80, 0x90):
+            continue
+        if m[1] in started and (m[0] & 0xF0 == 0x80 or m[2] == 0 or m[0] & 0xF0 == 0x90):
+            begin = started.pop(m[1])
+            if bar * BAR <= begin < (bar + 1) * BAR:
+                found.append((begin - bar * BAR, m[1], t - begin))
+        if m[0] & 0xF0 == 0x90 and m[2] > 0:
+            started[m[1]] = t
+    return sorted(found)
+
+
+LATE_15 = timed([(0, KICK), (0, SNARE), (2, SNARE), (4, SNARE)]) + [(15, SNARE, 127, 0.4 * STEP)]
+"""A fill against `A` ending with a snare on step 15, late by 0.4 of a 16th. Its
+catch note on step 15 has the pitch of the next bar's note on step 0."""
+
+
+def test_a_late_catch_note_on_step_15_ends_inside_its_bar() -> None:
+    bars = [timed(A)] * 3 + [LATE_15, timed(A), timed(A)]
+    with_catch, without = rig(1), rig(0)
+    for played in (with_catch, without):
+        play_timed(played, bars)
+    assert caught(with_catch) == [4]
+    assert 15 in [t // STEP for t, _ in pitches(with_catch, 4)]
+    assert all(t + length <= BAR for t, _, length in held(with_catch, 4))
+    assert held(with_catch, 5) == held(without, 5)
+
+
+def test_catches_change_only_the_catch_bars() -> None:
+    late = [(s, n, v, 0.3 * STEP if s % 4 == 3 else -0.2 * STEP) for s, n, v, _ in LATE_15]
+    bars = (
+        [timed(A)] * 3
+        + [LATE_15, timed(A), timed(A), timed(A), late, timed(A), timed(A)]
+        + [timed(A), timed(ROLL), timed(A), timed(A), timed(A), LATE_15, timed(A), timed(A)]
+    )
+    runs = {c: rig(c, surprise=0) for c in (0, 1, 2)}
+    for played in runs.values():
+        play_timed(played, bars)
+    assert caught(runs[0]) == []
+    assert caught(runs[1]) == caught(runs[2]) != []
+    for c in (1, 2):
+        for bar in range(len(bars) + 1):
+            if bar not in caught(runs[c]):
+                assert held(runs[c], bar) == held(runs[0], bar), (c, bar)

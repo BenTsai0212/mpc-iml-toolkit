@@ -149,3 +149,12 @@ def test_offsets_are_the_hits_offsets_times_feel() -> None:
     rhythm = drummed([hit(4, offset=0.4), hit(9, offset=-0.5)], STEPS)
     notes = catch_notes(rhythm, PLANNED, 0, STEPS)
     assert [n.offset for n in notes] == [0.0, FEEL * 0.4, FEEL * -0.5]
+
+
+def test_a_late_note_that_ends_on_the_bar_line_gets_no_offset() -> None:
+    rhythm = drummed([hit(12, offset=0.3), hit(14, offset=0.4), hit(15, offset=-0.2)], STEPS)
+    notes = catch_notes(rhythm, PLANNED, 0, STEPS)
+    assert [n.offset for n in notes] == [0.0, FEEL * 0.3, FEEL * 0.4, FEEL * -0.2]
+    late = catch_notes(drummed([hit(13, offset=0.4)], STEPS), PLANNED, 0, STEPS)
+    assert [(n.step, n.length, n.offset) for n in late] == [(0, 4, 0.0), (13, 3, 0.0)]
+    assert all(n.step + n.length + n.offset <= STEPS for n in notes + late)
